@@ -130,7 +130,7 @@
   "exportMenuButton": "Export",
   "exportMenuDescription": "Choose what you want to download.",
   "exportFastDesc": "Small file · quickest download",
-  "exportHdDesc": "Balanced quality",
+  "exportHdDesc": "High quality",
   "export4kDesc": "Cinema Grade",
   "processedVideoFallback": "Processed Video.mp4",
   "loginSigningIn": "Signing in...",

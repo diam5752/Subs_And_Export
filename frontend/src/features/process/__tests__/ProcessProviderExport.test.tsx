@@ -197,7 +197,7 @@ describe('ProcessProvider export handling', () => {
         });
     });
 
-    it('downloads a video export without switching the preview to the same file', async () => {
+    it('downloads a high-quality 1080p export without switching the preview to the same file', async () => {
         const updatedJob = {
             ...baseProps.selectedJob,
             result_data: {
@@ -229,7 +229,7 @@ describe('ProcessProvider export handling', () => {
                 expect(api.exportVideo).toHaveBeenCalledWith(
                     'job-1',
                     '1080x1920',
-                    expect.objectContaining({ video_quality: 'balanced' }),
+                    expect.objectContaining({ video_quality: 'high quality' }),
                 );
             });
             expect(screen.getByTestId('video-url')).toHaveTextContent(

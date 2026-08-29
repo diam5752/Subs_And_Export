@@ -459,9 +459,15 @@ export function ProcessProvider({
         try {
             const subtitleFileFormats = new Set(['srt', 'vtt', 'txt']);
             const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
-            let videoQuality: 'low size' | 'balanced' | undefined;
+            let videoQuality: 'low size' | 'balanced' | 'high quality' | undefined;
             if (!subtitleFileFormats.has(resolution)) {
-                videoQuality = resolution === '720x1280' ? 'low size' : 'balanced';
+                if (resolution === '720x1280') {
+                    videoQuality = 'low size';
+                } else if (resolution === '1080x1920') {
+                    videoQuality = 'high quality';
+                } else {
+                    videoQuality = 'balanced';
+                }
             }
 
             const updatedJob = await api.exportVideo(selectedJob.id, resolution, {
