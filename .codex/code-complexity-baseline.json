@@ -398,7 +398,7 @@
         11
       ],
       "frontend/src/features/process/components/UploadSection.tsx::(anonymous)": [
-        41,
+        40,
         11
       ],
       "frontend/src/hooks/useJobPolling.ts::poll": [
@@ -788,13 +788,13 @@
         79
       ],
       "frontend/src/app/page.tsx::DashboardPage": [
-        70
+        67
       ],
       "frontend/src/app/page.tsx::reconcileCheckout": [
         60
       ],
       "frontend/src/app/register/page.tsx::RegisterPage": [
-        125
+        123
       ],
       "frontend/src/components/ConfirmActionModal.tsx::ConfirmActionModal": [
         82
@@ -834,7 +834,7 @@
         59
       ],
       "frontend/src/features/process/components/UploadSection.tsx::(anonymous)": [
-        267
+        249
       ],
       "frontend/src/lib/api.ts::apiErrorFromPayload": [
         60
