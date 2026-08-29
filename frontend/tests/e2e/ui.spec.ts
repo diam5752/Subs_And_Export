@@ -1013,7 +1013,7 @@ test('mobile public shell avoids a needless cookie consent gate and keeps the fo
     };
   });
 
-  expect(footerMetrics.direction).toBe('column');
+  expect(footerMetrics.direction).toBe('row');
   for (const link of footerMetrics.links) {
     expect(link.left).toBeGreaterThanOrEqual(footerMetrics.left);
     expect(link.right).toBeLessThanOrEqual(footerMetrics.right);
@@ -1021,21 +1021,15 @@ test('mobile public shell avoids a needless cookie consent gate and keeps the fo
 });
 
 for (const authenticated of [false, true] as const) {
-  test(`initial mobile upload landing fits one viewport (${authenticated ? 'signed in' : 'signed out'})`, async ({ page }) => {
-    await page.setViewportSize(viewports.mobile);
-    await mockApi(page, { authenticated });
-    await page.goto('/');
-    await waitForUploadWorkspace(page, { authenticated });
-    await stabilizeUi(page);
-
-    await expect(page.locator('.app-shell')).toHaveClass(/app-shell-upload-landing/);
-
-    for (const viewport of [
-      viewports.mobile,
-      { width: 375, height: 667 },
-    ]) {
+  for (const viewport of [viewports.mobile, { width: 375, height: 667 }] as const) {
+    test(`initial mobile upload landing fits one viewport (${authenticated ? 'signed in' : 'signed out'}, ${viewport.width}x${viewport.height})`, async ({ page }) => {
       await page.setViewportSize(viewport);
+      await mockApi(page, { authenticated });
+      await page.goto('/');
+      await waitForUploadWorkspace(page, { authenticated });
       await stabilizeUi(page);
+
+      await expect(page.locator('.app-shell')).toHaveClass(/app-shell-upload-landing/);
 
       const metrics = await page.evaluate(() => {
         const bounds = (selector: string) => {
@@ -1069,8 +1063,8 @@ for (const authenticated of [false, true] as const) {
         .toBeGreaterThanOrEqual(44);
       expect(metrics.feedback.bottom, `${viewport.width}x${viewport.height} feedback/footer clearance`)
         .toBeLessThanOrEqual(metrics.footer.top - 4);
-    }
-  });
+    });
+  }
 }
 
 for (const [label, viewport] of Object.entries(viewports)) {
