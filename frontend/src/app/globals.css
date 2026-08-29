@@ -1450,6 +1450,62 @@ body {
   outline-offset: 3px;
 }
 
+.editor-export-progress {
+  margin: -2px 0 14px;
+  border: 1px solid #dfe1e5;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.editor-export-progress-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+  color: #555a63;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.editor-export-progress-copy strong {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-export-progress-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8e9ec;
+}
+
+.editor-export-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+.editor-export-progress-track > span.is-indeterminate {
+  width: 34%;
+  animation: editor-export-progress 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes editor-export-progress {
+  from { transform: translateX(-30%); }
+  to { transform: translateX(220%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-export-progress-track > span.is-indeterminate {
+    animation: none;
+    transform: none;
+  }
+}
+
 .editor-export-backdrop {
   position: fixed;
   z-index: 50;

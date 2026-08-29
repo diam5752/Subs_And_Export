@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -49,6 +50,77 @@ from .validation import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _log_export_failure(message: str, exc: Exception) -> None:
+    logger.error(
+        message,
+        extra={"data": {"error_type": type(exc).__name__}},
+    )
+
+
+def _export_progress_callback(
+    job_store: JobStore,
+    job_id: str,
+) -> Callable[[float], None]:
+    """Persist coarse FFmpeg progress without turning every frame into a write."""
+    last_progress = -2
+
+    def update(progress: float) -> None:
+        nonlocal last_progress
+        bounded = max(1, min(99, int(progress)))
+        if bounded < last_progress + 2:
+            return
+        last_progress = bounded
+        job_store.update_job(job_id, progress=bounded)
+
+    return update
+
+
+def _render_export_video(
+    *,
+    job_id: str,
+    input_video: Path,
+    artifact_dir: Path,
+    resolution: str,
+    job_store: JobStore,
+    user_id: str,
+    subtitle_settings: dict[str, object],
+    video_crf: int,
+    data_dir: Path,
+    db: Database,
+) -> Path:
+    width, height = (int(part) for part in resolution.split("x"))
+    pixel_multiplier = max(1.0, (width * height) / (1080 * 1920))
+    required_output_bytes = int(input_video.stat().st_size * pixel_multiplier)
+    slots_required = render_slot_weight(
+        width,
+        height,
+        capacity=settings.media_render_slots,
+    )
+    job_store.update_job(job_id, progress=0)
+    with lock_media_render(
+        data_dir=data_dir,
+        slots_required=slots_required,
+    ) as render_slots:
+        with reserve_render_storage(
+            data_dir=data_dir,
+            required_bytes=required_output_bytes,
+            render_slots=render_slots,
+            db=db,
+        ):
+            return generate_video_variant(
+                job_id,
+                input_video,
+                artifact_dir,
+                resolution,
+                job_store,
+                user_id,
+                subtitle_settings=subtitle_settings or None,
+                video_crf=video_crf,
+                held_render_slots=render_slots,
+                progress_callback=_export_progress_callback(job_store, job_id),
+            )
 
 
 def _validate_subtitle_export_settings(request: "ExportRequest") -> None:
@@ -306,7 +378,7 @@ def _export_video_locked(
         except MalformedTranscriptError as e:
             raise HTTPException(422, f"Cannot export malformed transcript: {sanitize_message(str(e))}") from e
         except Exception as e:
-            logger.exception("Subtitle export failed")
+            _log_export_failure("Subtitle export failed", e)
             raise HTTPException(500, f"{request.resolution.upper()} export failed: {sanitize_message(str(e))}")
 
     # Video export
@@ -397,35 +469,18 @@ def _export_video_locked(
             logger.info("Reused exact rendered video export")
             return JobResponse.model_validate(updated_job)
 
-        width, height = (int(part) for part in request.resolution.split("x"))
-        pixel_multiplier = max(1.0, (width * height) / (1080 * 1920))
-        required_output_bytes = int(input_video.stat().st_size * pixel_multiplier)
-        slots_required = render_slot_weight(
-            width,
-            height,
-            capacity=settings.media_render_slots,
-        )
-        with lock_media_render(
+        output_path = _render_export_video(
+            job_id=job_id,
+            input_video=input_video,
+            artifact_dir=artifact_dir,
+            resolution=request.resolution,
+            job_store=job_store,
+            user_id=current_user.id,
+            subtitle_settings=subtitle_settings,
+            video_crf=video_crf,
             data_dir=data_dir,
-            slots_required=slots_required,
-        ) as render_slots:
-            with reserve_render_storage(
-                data_dir=data_dir,
-                required_bytes=required_output_bytes,
-                render_slots=render_slots,
-                db=db,
-            ):
-                output_path = generate_video_variant(
-                    job_id,
-                    input_video,
-                    artifact_dir,
-                    request.resolution,
-                    job_store,
-                    current_user.id,
-                    subtitle_settings=subtitle_settings or None,
-                    video_crf=video_crf,
-                    held_render_slots=render_slots,
-                )
+            db=db,
+        )
 
         # Rendering may create or replace the ASS file. Persist the signature
         # of the exact subtitle asset that produced this MP4.
@@ -458,7 +513,8 @@ def _export_video_locked(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("Video export failed")
+        job_store.update_job(job_id, progress=100)
+        _log_export_failure("Video export failed", exc)
         raise HTTPException(
             500,
             "Export failed. Please try again.",

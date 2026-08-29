@@ -100,7 +100,13 @@ class Settings(BaseSettings):
             raise ValueError("GSP_ELEVENLABS_API_BASE must use an approved ElevenLabs API endpoint")
         return normalized
 
-    @field_validator("allowed_origins", "trusted_hosts", "proxy_trusted_hosts", mode="before")
+    @field_validator(
+        "allowed_origins",
+        "trusted_hosts",
+        "proxy_trusted_hosts",
+        "observability_admin_user_ids",
+        mode="before",
+    )
     @classmethod
     def parse_list(cls, v: object) -> list[str]:
         if isinstance(v, str):
@@ -398,6 +404,28 @@ class Settings(BaseSettings):
         ge=30,
         le=365,
         validation_alias="GSP_FEEDBACK_RETENTION_DAYS",
+    )
+
+    # --- First-party, content-free operational observability ---
+    observability_enabled: bool = Field(
+        default=False,
+        validation_alias="GSP_OBSERVABILITY_ENABLED",
+    )
+    observability_retention_hours: int = Field(
+        default=168,
+        ge=24,
+        le=720,
+        validation_alias="GSP_OBSERVABILITY_RETENTION_HOURS",
+    )
+    observability_presence_ttl_seconds: int = Field(
+        default=90,
+        ge=30,
+        le=300,
+        validation_alias="GSP_OBSERVABILITY_PRESENCE_TTL_SECONDS",
+    )
+    observability_admin_user_ids: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        validation_alias="GSP_OBSERVABILITY_ADMIN_USER_IDS",
     )
 
     # --- Prepaid credit Checkout (owner-gated; disabled until Stripe setup) ---

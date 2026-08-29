@@ -302,6 +302,14 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     return false;
   };
 
+  await page.route('**/observability/events', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    await route.fulfill({
+      status: 204,
+      headers: corsHeaders,
+    });
+  });
+
   await page.route('**/auth/me', async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
@@ -611,7 +619,10 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 }
 
 export async function stabilizeUi(page: Page): Promise<void> {
-  await page.waitForLoadState('networkidle');
+  // The product deliberately keeps short-lived presence and job polling alive.
+  // Wait for the document and the rendered surface instead of a global network
+  // state that a healthy, observable application does not promise to reach.
+  await page.waitForLoadState('domcontentloaded');
   await page.evaluate(async () => {
     if ('fonts' in document) {
       await document.fonts.ready;

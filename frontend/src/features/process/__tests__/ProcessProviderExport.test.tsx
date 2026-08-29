@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 import { I18nProvider } from '@/context/I18nContext';
@@ -12,6 +12,7 @@ jest.mock('@/lib/api', () => ({
     API_BASE: 'http://localhost:8080',
     api: {
         exportVideo: jest.fn(),
+        getJobStatus: jest.fn(),
         createArtifactDownloadGrant: jest.fn(),
         getJobsPaginated: jest.fn(),
         updateJobTranscription: jest.fn(),
@@ -19,7 +20,7 @@ jest.mock('@/lib/api', () => ({
 }));
 
 function ExportHarness() {
-    const { handleExport, exportError, videoUrl } = useProcessContext();
+    const { handleExport, exportError, exportProgress, videoUrl } = useProcessContext();
 
     return (
         <div>
@@ -37,6 +38,7 @@ function ExportHarness() {
             </button>
             <div data-testid="video-url">{videoUrl ?? ''}</div>
             <div data-testid="export-error">{exportError ?? ''}</div>
+            <div data-testid="export-progress">{exportProgress['1080x1920'] ?? 'pending'}</div>
         </div>
     );
 }
@@ -181,6 +183,7 @@ describe('ProcessProvider export handling', () => {
             expires_in: 300,
         });
         (api.updateJobTranscription as jest.Mock).mockResolvedValue({ status: 'ok' });
+        (api.getJobStatus as jest.Mock).mockResolvedValue(baseProps.selectedJob);
     });
 
     it('stores a visible export error when variant export fails', async () => {
@@ -249,6 +252,41 @@ describe('ProcessProvider export handling', () => {
             );
         } finally {
             clickSpy.mockRestore();
+        }
+    });
+
+    it('polls and exposes real render progress while a video export is running', async () => {
+        jest.useFakeTimers();
+        let finishExport: (job: JobResponse) => void = () => undefined;
+        const pendingExport = new Promise<JobResponse>((resolve) => {
+            finishExport = resolve;
+        });
+        (api.exportVideo as jest.Mock).mockReturnValue(pendingExport);
+        (api.getJobStatus as jest.Mock).mockResolvedValue({
+            ...baseProps.selectedJob,
+            progress: 42,
+        });
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <ExportTestBed />
+                </I18nProvider>,
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'export-1080' }));
+            await act(async () => {
+                jest.advanceTimersByTime(750);
+                await Promise.resolve();
+            });
+
+            await waitFor(() => {
+                expect(api.getJobStatus).toHaveBeenCalledWith('job-1');
+                expect(screen.getByTestId('export-progress')).toHaveTextContent('42');
+            });
+
+            await act(async () => finishExport(baseProps.selectedJob));
+        } finally {
+            jest.useRealTimers();
         }
     });
 

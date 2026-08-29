@@ -44,7 +44,7 @@
         12
       ],
       "backend/app/api/endpoints/export_routes.py::_export_video_locked": [
-        47
+        45
       ],
       "backend/app/api/endpoints/file_utils.py::save_request_stream_with_limit": [
         15
@@ -317,7 +317,7 @@
         20
       ],
       "backend/app/services/video_processing.py::generate_video_variant": [
-        25
+        21
       ],
       "backend/app/services/video_processing.py::process_video_pipeline": [
         74
@@ -339,9 +339,6 @@
       ],
       "frontend/src/app/admin/billing/page.tsx::BillingInvoiceCard": [
         65
-      ],
-      "frontend/src/app/page.tsx::(anonymous)": [
-        25
       ],
       "frontend/src/app/page.tsx::handleAccountDialogKeyDown": [
         11
@@ -500,7 +497,7 @@
         162
       ],
       "backend/app/api/endpoints/export_routes.py::_export_video_locked": [
-        195
+        179
       ],
       "backend/app/api/endpoints/file_utils.py::save_request_stream_with_limit": [
         60
@@ -758,7 +755,7 @@
         54
       ],
       "backend/app/services/video_processing.py::generate_video_variant": [
-        126
+        106
       ],
       "backend/app/services/video_processing.py::process_video_pipeline": [
         300
@@ -785,7 +782,7 @@
         86
       ],
       "frontend/src/app/page.tsx::(anonymous)": [
-        79
+        60
       ],
       "frontend/src/app/page.tsx::DashboardPage": [
         67
@@ -824,10 +821,10 @@
         103
       ],
       "frontend/src/features/process/components/PreviewSection.tsx::(anonymous)": [
-        119
+        116
       ],
       "frontend/src/features/process/components/PreviewSection.tsx::PreviewSection": [
-        86
+        85
       ],
       "frontend/src/features/process/components/Sidebar.tsx::(anonymous)": [
         68,
@@ -840,7 +837,7 @@
         60
       ],
       "frontend/src/lib/api.ts::request": [
-        57
+        56
       ],
       "frontend/src/lib/subtitleUtils.ts::updateCueText": [
         56

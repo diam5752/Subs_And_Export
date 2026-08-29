@@ -230,6 +230,10 @@ limiter_feedback_hour = _create_limiter(
     action="feedback_hour",
 )
 
+# Operational telemetry never persists a network address. Keep this limiter
+# process-local even when the rest of production rate limiting uses Postgres.
+limiter_observability = RateLimiter(limit=180, window=60)
+
 # Daily signup limit per IP (anti-abuse)
 limiter_signup_daily = _create_limiter(limit=5, window=86400, action="signup_daily")
 

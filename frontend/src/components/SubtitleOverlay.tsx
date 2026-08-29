@@ -251,6 +251,20 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         beginTransform(event, 'position');
     }, [beginTransform]);
 
+    const handlePositionHandlePointerDown = useCallback((
+        event: React.PointerEvent<HTMLButtonElement>,
+    ) => {
+        event.stopPropagation();
+        beginTransform(event, 'position');
+        try {
+            // The edge handle can leave the overlay on its first movement.
+            // Capture it now without retargeting ordinary subtitle-edit clicks.
+            overlayRef.current?.setPointerCapture?.(event.pointerId);
+        } catch {
+            // Pointer capture is best-effort on older mobile browsers.
+        }
+    }, [beginTransform]);
+
     const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
         event.preventDefault();
         event.stopPropagation();
@@ -533,6 +547,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                                 aria-valuenow={settings.position}
                                 aria-valuetext={`${settings.position}%`}
                                 title={transformControls.labels.move}
+                                onPointerDown={handlePositionHandlePointerDown}
                                 onKeyDown={handlePositionKeyDown}
                                 className="subtitle-desktop-transform-handle absolute left-0 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-sm font-black text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                             >
@@ -655,6 +670,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         handlePointerMove,
         handlePositionKeyDown,
         handlePositionPointerDown,
+        handlePositionHandlePointerDown,
         handleResizePointerDown,
         handleSizeKeyDown,
         videoHeight,

@@ -93,9 +93,12 @@ def test_successful_delete_waits_for_export_and_leaves_no_recreated_artifact(
             subtitle_settings,
             video_crf,
             held_render_slots,
+            progress_callback,
         ):
             assert isinstance(video_crf, int)
             assert held_render_slots
+            assert callable(progress_callback)
+            progress_callback(50)
             export_entered.set()
             assert allow_export_write.wait(timeout=5)
             destination_dir.mkdir(parents=True, exist_ok=True)

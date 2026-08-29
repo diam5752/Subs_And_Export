@@ -29,7 +29,15 @@ from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from backend.app.api.endpoints import auth, billing, billing_admin, feedback, history, videos
+from backend.app.api.endpoints import (
+    auth,
+    billing,
+    billing_admin,
+    feedback,
+    history,
+    observability,
+    videos,
+)
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
 from backend.app.api.endpoints.processing_tasks import (
     reconcile_stranded_cancellations,
@@ -51,6 +59,7 @@ from backend.app.services.consumer_contracts import (
     assert_consumer_contract_registry_approved,
 )
 from backend.app.services.jobs import JobStore
+from backend.app.services.observability import ObservabilityStore, route_bucket
 from backend.app.services.startup_recovery import reconcile_interrupted_media_jobs
 
 
@@ -91,6 +100,15 @@ def assert_runtime_download_grant_configuration() -> None:
     settings.assert_download_grant_configuration()
 
 
+def _configured_observability_store() -> ObservabilityStore:
+    return ObservabilityStore(
+        data_dir=settings.data_dir,
+        enabled=settings.observability_enabled,
+        retention_hours=settings.observability_retention_hours,
+        presence_ttl_seconds=settings.observability_presence_ttl_seconds,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
@@ -98,6 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     assert_runtime_privacy_configuration()
     assert_runtime_feedback_configuration()
     assert_runtime_download_grant_configuration()
+    app.state.observability = _configured_observability_store()
     app.state.db = Database()
     retention_task: asyncio.Task[None] | None = None
     try:
@@ -271,6 +290,36 @@ app.add_middleware(
     secure_headers=SECURE_HEADERS,
 )
 
+
+class ObservabilityStatusMiddleware(BaseHTTPMiddleware):
+    """Count server failures without recording URLs, bodies, or identities."""
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            response = await call_next(request)
+        except Exception:
+            self._record(request, 500)
+            raise
+        if response.status_code >= 500:
+            self._record(request, response.status_code)
+        return response
+
+    @staticmethod
+    def _record(request: Request, status_code: int) -> None:
+        store: ObservabilityStore | None = getattr(
+            request.app.state,
+            "observability",
+            None,
+        )
+        if store is not None:
+            store.record_backend_error(
+                route=route_bucket(request.url.path),
+                status_code=status_code,
+            )
+
+
+app.add_middleware(ObservabilityStatusMiddleware)
+
 if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
     app.add_middleware(HTTPSRedirectMiddleware)
 
@@ -438,6 +487,11 @@ app.include_router(auth.media_router, tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
+app.include_router(
+    observability.router,
+    prefix="/observability",
+    tags=["observability"],
+)
 app.include_router(billing.router, prefix="/billing", tags=["billing"])
 app.include_router(
     billing_admin.router,

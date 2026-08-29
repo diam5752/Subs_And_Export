@@ -5,7 +5,7 @@ import binascii
 import json
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
-from typing import Annotated, Generator
+from typing import Annotated, Generator, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -30,6 +30,7 @@ from ..services.billing_consumer_records import BillingConsumerRecordStore
 from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 from ..services.login_promotion import LoginPromotionStore
+from ..services.observability import ObservabilityStore
 from ..services.points import PointsStore
 from ..services.pricing import VIDEO_CREDIT_BRACKETS
 from ..services.product_feedback import FeedbackStore
@@ -69,6 +70,10 @@ def get_current_session_token(
 
 def get_job_store(db: Database = Depends(get_db)) -> JobStore:
     return JobStore(db=db)
+
+
+def get_observability_store(request: Request) -> ObservabilityStore:
+    return cast(ObservabilityStore, request.app.state.observability)
 
 
 def get_history_store(db: Database = Depends(get_db)) -> HistoryStore:

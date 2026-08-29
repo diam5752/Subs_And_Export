@@ -67,6 +67,7 @@ const mockContextValue = {
     setOverrideStep: jest.fn(),
     handleExport: jest.fn(),
     exportingResolutions: {},
+    exportProgress: {},
     exportError: null,
     videoInfo: null,
     previewVideoUrl: null,

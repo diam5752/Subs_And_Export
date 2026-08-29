@@ -31,6 +31,7 @@ type PreviewSectionLayoutProps = {
     handlePlayerTimeUpdate: (time: number) => void;
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
+    exportProgress: Record<string, number | null>;
     exportError: string | null;
     activeSidebarTab: 'transcript' | 'styles';
     exportFilenamePreview: string;
@@ -308,6 +309,50 @@ const ExportMenu = memo(({
 });
 ExportMenu.displayName = 'ExportMenu';
 
+const ExportProgress = memo(({
+    exportingResolutions,
+    exportProgress,
+    t,
+}: {
+    exportingResolutions: Record<string, boolean>;
+    exportProgress: Record<string, number | null>;
+    t: PreviewSectionLayoutProps['t'];
+}) => {
+    const resolution = Object.keys(exportingResolutions).find(
+        key => exportingResolutions[key],
+    );
+    if (!resolution) return null;
+    const progress = exportProgress[resolution];
+    const numericProgress = typeof progress === 'number' ? progress : undefined;
+
+    return (
+        <div className="editor-export-progress" data-testid="export-progress">
+            <div className="editor-export-progress-copy">
+                <span>{t('exportProgressLabel', { resolution })}</span>
+                <strong>
+                    {numericProgress === undefined
+                        ? t('exportProgressPreparing')
+                        : `${numericProgress}%`}
+                </strong>
+            </div>
+            <div
+                className="editor-export-progress-track"
+                role="progressbar"
+                aria-label={t('exportProgressLabel', { resolution })}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={numericProgress}
+            >
+                <span
+                    className={numericProgress === undefined ? 'is-indeterminate' : ''}
+                    style={numericProgress === undefined ? undefined : { width: `${numericProgress}%` }}
+                />
+            </div>
+        </div>
+    );
+});
+ExportProgress.displayName = 'ExportProgress';
+
 const PreviewSectionLayout = memo(({
     resultsRef,
     selectedJob,
@@ -321,7 +366,7 @@ const PreviewSectionLayout = memo(({
     subtitleTransformControls,
     handlePlayerTimeUpdate,
     handleExport,
-    exportingResolutions,
+    exportingResolutions, exportProgress,
     exportError,
     activeSidebarTab,
     exportFilenamePreview,
@@ -395,6 +440,8 @@ const PreviewSectionLayout = memo(({
                                 />
                             </div>
 
+                            <ExportProgress exportingResolutions={exportingResolutions} exportProgress={exportProgress} t={t} />
+
                             {!isProcessing && (
                                 <div className="editor-product animate-fade-in" data-testid="completed-editor">
                                     <div
@@ -447,11 +494,7 @@ const PreviewSectionLayout = memo(({
                         </>
                     )}
 
-                    <NewVideoConfirmModal
-                        isOpen={showNewVideoModal}
-                        onClose={() => setShowNewVideoModal(false)}
-                        onConfirm={onNewVideoConfirm}
-                    />
+                    <NewVideoConfirmModal isOpen={showNewVideoModal} onClose={() => setShowNewVideoModal(false)} onConfirm={onNewVideoConfirm} />
         </div>
     </div>
 ));
@@ -476,9 +519,7 @@ export function PreviewSection() {
         watermarkEnabled,
         playerRef,
         resultsRef,
-        handleExport,
-        exportingResolutions,
-        exportError,
+        handleExport, exportingResolutions, exportProgress, exportError,
         onReset,
         onJobSelect,
         editingCueIndex,
@@ -580,6 +621,7 @@ export function PreviewSection() {
             handlePlayerTimeUpdate={handlePlayerTimeUpdate}
             handleExport={handleExport}
             exportingResolutions={exportingResolutions}
+            exportProgress={exportProgress}
             exportError={exportError}
             activeSidebarTab={activeSidebarTab}
             exportFilenamePreview={exportFilenamePreview}

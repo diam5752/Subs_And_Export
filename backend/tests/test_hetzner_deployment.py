@@ -376,6 +376,10 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GSP_STRIPE_PRICE_CORE: "${GSP_STRIPE_PRICE_CORE:-}"' in compose
     assert 'GSP_STRIPE_PRICE_PRO: "${GSP_STRIPE_PRICE_PRO:-}"' in compose
     assert 'GSP_BILLING_ADMIN_USER_IDS: ""' in compose
+    assert 'GSP_OBSERVABILITY_ENABLED: "1"' in compose
+    assert 'GSP_OBSERVABILITY_RETENTION_HOURS: "168"' in compose
+    assert 'GSP_OBSERVABILITY_PRESENCE_TTL_SECONDS: "90"' in compose
+    assert 'GSP_OBSERVABILITY_ADMIN_USER_IDS: "${GSP_OBSERVABILITY_ADMIN_USER_IDS:?' in compose
     assert 'GSP_FEEDBACK_ENABLED: "1"' in compose
     assert "SUBFRAME_FEEDBACK_API_ENV_FILE is required" in compose
     assert 'GSP_DISABLE_RATELIMIT: "0"' in compose
@@ -579,6 +583,9 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0",
         "GSP_STRIPE_API_BASE=http://app-edge:8081/stripe",
         "GSP_BILLING_ADMIN_USER_IDS=",
+        "GSP_OBSERVABILITY_ENABLED=1",
+        "GSP_OBSERVABILITY_RETENTION_HOURS=168",
+        "GSP_OBSERVABILITY_PRESENCE_TTL_SECONDS=90",
         "STRIPE_SECRET_KEY=",
         "STRIPE_WEBHOOK_SECRET=",
         "OPENAI_API_KEY=",
@@ -773,6 +780,10 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_ADJUSTMENT_WORKFLOW_READY=0" in environment
     assert "GSP_STRIPE_API_BASE=http://app-edge:8081/stripe" in environment
     assert "GSP_BILLING_ADMIN_USER_IDS=" in environment
+    assert "GSP_OBSERVABILITY_ENABLED=0" in environment
+    assert "GSP_OBSERVABILITY_RETENTION_HOURS=168" in environment
+    assert "GSP_OBSERVABILITY_PRESENCE_TTL_SECONDS=90" in environment
+    assert "GSP_OBSERVABILITY_ADMIN_USER_IDS=" in environment
     assert "GSP_MOCK_EXTERNAL_SERVICES=0" in environment
     assert "GSP_ELEVENLABS_ENABLED=1" in environment
     assert "GSP_ELEVENLABS_API_BASE=http://app-edge:8081/elevenlabs" in environment
@@ -782,6 +793,7 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05" in environment
     assert "google_client_id=$(env_value GOOGLE_CLIENT_ID)" in verifier
     assert "billing_admin_user_ids=$(env_value GSP_BILLING_ADMIN_USER_IDS)" not in verifier
+    assert "observability_admin_user_ids=$(env_value GSP_OBSERVABILITY_ADMIN_USER_IDS)" in verifier
     assert "NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}" in compose
     assert "ARG NEXT_PUBLIC_MAX_UPLOAD_MB=500" in frontend_dockerfile
     assert "ARG NEXT_PUBLIC_TRANSCRIBE_PROVIDER=mock" in frontend_dockerfile
@@ -2149,7 +2161,7 @@ def test_edge_caps_feedback_before_the_generic_backend_proxy() -> None:
     assert caddyfile.count(feedback_matcher) == 1
     assert caddyfile.index(feedback_matcher) < caddyfile.index("@backend path")
     feedback_handler = caddyfile.split(feedback_matcher, 1)[1].split(
-        "@backend path",
+        "@observability_events",
         1,
     )[0]
     assert "request_body" in feedback_handler
@@ -2158,6 +2170,20 @@ def test_edge_caps_feedback_before_the_generic_backend_proxy() -> None:
     assert "/feedback" not in backend_matcher
     assert "Public feedback request-body cap must be exactly 16KB" in verifier
     assert "Feedback must not bypass its body cap" in verifier
+
+
+def test_edge_caps_observability_events_before_the_generic_backend_proxy() -> None:
+    caddyfile = deployment_text("Caddyfile")
+    verifier = deployment_text("verify-production.sh")
+
+    matcher = "@observability_events path /observability/events"
+    assert caddyfile.count(matcher) == 1
+    assert caddyfile.index(matcher) < caddyfile.index("@backend path")
+    handler = caddyfile.split(matcher, 1)[1].split("@backend path", 1)[0]
+    assert "request_body" in handler
+    assert "max_size 4KB" in handler
+    assert handler.count("reverse_proxy backend:8080") == 1
+    assert "Operational telemetry request-body cap must be exactly 4KB" in verifier
 
 
 def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:

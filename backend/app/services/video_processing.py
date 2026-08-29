@@ -556,6 +556,56 @@ def process_video_pipeline(
     return destination
 
 
+def _encode_video_variant(
+    *,
+    input_path: Path,
+    ass_path: Path,
+    artifact_dir: Path,
+    width: int,
+    height: int,
+    result_data: Mapping[str, Any],
+    subtitle_settings: Mapping[str, Any] | None,
+    video_crf: int | None,
+    held_render_slots: tuple[int, ...] | None,
+    progress_callback: Callable[[float], None] | None,
+) -> Path:
+    output_filename = f"processed_{width}x{height}.mp4"
+    destination = artifact_dir / output_filename
+    stored_crf = result_data.get("video_crf")
+    resolved_video_crf = (
+        int(video_crf)
+        if video_crf is not None
+        else int(stored_crf) if stored_crf is not None
+        else settings.default_video_crf
+    )
+    watermark_enabled = (
+        bool(subtitle_settings.get("watermark_enabled", False))
+        if subtitle_settings
+        else bool(result_data.get("watermark_enabled", False))
+    )
+    temporary_destination = artifact_dir / f".{output_filename}.{uuid.uuid4().hex}.tmp.mp4"
+    try:
+        ffmpeg_utils.run_ffmpeg_with_subs(
+            input_path,
+            ass_path,
+            temporary_destination,
+            video_crf=resolved_video_crf,
+            video_preset=settings.default_video_preset,
+            audio_bitrate=settings.default_audio_bitrate,
+            audio_copy=ffmpeg_utils.input_audio_is_aac(input_path),
+            use_hw_accel=settings.use_hw_accel,
+            output_width=width,
+            output_height=height,
+            watermark_enabled=watermark_enabled,
+            held_render_slots=held_render_slots,
+            progress_callback=progress_callback,
+        )
+        temporary_destination.replace(destination)
+    finally:
+        temporary_destination.unlink(missing_ok=True)
+    return destination
+
+
 def generate_video_variant(
     job_id: str,
     input_path: Path,
@@ -566,6 +616,7 @@ def generate_video_variant(
     subtitle_settings: Mapping[str, Any] | None = None,
     video_crf: int | None = None,
     held_render_slots: tuple[int, ...] | None = None,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
@@ -666,40 +717,15 @@ def generate_video_variant(
             output_dir=artifact_dir,
         )
 
-    output_filename = f"processed_{width}x{height}.mp4"
-    destination = artifact_dir / output_filename
-
-    stored_crf = result_data.get("video_crf")
-    resolved_video_crf = (
-        int(video_crf)
-        if video_crf is not None
-        else int(stored_crf) if stored_crf is not None
-        else settings.default_video_crf
+    return _encode_video_variant(
+        input_path=input_path,
+        ass_path=ass_path,
+        artifact_dir=artifact_dir,
+        width=width,
+        height=height,
+        result_data=result_data,
+        subtitle_settings=subtitle_settings,
+        video_crf=video_crf,
+        held_render_slots=held_render_slots,
+        progress_callback=progress_callback,
     )
-
-    watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
-    audio_copy = ffmpeg_utils.input_audio_is_aac(input_path)
-
-    temporary_destination = artifact_dir / (
-        f".{output_filename}.{uuid.uuid4().hex}.tmp.mp4"
-    )
-    try:
-        ffmpeg_utils.run_ffmpeg_with_subs(
-            input_path,
-            ass_path,
-            temporary_destination,
-            video_crf=resolved_video_crf,
-            video_preset=settings.default_video_preset,
-            audio_bitrate=settings.default_audio_bitrate,
-            audio_copy=audio_copy,
-            use_hw_accel=settings.use_hw_accel,
-            output_width=width,
-            output_height=height,
-            watermark_enabled=watermark_enabled,
-            held_render_slots=held_render_slots,
-        )
-        temporary_destination.replace(destination)
-    finally:
-        temporary_destination.unlink(missing_ok=True)
-
-    return destination

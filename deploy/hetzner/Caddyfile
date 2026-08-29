@@ -33,7 +33,15 @@
 		reverse_proxy backend:8080
 	}
 
-	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /static/* /health
+	@observability_events path /observability/events
+	handle @observability_events {
+		request_body {
+			max_size 4KB
+		}
+		reverse_proxy backend:8080
+	}
+
+	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /observability/* /static/* /health
 	handle @backend {
 		reverse_proxy backend:8080
 	}

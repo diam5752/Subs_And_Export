@@ -153,6 +153,7 @@ function buildContext() {
         setOverrideStep: jest.fn(),
         handleExport: jest.fn(async () => { }),
         exportingResolutions: {},
+        exportProgress: {},
         exportError: null as string | null,
         onReset: jest.fn(),
         onJobSelect: jest.fn(),
@@ -292,6 +293,23 @@ describe('PreviewSection', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'exportMenuButton' }));
         expect(screen.getByRole('alert')).toHaveTextContent('Export failed');
+    });
+
+    it('shows an accessible live progress bar while rendering an export', () => {
+        contextValue.selectedJob = {
+            status: 'completed',
+            result_data: {},
+        };
+        contextValue.exportingResolutions = { '1080x1920': true };
+        contextValue.exportProgress = { '1080x1920': 42 };
+
+        render(<PreviewSection />);
+
+        const progress = screen.getByRole('progressbar', {
+            name: 'exportProgressLabel',
+        });
+        expect(progress).toHaveAttribute('aria-valuenow', '42');
+        expect(screen.getByTestId('export-progress')).toHaveTextContent('42%');
     });
 
     it('uses the compact live-preview workspace for styles and previews the public export name', () => {
