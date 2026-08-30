@@ -82,11 +82,7 @@ def test_startup_recovery_fails_job_refunds_and_deletes_workspace(
     original_list_jobs = JobStore.list_jobs_with_statuses
 
     def list_only_target_job(self: JobStore, statuses: set[str] | frozenset[str]):
-        return [
-            job
-            for job in original_list_jobs(self, statuses)
-            if job.id == job_id
-        ]
+        return [job for job in original_list_jobs(self, statuses) if job.id == job_id]
 
     monkeypatch.setattr(
         JobStore,

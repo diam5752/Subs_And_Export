@@ -260,9 +260,9 @@ def test_existing_0014_pending_schema_upgrades_and_cleanly_downgrades() -> None:
             connection_url,
             autocommit=True,
         ) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0027_restore_beta_promo_cap",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0027_restore_beta_promo_cap",
+            )
             assert connection.execute(
                 """
                 SELECT recorded_by_user_id, recorded_at
@@ -279,9 +279,7 @@ def test_existing_0014_pending_schema_upgrades_and_cleanly_downgrades() -> None:
                 connection,
                 "gsubs_enforce_billing_invoice_immutability",
             )
-            assert "recorded_by_user_id" in _issued_identity_constraint(
-                connection
-            )
+            assert "recorded_by_user_id" in _issued_identity_constraint(connection)
             assert connection.execute(
                 """
                 SELECT COUNT(*)
@@ -310,14 +308,20 @@ def test_existing_0014_pending_schema_upgrades_and_cleanly_downgrades() -> None:
             connection_url,
             autocommit=True,
         ) as connection:
-            assert _function_definition(
-                connection,
-                "gsubs_prepare_billing_invoice",
-            ) == prepare_before
-            assert _function_definition(
-                connection,
-                "gsubs_enforce_billing_invoice_immutability",
-            ) == immutable_before
+            assert (
+                _function_definition(
+                    connection,
+                    "gsubs_prepare_billing_invoice",
+                )
+                == prepare_before
+            )
+            assert (
+                _function_definition(
+                    connection,
+                    "gsubs_enforce_billing_invoice_immutability",
+                )
+                == immutable_before
+            )
             assert _issued_identity_constraint(connection) == constraint_before
             assert connection.execute(
                 """
@@ -376,17 +380,14 @@ def test_existing_0014_terminal_schema_upgrade_refuses_without_attribution(
         upgrade = _run_alembic(database_url, "upgrade", "head")
 
         assert upgrade.returncode != 0
-        assert (
-            "pre-existing issued or cancelled invoices lack truthful actor "
-            "attribution"
-        ) in upgrade.stderr
+        assert ("pre-existing issued or cancelled invoices lack truthful actor attribution") in upgrade.stderr
         with psycopg.connect(
             connection_url,
             autocommit=True,
         ) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0014_consumer_contract_records",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0014_consumer_contract_records",
+            )
             assert connection.execute(
                 """
                 SELECT COUNT(*)
@@ -489,17 +490,14 @@ def test_fresh_head_enforces_actor_audit_and_refuses_destructive_downgrade() -> 
         )
 
         assert downgrade.returncode != 0
-        assert (
-            "terminal or actor-audit financial evidence exists"
-            in downgrade.stderr
-        )
+        assert "terminal or actor-audit financial evidence exists" in downgrade.stderr
         with psycopg.connect(
             connection_url,
             autocommit=True,
         ) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0027_restore_beta_promo_cap",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0027_restore_beta_promo_cap",
+            )
             assert connection.execute(
                 """
                 SELECT recorded_by_user_id, recorded_at

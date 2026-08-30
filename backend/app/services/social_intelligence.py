@@ -87,9 +87,7 @@ def _platform_copy(
 ) -> SocialContent:
     all_tags_raw = [*hashtags, *extra_tags]
     # Normalize to ensure all have # prefix
-    all_tags = list(dict.fromkeys(
-        [f"#{tag.lstrip('#')}" for tag in all_tags_raw]
-    ))
+    all_tags = list(dict.fromkeys([f"#{tag.lstrip('#')}" for tag in all_tags_raw]))
     formatted_tags = " ".join(all_tags)
     desc_el = f"{summary_el}\n{formatted_tags}".strip()
     desc_en = f"{summary_en}\n{formatted_tags}".strip()
@@ -98,7 +96,7 @@ def _platform_copy(
         title_en=base_title_en.strip(),
         description_el=desc_el,
         description_en=desc_en,
-        hashtags=all_tags
+        hashtags=all_tags,
     )
 
 
@@ -118,9 +116,9 @@ def build_social_copy(transcript_text: str) -> SocialCopy:
 
     generic_copy = _platform_copy(
         base_title,
-        base_title, # Fallback title for EN
+        base_title,  # Fallback title for EN
         summary,
-        summary, # Fallback summary for EN
+        summary,  # Fallback summary for EN
         shared_tags,
         extra_tags=["trending", "viral", "fyp"],
     )

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from backend.app.api.endpoints.export_routes import ExportRequest
 from backend.app.api.endpoints.validation import (
+    assert_processing_quote_authorized,
     validate_highlight_style,
     validate_max_subtitle_lines,
     validate_model_name,
@@ -17,6 +18,7 @@ from backend.app.api.endpoints.validation import (
     validate_upload_content_type,
     validate_video_quality,
 )
+from backend.app.core.errors import ProcessingQuoteChangedError
 from backend.app.services.settings_utils import normalize_subtitle_position
 from backend.app.services.styles import SubtitleStyle
 
@@ -33,6 +35,17 @@ def test_validation_helpers_accept_valid_inputs() -> None:
     assert validate_subtitle_size(120) == 120
     assert validate_highlight_style(" ACTIVE-GRAPHICS ") == "active-graphics"
     assert validate_upload_content_type("") == "application/octet-stream"
+
+
+def test_processing_quote_requires_fresh_authorization_when_price_increases() -> None:
+    with pytest.raises(ProcessingQuoteChangedError) as exc_info:
+        assert_processing_quote_authorized(
+            duration_seconds=181,
+            authorized_credits=30,
+        )
+
+    assert exc_info.value.duration_seconds == 181
+    assert exc_info.value.required_credits == 60
 
 
 @pytest.mark.parametrize(

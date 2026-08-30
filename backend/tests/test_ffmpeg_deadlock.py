@@ -29,8 +29,13 @@ def test_run_ffmpeg_deadlock_prevention():
         # Call the function
         try:
             run_ffmpeg_with_subs(
-                input_path, ass_path, output_path,
-                video_crf=20, video_preset="fast", audio_bitrate="128k", audio_copy=False
+                input_path,
+                ass_path,
+                output_path,
+                video_crf=20,
+                video_preset="fast",
+                audio_bitrate="128k",
+                audio_copy=False,
             )
         except Exception as e:
             # We don't care if it fails due to logic errors, we just want to check Popen call
@@ -41,5 +46,6 @@ def test_run_ffmpeg_deadlock_prevention():
 
         # Check that stdout was set to DEVNULL
         # subprocess.PIPE is -1, DEVNULL is -3
-        assert kwargs.get("stdout") == subprocess.DEVNULL, \
+        assert kwargs.get("stdout") == subprocess.DEVNULL, (
             f"stdout was {kwargs.get('stdout')}, expected subprocess.DEVNULL to prevent deadlock"
+        )

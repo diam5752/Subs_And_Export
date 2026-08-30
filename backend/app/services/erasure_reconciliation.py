@@ -191,9 +191,7 @@ def _replay_job_terminal_erasure(
                 raise ErasureReplayConflictError(
                     "Restored completed project conflicts with terminal erasure intent",
                 )
-            if restored_job is not None and restored_job.status not in (
-                ACTIVE_JOB_STATUSES | {"failed", "cancelled"}
-            ):
+            if restored_job is not None and restored_job.status not in (ACTIVE_JOB_STATUSES | {"failed", "cancelled"}):
                 raise ErasureReplayConflictError(
                     "Restored project has an unsupported terminal state",
                 )
@@ -223,9 +221,7 @@ def _replay_job_terminal_erasure(
             if restored_job is not None:
                 restored_job.status = effective_status
                 restored_job.message = (
-                    "Cancelled by user"
-                    if effective_status == "cancelled"
-                    else "Processing failed before restore"
+                    "Cancelled by user" if effective_status == "cancelled" else "Processing failed before restore"
                 )
                 restored_job.updated_at = int(time.time())
 

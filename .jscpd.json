@@ -1,0 +1,33 @@
+{
+  "blame": false,
+  "format": [
+    "bash",
+    "css",
+    "java",
+    "javascript",
+    "jsx",
+    "python",
+    "scss",
+    "sql",
+    "tsx",
+    "typescript"
+  ],
+  "ignorePattern": [
+    "**/.next/**",
+    "**/.venv*/**",
+    "**/__pycache__/**",
+    "**/coverage/**",
+    "**/node_modules/**",
+    "**/out/**",
+    "**/playwright-report/**",
+    "**/target/**",
+    "**/test-results/**",
+    "**/*.min.css",
+    "**/*.min.js"
+  ],
+  "minLines": 10,
+  "minTokens": 100,
+  "mode": "weak",
+  "reporters": ["console"],
+  "threshold": 3
+}

@@ -105,8 +105,7 @@ def test_privacy_command_redacts_database_disposal_errors(
 ) -> None:
     try:
         raise RuntimeError(
-            "Authorization=Bearer-fake-header "
-            "url=https://provider.invalid/transcripts/fake-provider-id",
+            "Authorization=Bearer-fake-header url=https://provider.invalid/transcripts/fake-provider-id",
         )
     except RuntimeError as exc:
         dispose_error = RuntimeError("database disposal failed")
@@ -157,10 +156,7 @@ def test_retention_command_reports_success_and_disposes_database(
     result = CliRunner().invoke(app, ["run-retention"])
 
     assert result.exit_code == 0
-    assert result.stdout == (
-        "Retention complete: deleted_jobs=1 failed_jobs=0 "
-        "deleted_orphans=2 failed_orphans=0\n"
-    )
+    assert result.stdout == ("Retention complete: deleted_jobs=1 failed_jobs=0 deleted_orphans=2 failed_orphans=0\n")
     assert result.stderr == ""
     assert database.dispose_calls == 1
 
@@ -179,9 +175,7 @@ def test_reconciliation_command_reports_success_and_disposes_database(
     result = CliRunner().invoke(app, ["reconcile-erasures"])
 
     assert result.exit_code == 0
-    assert result.stdout == (
-        "Erasure reconciliation complete: events=3 pruned=2\n"
-    )
+    assert result.stdout == ("Erasure reconciliation complete: events=3 pruned=2\n")
     assert result.stderr == ""
     assert database.dispose_calls == 1
 
@@ -321,7 +315,7 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
             title_en="Test Title English",
             description_el="Test desc Greek",
             description_en="Test desc English",
-            hashtags=["#test"]
+            hashtags=["#test"],
         ),
     )
 

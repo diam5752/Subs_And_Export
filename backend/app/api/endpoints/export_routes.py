@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import hmac
 import logging
-import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ...core.auth import User
 from ...core.config import settings
@@ -34,9 +32,25 @@ from ...services.video_export_cache import build_video_export_signature
 from ...services.video_processing import generate_video_variant
 from ...services.video_quality import crf_for_video_quality
 from ..deps import get_current_user, get_db, get_job_store
+from .export_artifact_state import (
+    VideoExportPlan as _VideoExportPlan,
+)
+from .export_artifact_state import (
+    build_video_export_plan,
+    cached_export_matches,
+    record_rendered_export,
+    resolve_subtitle_export_limits,
+)
+from .export_artifact_state import (
+    record_export_variant as _record_export_variant,
+)
+from .export_models import (
+    ArtifactDownloadGrantRequest,
+    ArtifactDownloadGrantResponse,
+    ExportRequest,
+)
 from .file_utils import (
     data_roots,
-    relpath_safe,
     reserve_render_storage,
     sanitize_download_filename,
 )
@@ -134,73 +148,6 @@ def _validate_subtitle_export_settings(request: "ExportRequest") -> None:
         validate_subtitle_size(request.subtitle_size)
     if request.highlight_style is not None:
         validate_highlight_style(request.highlight_style)
-
-
-class ExportRequest(BaseModel):
-    resolution: str = Field(..., max_length=50)
-    subtitle_position: int | None = None
-    max_subtitle_lines: int | None = None
-    subtitle_color: str | None = Field(None, max_length=20)
-    shadow_strength: int | None = None
-    highlight_style: str | None = Field(None, max_length=20)
-    subtitle_size: int | None = None
-    karaoke_enabled: bool | None = None
-    watermark_enabled: bool | None = None
-    video_quality: str | None = Field(None, max_length=50)
-
-    @field_validator("subtitle_color")
-    @classmethod
-    def validate_subtitle_color(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if not re.match(r"^&H[0-9A-Fa-f]{8}$", v):
-            raise ValueError("Invalid subtitle color format (expected &HAABBGGRR)")
-        return v
-
-    @field_validator("video_quality")
-    @classmethod
-    def validate_video_quality_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        normalized = value.strip().lower()
-        crf_for_video_quality(normalized)
-        return normalized
-
-    @field_validator("resolution")
-    @classmethod
-    def validate_resolution(cls, value: str) -> str:
-        cleaned = value.strip().lower().replace("×", "x")
-        if cleaned in SUBTITLE_EXPORT_FORMATS:
-            return cleaned
-
-        parts = cleaned.split("x")
-        if len(parts) != 2:
-            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or subtitle export format)")
-
-        try:
-            width = int(parts[0])
-            height = int(parts[1])
-        except ValueError as exc:
-            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or subtitle export format)") from exc
-
-        if width <= 0 or height <= 0:
-            raise ValueError("Resolution dimensions must be positive")
-        if width > settings.max_resolution_dimension or height > settings.max_resolution_dimension:
-            raise ValueError(f"Resolution exceeds max {settings.max_resolution_dimension}")
-
-        return f"{width}x{height}"
-
-
-class ArtifactDownloadGrantRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    artifact_path: str = Field(..., min_length=1, max_length=1_024)
-    filename: str = Field(..., min_length=1, max_length=255)
-
-
-class ArtifactDownloadGrantResponse(BaseModel):
-    download_url: str
-    expires_in: int
 
 
 def _download_grant_file_path(artifact_path: str, expected_job_id: str) -> str:
@@ -315,6 +262,353 @@ def export_video(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+def _reload_exported_job(
+    job_store: JobStore,
+    job_id: str,
+    *,
+    missing_detail: str,
+) -> JobResponse:
+    updated_job = job_store.get_job(job_id)
+    if updated_job is None:
+        raise HTTPException(status_code=500, detail=missing_detail)
+    return JobResponse.model_validate(updated_job)
+
+
+def _export_subtitle_artifact(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    job: Job,
+    artifact_dir: Path,
+    data_dir: Path,
+    job_store: JobStore,
+) -> JobResponse:
+    try:
+        return _write_subtitle_artifact(
+            job_id=job_id,
+            request=request,
+            job=job,
+            artifact_dir=artifact_dir,
+            data_dir=data_dir,
+            job_store=job_store,
+        )
+    except HTTPException:
+        raise
+    except MalformedTranscriptError as exc:
+        raise HTTPException(
+            422,
+            f"Cannot export malformed transcript: {sanitize_message(str(exc))}",
+        ) from exc
+    except Exception as exc:
+        _log_export_failure("Subtitle export failed", exc)
+        raise HTTPException(
+            500,
+            f"{request.resolution.upper()} export failed: {sanitize_message(str(exc))}",
+        ) from exc
+
+
+def _write_subtitle_artifact(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    job: Job,
+    artifact_dir: Path,
+    data_dir: Path,
+    job_store: JobStore,
+) -> JobResponse:
+    transcription_json = artifact_dir / "transcription.json"
+    if not transcription_json.exists():
+        raise HTTPException(404, "Transcript not found (cannot export subtitle file)")
+    result_data: dict[str, object] = dict(job.result_data or {})
+    resolved_lines, resolved_size = resolve_subtitle_export_limits(
+        requested_lines=request.max_subtitle_lines,
+        requested_size=request.subtitle_size,
+        result_data=result_data,
+    )
+    export_path = artifact_dir / f"processed.{request.resolution}"
+    export_subtitle_file(
+        transcription_json=transcription_json,
+        export_path=export_path,
+        export_format=request.resolution,
+        max_subtitle_lines=resolved_lines,
+        subtitle_size=resolved_size,
+    )
+    _record_export_variant(
+        result_data,
+        resolution=request.resolution,
+        output_path=export_path,
+        data_dir=data_dir,
+    )
+    job_store.update_job(job_id, result_data=result_data, status="completed")
+    return _reload_exported_job(
+        job_store,
+        job_id,
+        missing_detail="Exported job could not be reloaded",
+    )
+
+
+def _find_export_input(
+    *,
+    job_id: str,
+    job: Job,
+    uploads_dir: Path,
+    data_dir: Path,
+) -> Path:
+    for extension in (".mp4", ".mov", ".mkv"):
+        candidate = uploads_dir / f"{job_id}_input{extension}"
+        if candidate.exists():
+            return candidate
+    candidate_rel = (job.result_data or {}).get("video_path")
+    if isinstance(candidate_rel, str) and candidate_rel:
+        candidate = (data_dir / candidate_rel).resolve()
+        if candidate.is_relative_to(data_dir.resolve()) and candidate.exists():
+            return candidate
+    raise HTTPException(404, "Original input video not found")
+
+
+def _video_export_subtitle_settings(request: ExportRequest) -> dict[str, object]:
+    subtitle_settings = request.model_dump(
+        exclude_none=True,
+        exclude={"resolution", "video_quality"},
+    )
+    if subtitle_settings.get("highlight_style"):
+        subtitle_settings["highlight_style"] = validate_highlight_style(
+            str(subtitle_settings["highlight_style"]),
+        )
+    validators = (
+        ("subtitle_position", validate_subtitle_position),
+        ("max_subtitle_lines", validate_max_subtitle_lines),
+        ("shadow_strength", validate_shadow_strength),
+        ("subtitle_size", validate_subtitle_size),
+    )
+    for field, validator in validators:
+        if subtitle_settings.get(field) is not None:
+            subtitle_settings[field] = validator(int(subtitle_settings[field]))
+    return subtitle_settings
+
+
+def _video_export_crf(
+    request: ExportRequest,
+    result_data: dict[str, object],
+) -> int:
+    if request.video_quality is not None:
+        return crf_for_video_quality(request.video_quality)
+    stored_crf = result_data.get("video_crf")
+    return int(cast(Any, stored_crf)) if stored_crf is not None else settings.default_video_crf
+
+
+def _reuse_cached_export(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    result_data: dict[str, object],
+    output_path: Path,
+    data_dir: Path,
+    job_store: JobStore,
+) -> JobResponse:
+    _record_export_variant(
+        result_data,
+        resolution=request.resolution,
+        output_path=output_path,
+        data_dir=data_dir,
+    )
+    job_store.update_job(
+        job_id,
+        result_data=result_data,
+        status="completed",
+        progress=100,
+    )
+    logger.info("Reused exact rendered video export")
+    return _reload_exported_job(
+        job_store,
+        job_id,
+        missing_detail="Cached export job could not be reloaded",
+    )
+
+
+def _reuse_video_export_if_cached(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    plan: _VideoExportPlan,
+    data_dir: Path,
+    job_store: JobStore,
+) -> JobResponse | None:
+    if not cached_export_matches(
+        plan.export_cache.get(request.resolution),
+        export_signature=plan.export_signature,
+        output_path=plan.output_path,
+    ):
+        return None
+    return _reuse_cached_export(
+        job_id=job_id,
+        request=request,
+        result_data=plan.result_data,
+        output_path=plan.output_path,
+        data_dir=data_dir,
+        job_store=job_store,
+    )
+
+
+def _persist_rendered_video_export(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    plan: _VideoExportPlan,
+    output_path: Path,
+    export_signature: str,
+    data_dir: Path,
+    job_store: JobStore,
+) -> JobResponse:
+    _record_export_variant(
+        plan.result_data,
+        resolution=request.resolution,
+        output_path=output_path,
+        data_dir=data_dir,
+    )
+    record_rendered_export(
+        plan,
+        resolution=request.resolution,
+        output_path=output_path,
+        export_signature=export_signature,
+    )
+    job_store.update_job(
+        job_id,
+        result_data=plan.result_data,
+        status="completed",
+        progress=100,
+    )
+    return _reload_exported_job(
+        job_store,
+        job_id,
+        missing_detail="Exported job could not be reloaded",
+    )
+
+
+def _render_planned_video_export(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    current_user: User,
+    job_store: JobStore,
+    db: Database,
+    input_video: Path,
+    artifact_dir: Path,
+    data_dir: Path,
+    plan: _VideoExportPlan,
+) -> JobResponse:
+    output_path = _render_export_video(
+        job_id=job_id,
+        input_video=input_video,
+        artifact_dir=artifact_dir,
+        resolution=request.resolution,
+        job_store=job_store,
+        user_id=current_user.id,
+        subtitle_settings=plan.subtitle_settings,
+        video_crf=plan.video_crf,
+        data_dir=data_dir,
+        db=db,
+    )
+    export_signature = build_video_export_signature(
+        input_video=input_video,
+        artifact_dir=artifact_dir,
+        resolution=request.resolution,
+        subtitle_settings=plan.subtitle_settings,
+        result_data=plan.result_data,
+        video_crf=plan.video_crf,
+    )
+    return _persist_rendered_video_export(
+        job_id=job_id,
+        request=request,
+        plan=plan,
+        output_path=output_path,
+        export_signature=export_signature,
+        data_dir=data_dir,
+        job_store=job_store,
+    )
+
+
+def _export_video_artifact(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    current_user: User,
+    job_store: JobStore,
+    db: Database,
+    job: Job,
+    data_dir: Path,
+    uploads_dir: Path,
+    artifact_dir: Path,
+) -> JobResponse:
+    try:
+        return _perform_video_artifact_export(
+            job_id=job_id,
+            request=request,
+            current_user=current_user,
+            job_store=job_store,
+            db=db,
+            job=job,
+            data_dir=data_dir,
+            uploads_dir=uploads_dir,
+            artifact_dir=artifact_dir,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        job_store.update_job(job_id, progress=100)
+        _log_export_failure("Video export failed", exc)
+        raise HTTPException(
+            500,
+            "Export failed. Please try again.",
+        ) from exc
+
+
+def _perform_video_artifact_export(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    current_user: User,
+    job_store: JobStore,
+    db: Database,
+    job: Job,
+    data_dir: Path,
+    uploads_dir: Path,
+    artifact_dir: Path,
+) -> JobResponse:
+    input_video = _find_export_input(job_id=job_id, job=job, uploads_dir=uploads_dir, data_dir=data_dir)
+    result_data: dict[str, object] = dict(job.result_data or {})
+    subtitle_settings = _video_export_subtitle_settings(request)
+    plan = build_video_export_plan(
+        resolution=request.resolution,
+        raw_result_data=result_data,
+        subtitle_settings=subtitle_settings,
+        video_crf=_video_export_crf(request, result_data),
+        input_video=input_video,
+        artifact_dir=artifact_dir,
+        build_signature=build_video_export_signature,
+    )
+    cached_response = _reuse_video_export_if_cached(
+        job_id=job_id,
+        request=request,
+        plan=plan,
+        data_dir=data_dir,
+        job_store=job_store,
+    )
+    if cached_response is not None:
+        return cached_response
+    return _render_planned_video_export(
+        job_id=job_id,
+        request=request,
+        current_user=current_user,
+        job_store=job_store,
+        db=db,
+        input_video=input_video,
+        artifact_dir=artifact_dir,
+        data_dir=data_dir,
+        plan=plan,
+    )
+
+
 def _export_video_locked(
     *,
     job_id: str,
@@ -328,194 +622,31 @@ def _export_video_locked(
     artifacts_root: Path,
 ) -> JobResponse:
     """Write one export while its cross-process workspace lock is held."""
-    # Refresh the workspace lease before any potentially long export work.
-    # The retention worker rechecks this timestamp immediately before deletion.
     job_store.update_job(job_id, status="completed")
-
-    active_jobs = job_store.count_active_jobs_for_user(current_user.id)
-    if active_jobs >= settings.max_concurrent_jobs:
-        raise HTTPException(status_code=429, detail="System busy. Please wait for your other jobs to finish.")
-
+    if job_store.count_active_jobs_for_user(current_user.id) >= settings.max_concurrent_jobs:
+        raise HTTPException(
+            status_code=429,
+            detail="System busy. Please wait for your other jobs to finish.",
+        )
     artifact_dir = artifacts_root / job_id
     _validate_subtitle_export_settings(request)
-
     if request.resolution in SUBTITLE_EXPORT_FORMATS:
-        # Subtitle file export: fast path
-        try:
-            transcription_json = artifact_dir / "transcription.json"
-            if not transcription_json.exists():
-                raise HTTPException(404, "Transcript not found (cannot export subtitle file)")
-
-            result_data = job.result_data.copy() if job.result_data else {}
-            resolved_lines = request.max_subtitle_lines
-            if resolved_lines is None:
-                resolved_lines = int(result_data.get("max_subtitle_lines", 2) or 2)
-            resolved_size = request.subtitle_size
-            if resolved_size is None:
-                resolved_size = int(result_data.get("subtitle_size", 100) or 100)
-
-            export_path = artifact_dir / f"processed.{request.resolution}"
-            subtitle_export = export_subtitle_file(
-                transcription_json=transcription_json,
-                export_path=export_path,
-                export_format=request.resolution,
-                max_subtitle_lines=resolved_lines,
-                subtitle_size=resolved_size,
-            )
-
-            variants = result_data.get("variants", {})
-            public_path = relpath_safe(export_path, data_dir).as_posix()
-            variants[request.resolution] = f"/static/{public_path}"
-            result_data["variants"] = variants
-
-            job_store.update_job(job_id, result_data=result_data, status="completed")
-            updated_job = job_store.get_job(job_id)
-            if updated_job is None:
-                raise HTTPException(status_code=500, detail="Exported job could not be reloaded")
-            return JobResponse.model_validate(updated_job)
-        except HTTPException:
-            raise
-        except MalformedTranscriptError as e:
-            raise HTTPException(422, f"Cannot export malformed transcript: {sanitize_message(str(e))}") from e
-        except Exception as e:
-            _log_export_failure("Subtitle export failed", e)
-            raise HTTPException(500, f"{request.resolution.upper()} export failed: {sanitize_message(str(e))}")
-
-    # Video export
-    input_video = None
-    for ext in [".mp4", ".mov", ".mkv"]:
-        candidate = uploads_dir / f"{job_id}_input{ext}"
-        if candidate.exists():
-            input_video = candidate
-            break
-
-    if not input_video:
-        candidate_rel = (job.result_data or {}).get("video_path")
-        if isinstance(candidate_rel, str) and candidate_rel:
-            candidate = (data_dir / candidate_rel).resolve()
-            data_dir_resolved = data_dir.resolve()
-            if candidate.is_relative_to(data_dir_resolved) and candidate.exists():
-                input_video = candidate
-
-    if not input_video:
-        raise HTTPException(404, "Original input video not found")
-
-    try:
-        result_data = dict(job.result_data or {})
-        subtitle_settings = request.model_dump(
-            exclude_none=True,
-            exclude={"resolution", "video_quality"},
-        )
-        if subtitle_settings.get("highlight_style"):
-            subtitle_settings["highlight_style"] = validate_highlight_style(str(subtitle_settings["highlight_style"]))
-        if subtitle_settings.get("subtitle_position") is not None:
-            subtitle_settings["subtitle_position"] = validate_subtitle_position(
-                int(subtitle_settings["subtitle_position"])
-            )
-        if subtitle_settings.get("max_subtitle_lines") is not None:
-            subtitle_settings["max_subtitle_lines"] = validate_max_subtitle_lines(
-                int(subtitle_settings["max_subtitle_lines"])
-            )
-        if subtitle_settings.get("shadow_strength") is not None:
-            subtitle_settings["shadow_strength"] = validate_shadow_strength(int(subtitle_settings["shadow_strength"]))
-        if subtitle_settings.get("subtitle_size") is not None:
-            subtitle_settings["subtitle_size"] = validate_subtitle_size(int(subtitle_settings["subtitle_size"]))
-
-        if request.video_quality is not None:
-            video_crf = crf_for_video_quality(request.video_quality)
-        else:
-            stored_crf = result_data.get("video_crf")
-            video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
-
-        output_path = artifact_dir / f"processed_{request.resolution}.mp4"
-        export_signature = build_video_export_signature(
-            input_video=input_video,
-            artifact_dir=artifact_dir,
-            resolution=request.resolution,
-            subtitle_settings=subtitle_settings,
-            result_data=result_data,
-            video_crf=video_crf,
-        )
-        export_cache_value = result_data.get("export_cache")
-        export_cache = dict(export_cache_value) if isinstance(export_cache_value, dict) else {}
-        cache_record = export_cache.get(request.resolution)
-        if (
-            isinstance(cache_record, dict)
-            and isinstance(cache_record.get("signature"), str)
-            and hmac.compare_digest(cache_record["signature"], export_signature)
-            and isinstance(cache_record.get("size"), int)
-            and not isinstance(cache_record["size"], bool)
-            and cache_record["size"] > 0
-            and output_path.is_file()
-            and output_path.stat().st_size == cache_record["size"]
-        ):
-            variants_value = result_data.get("variants")
-            variants = dict(variants_value) if isinstance(variants_value, dict) else {}
-            public_path = relpath_safe(output_path, data_dir).as_posix()
-            variants[request.resolution] = f"/static/{public_path}"
-            result_data["variants"] = variants
-            job_store.update_job(
-                job_id,
-                result_data=result_data,
-                status="completed",
-                progress=100,
-            )
-            updated_job = job_store.get_job(job_id)
-            if updated_job is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Cached export job could not be reloaded",
-                )
-            logger.info("Reused exact rendered video export")
-            return JobResponse.model_validate(updated_job)
-
-        output_path = _render_export_video(
+        return _export_subtitle_artifact(
             job_id=job_id,
-            input_video=input_video,
+            request=request,
+            job=job,
             artifact_dir=artifact_dir,
-            resolution=request.resolution,
-            job_store=job_store,
-            user_id=current_user.id,
-            subtitle_settings=subtitle_settings,
-            video_crf=video_crf,
             data_dir=data_dir,
-            db=db,
+            job_store=job_store,
         )
-
-        # Rendering may create or replace the ASS file. Persist the signature
-        # of the exact subtitle asset that produced this MP4.
-        export_signature = build_video_export_signature(
-            input_video=input_video,
-            artifact_dir=artifact_dir,
-            resolution=request.resolution,
-            subtitle_settings=subtitle_settings,
-            result_data=result_data,
-            video_crf=video_crf,
-        )
-
-        variants_value = result_data.get("variants")
-        variants = dict(variants_value) if isinstance(variants_value, dict) else {}
-
-        public_path = relpath_safe(output_path, data_dir).as_posix()
-        variants[request.resolution] = f"/static/{public_path}"
-        result_data["variants"] = variants
-        export_cache[request.resolution] = {
-            "signature": export_signature,
-            "size": output_path.stat().st_size,
-        }
-        result_data["export_cache"] = export_cache
-
-        job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
-        updated_job = job_store.get_job(job_id)
-        if updated_job is None:
-            raise HTTPException(status_code=500, detail="Exported job could not be reloaded")
-        return JobResponse.model_validate(updated_job)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        job_store.update_job(job_id, progress=100)
-        _log_export_failure("Video export failed", exc)
-        raise HTTPException(
-            500,
-            "Export failed. Please try again.",
-        ) from exc
+    return _export_video_artifact(
+        job_id=job_id,
+        request=request,
+        current_user=current_user,
+        job_store=job_store,
+        db=db,
+        job=job,
+        data_dir=data_dir,
+        uploads_dir=uploads_dir,
+        artifact_dir=artifact_dir,
+    )

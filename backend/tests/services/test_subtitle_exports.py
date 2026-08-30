@@ -45,9 +45,7 @@ def test_export_subtitle_file_writes_standard_srt_timestamp(tmp_path: Path):
     )
 
     assert result.content_type == "application/x-subrip"
-    assert export_path.read_text(encoding="utf-8").startswith(
-        "1\n00:00:00,500 --> 00:00:01,500\nHello world"
-    )
+    assert export_path.read_text(encoding="utf-8").startswith("1\n00:00:00,500 --> 00:00:01,500\nHello world")
 
 
 @pytest.mark.parametrize(
@@ -82,18 +80,20 @@ def test_transcript_parser_rejects_structural_edge_cases(payload) -> None:
 
 
 def test_transcript_parser_skips_blank_cues_and_words() -> None:
-    cues = subtitle_exports.cues_from_transcript_payload([
-        {"start": 0, "end": 1, "text": "   "},
-        {
-            "start": 0,
-            "end": 1,
-            "text": "kept",
-            "words": [
-                {"start": 0, "end": 0.5, "text": "   "},
-                {"start": 0.5, "end": 1, "text": "word"},
-            ],
-        },
-    ])
+    cues = subtitle_exports.cues_from_transcript_payload(
+        [
+            {"start": 0, "end": 1, "text": "   "},
+            {
+                "start": 0,
+                "end": 1,
+                "text": "kept",
+                "words": [
+                    {"start": 0, "end": 0.5, "text": "   "},
+                    {"start": 0.5, "end": 1, "text": "word"},
+                ],
+            },
+        ]
+    )
 
     assert [cue.text for cue in cues] == ["kept"]
     assert cues[0].words is not None
@@ -101,9 +101,11 @@ def test_transcript_parser_skips_blank_cues_and_words() -> None:
 
 
 def test_delivery_can_preserve_normalized_cues_without_resegmentation() -> None:
-    cues = subtitle_exports.cues_from_transcript_payload([
-        {"start": 0, "end": 1, "text": "unchanged"},
-    ])
+    cues = subtitle_exports.cues_from_transcript_payload(
+        [
+            {"start": 0, "end": 1, "text": "unchanged"},
+        ]
+    )
 
     delivered = subtitle_exports.prepare_delivery_cues(
         cues,

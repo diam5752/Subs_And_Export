@@ -29,7 +29,7 @@ def test_groq_transcriber_delegates(tmp_path):
         )
         # Verify transcribe call
         mock_client.audio.transcriptions.create.assert_called_with(
-            model="whisper-large-v3", # Default
+            model="whisper-large-v3",  # Default
             file=match_any_file_handle(),
             language="fr",
             prompt=None,
@@ -38,12 +38,14 @@ def test_groq_transcriber_delegates(tmp_path):
             timeout=300.0,
         )
 
+
 def test_groq_transcriber_missing_api_key(tmp_path):
     (tmp_path / "in.wav").touch()
     with patch("backend.app.services.transcription.groq_cloud.resolve_groq_api_key", return_value=None):
         t = GroqTranscriber(api_key=None)
         with pytest.raises(RuntimeError, match="Groq API key is required"):
             t.transcribe(tmp_path / "in.wav", tmp_path)
+
 
 def test_groq_transcriber_cancellation(tmp_path):
     (tmp_path / "in.wav").touch()
@@ -55,6 +57,7 @@ def test_groq_transcriber_cancellation(tmp_path):
 
     # Verify it was called before API call
     assert check_cancelled.call_count >= 1
+
 
 def test_groq_transcriber_progress(tmp_path):
     (tmp_path / "in.wav").touch()
@@ -135,9 +138,7 @@ def test_openai_transcriber_delegates(tmp_path):
     mock_transcript = MagicMock()
     mock_transcript.segments = []
 
-    with patch(
-        "backend.app.services.transcription.openai_cloud.load_openai_compatible_client"
-    ) as mock_load:
+    with patch("backend.app.services.transcription.openai_cloud.load_openai_compatible_client") as mock_load:
         mock_client = MagicMock()
         mock_load.return_value = mock_client
         mock_client.audio.transcriptions.create.return_value = mock_transcript

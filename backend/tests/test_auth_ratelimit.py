@@ -10,6 +10,7 @@ def reset_limiter():
     limiter_register.reset()
     yield
 
+
 @pytest.fixture(autouse=True)
 def enable_ratelimit(monkeypatch):
     monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)

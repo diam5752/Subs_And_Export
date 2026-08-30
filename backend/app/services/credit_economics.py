@@ -16,9 +16,7 @@ STRIPE_PERCENT_FEE = Decimal("0.0515")
 STRIPE_FIXED_FEE_EUR = Decimal("0.25")
 USD_TO_EUR_SAFETY_RATE = Decimal("1")
 PROVIDER_COST_COVERAGE_MULTIPLIER = Decimal("3")
-MINIMUM_CONTRIBUTION_MARGIN = (
-    Decimal("1") - (Decimal("1") / PROVIDER_COST_COVERAGE_MULTIPLIER)
-)
+MINIMUM_CONTRIBUTION_MARGIN = Decimal("1") - (Decimal("1") / PROVIDER_COST_COVERAGE_MULTIPLIER)
 
 # The same immutable packages exposed by the billing catalog. Economics use
 # the lowest net value per credit across every package, never the selected
@@ -68,17 +66,11 @@ def assert_provider_economics(
 
     with localcontext() as context:
         context.prec = 28
-        net_revenue_eur = (
-            minimum_net_revenue_per_credit_eur() * Decimal(credits)
-        )
+        net_revenue_eur = minimum_net_revenue_per_credit_eur() * Decimal(credits)
         guarded_provider_cost_eur = (
-            Decimal(str(estimated_cost_usd))
-            * Decimal(str(safety_multiplier))
-            * USD_TO_EUR_SAFETY_RATE
+            Decimal(str(estimated_cost_usd)) * Decimal(str(safety_multiplier)) * USD_TO_EUR_SAFETY_RATE
         )
-        required_revenue = (
-            guarded_provider_cost_eur * PROVIDER_COST_COVERAGE_MULTIPLIER
-        )
+        required_revenue = guarded_provider_cost_eur * PROVIDER_COST_COVERAGE_MULTIPLIER
         if net_revenue_eur < required_revenue:
             raise ProviderBudgetExceededError(
                 "External provider economics guard rejected request",
@@ -86,10 +78,7 @@ def assert_provider_economics(
         contribution_margin = (
             Decimal("1")
             if guarded_provider_cost_eur == 0
-            else (
-                net_revenue_eur - guarded_provider_cost_eur
-            )
-            / net_revenue_eur
+            else (net_revenue_eur - guarded_provider_cost_eur) / net_revenue_eur
         )
         return ProviderEconomicsQuote(
             credits=credits,

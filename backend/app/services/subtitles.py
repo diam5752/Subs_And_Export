@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import math
 import re
-import select
 import subprocess
 import tempfile
 import time
@@ -19,6 +18,8 @@ from backend.app.services.ffmpeg_utils import (
     resolve_ffmpeg_thread_count,
     terminate_process_tree,
 )
+from backend.app.services.media_process_monitor import monitor_media_process
+from backend.app.services.media_process_monitor import select as select
 from backend.app.services.subtitle_types import Cue, TimeRange
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,74 @@ def _wait_after_termination(process: subprocess.Popen[str]) -> None:
         process.wait()
 
 
+def _audio_extraction_command(
+    *,
+    input_video: Path,
+    audio_path: Path,
+    threads: int,
+) -> list[str]:
+    return [
+        "ffmpeg",
+        "-y",
+        "-nostdin",
+        "-nostats",
+        "-progress",
+        "pipe:2",
+        "-threads",
+        str(threads),
+        "-i",
+        str(input_video),
+        "-vn",
+        "-acodec",
+        settings.audio_codec,
+        "-ar",
+        str(settings.audio_sample_rate),
+        "-ac",
+        str(settings.audio_channels),
+        str(audio_path),
+    ]
+
+
+def _run_audio_extraction_process(
+    *,
+    command: list[str],
+    resolved_timeout: float,
+    check_cancelled: Callable[[], None] | None,
+    progress_callback: Callable[[float], None] | None,
+    total_duration: float | None,
+) -> None:
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        bufsize=1,
+        start_new_session=True,
+    )
+    lower_media_process_priority(process)
+    try:
+        monitor_media_process(
+            process,
+            deadline=time.monotonic() + resolved_timeout,
+            timeout_message=(f"Audio extraction exceeded timeout of {resolved_timeout:.1f}s"),
+            progress_pattern=TIME_PATTERN,
+            check_cancelled=check_cancelled,
+            progress_callback=progress_callback,
+            total_duration=total_duration,
+        )
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(
+                process.returncode,
+                command,
+                output=None,
+            )
+    except Exception:
+        terminate_process_tree(process)
+        _wait_after_termination(process)
+        raise
+
+
 def extract_audio(
     input_video: Path,
     output_dir: Path | None = None,
@@ -74,112 +143,23 @@ def extract_audio(
         total_duration=total_duration,
         timeout_seconds=timeout_seconds,
     )
-    requested_threads = (
-        thread_count
-        if thread_count is not None
-        else settings.media_extraction_threads_per_slot
-    )
+    requested_threads = thread_count if thread_count is not None else settings.media_extraction_threads_per_slot
     threads = resolve_ffmpeg_thread_count(requested_threads)
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-nostdin",
-        "-nostats",
-        "-progress",
-        "pipe:2",
-        # Input-scoped codec option: cap software audio decoder pools.
-        "-threads",
-        str(threads),
-        "-i",
-        str(input_video),
-        "-vn",
-        "-acodec",
-        settings.audio_codec,
-        "-ar",
-        str(settings.audio_sample_rate),
-        "-ac",
-        str(settings.audio_channels),
-        str(audio_path),
-    ]
+    command = _audio_extraction_command(
+        input_video=input_video,
+        audio_path=audio_path,
+        threads=threads,
+    )
 
     with lock_audio_extraction():
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            bufsize=1,
-            start_new_session=True,
+        _run_audio_extraction_process(
+            command=command,
+            resolved_timeout=resolved_timeout,
+            check_cancelled=check_cancelled,
+            progress_callback=progress_callback,
+            total_duration=total_duration,
         )
-        lower_media_process_priority(process)
-        deadline = time.monotonic() + resolved_timeout
-
-        try:
-            last_cancel_check = 0.0
-
-            while True:
-                now = time.monotonic()
-                if now >= deadline:
-                    raise TimeoutError(
-                        "Audio extraction exceeded timeout of "
-                        f"{resolved_timeout:.1f}s",
-                    )
-
-                # Periodic cancellation check
-                if check_cancelled and now - last_cancel_check > 0.5:
-                    check_cancelled()
-                    last_cancel_check = now
-
-                # Programmatic FFmpeg progress is newline-delimited, so a
-                # readiness notification cannot strand readline on '\r' stats.
-                if process.stderr:
-                    reads, _, _ = select.select(
-                        [process.stderr],
-                        [],
-                        [],
-                        min(0.1, max(0.0, deadline - now)),
-                    )
-                    if reads:
-                        line = process.stderr.readline()
-                        if line and progress_callback and total_duration and total_duration > 0:
-                            match = TIME_PATTERN.search(line)
-                            if match:
-                                h, m, s = match.groups()
-                                current_seconds = (
-                                    int(h) * 3600
-                                    + int(m) * 60
-                                    + float(s)
-                                )
-                                progress = min(
-                                    100.0,
-                                    (current_seconds / total_duration) * 100.0,
-                                )
-                                progress_callback(progress)
-                else:
-                    time.sleep(min(0.1, max(0.0, deadline - now)))
-
-                if process.poll() is not None:
-                    break
-
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(
-                    "Audio extraction exceeded timeout of "
-                    f"{resolved_timeout:.1f}s",
-                )
-            process.wait()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    process.returncode,
-                    cmd,
-                    output=None,
-                )
-
-        except Exception:
-            terminate_process_tree(process)
-            _wait_after_termination(process)
-            raise
 
     return audio_path
 
@@ -188,12 +168,12 @@ def write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     lines: list[str] = []
     for idx, (start, end, text) in enumerate(segments, start=1):
         lines.append(str(idx))
-        start_time = _format_subtitle_timestamp(start, separator=',')
-        end_time = _format_subtitle_timestamp(end, separator=',')
+        start_time = _format_subtitle_timestamp(start, separator=",")
+        end_time = _format_subtitle_timestamp(end, separator=",")
         lines.append(f"{start_time} --> {end_time}")
         # Security: Sanitize text to prevent SRT injection via double newlines
         # Replace 2+ newlines with a single newline to maintain multiline but prevent cue splitting
-        clean_text = re.sub(r'(\r?\n){2,}', '\n', text.strip())
+        clean_text = re.sub(r"(\r?\n){2,}", "\n", text.strip())
         lines.append(clean_text)
         lines.append("")  # blank line separator
     dest.write_text("\n".join(lines), encoding="utf-8")
@@ -212,8 +192,8 @@ def write_vtt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     lines: list[str] = ["WEBVTT", ""]
     for idx, (start, end, text) in enumerate(segments, start=1):
         lines.append(str(idx))
-        start_time = _format_subtitle_timestamp(start, separator='.')
-        end_time = _format_subtitle_timestamp(end, separator='.')
+        start_time = _format_subtitle_timestamp(start, separator=".")
+        end_time = _format_subtitle_timestamp(end, separator=".")
         lines.append(f"{start_time} --> {end_time}")
         clean_text = re.sub(r"(\r?\n){2,}", "\n", text.strip())
         lines.append(clean_text)

@@ -39,14 +39,9 @@ def test_transcription_engine_catalog_exposes_capabilities(
         "cost_usd_per_hour": 0.0,
         "limitations": ["Transcript text is simulated while mock mode is enabled."],
     }
+    assert any(item["id"] == "local-private" and item["available"] is True for item in payload)
     assert any(
-        item["id"] == "local-private" and item["available"] is True
-        for item in payload
-    )
-    assert any(
-        item["id"] == "openai-diarized"
-        and item["supports_diarization"] is True
-        and item["caption_ready"] is False
+        item["id"] == "openai-diarized" and item["supports_diarization"] is True and item["caption_ready"] is False
         for item in payload
     )
     assert any(
@@ -57,3 +52,20 @@ def test_transcription_engine_catalog_exposes_capabilities(
         and item["cost_usd_per_hour"] == 0.22
         for item in payload
     )
+
+
+def test_transcription_engine_catalog_limits_mock_mode_to_mock_provider(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(engine_routes.settings, "mock_external_services", True)
+
+    response = client.get("/videos/transcription-engines", headers=user_auth_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    mock_engine = next(item for item in payload if item["provider"] == "mock")
+    assert mock_engine["available"] is True
+    assert mock_engine["recommended"] is True
+    assert all(item["available"] is False for item in payload if item["provider"] != "mock")

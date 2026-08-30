@@ -71,9 +71,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ("branches", branch_pct, args.branches),
     )
     failures = [(name, actual, minimum) for name, actual, minimum in checks if actual < minimum]
-    rendered = ", ".join(
-        f"{name} {actual:.2f}% (minimum {minimum:.2f}%)" for name, actual, minimum in checks
-    )
+    rendered = ", ".join(f"{name} {actual:.2f}% (minimum {minimum:.2f}%)" for name, actual, minimum in checks)
     if failures:
         print(f"FAIL: coverage threshold missed: {rendered}", file=sys.stderr)
         return 1

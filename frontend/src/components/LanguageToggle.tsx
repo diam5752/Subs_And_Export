@@ -1,23 +1,28 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import { useI18n } from '@/context/I18nContext';
+import { useMemo } from "react";
+import { useI18n } from "@/context/I18nContext";
 
 export function LanguageToggle() {
   const { locale, setLocale, t } = useI18n();
 
-  const nextLocale = useMemo(() => (locale === 'el' ? 'en' : 'el'), [locale]);
+  const nextLocale = useMemo(() => (locale === "el" ? "en" : "el"), [locale]);
 
   return (
     <button
       type="button"
       onClick={() => setLocale(nextLocale)}
       className="language-toggle flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border border-[var(--border)] px-2.5 py-1.5 text-sm transition-all duration-200"
-      aria-label={t('switchLanguage', { language: nextLocale === 'el' ? t('languageNameEl') : t('languageNameEn') })}
+      aria-label={t("switchLanguage", {
+        language:
+          nextLocale === "el" ? t("languageNameEl") : t("languageNameEn"),
+      })}
     >
-      <span className="text-lg leading-none">{locale === 'el' ? '🇬🇷' : '🇬🇧'}</span>
+      <span className="text-lg leading-none">
+        {locale === "el" ? "🇬🇷" : "🇬🇧"}
+      </span>
       <span className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">
-        {locale === 'el' ? 'ΕΛ' : 'EN'}
+        {locale === "el" ? "ΕΛ" : "EN"}
       </span>
     </button>
   );

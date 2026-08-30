@@ -39,10 +39,7 @@ def assert_external_provider_budget(
         return
     if estimate > settings.external_provider_per_request_budget_usd:
         raise ProviderBudgetExceededError("Per-request external provider budget exceeded")
-    if (
-        settings.external_provider_daily_budget_usd <= 0
-        or settings.external_provider_monthly_budget_usd <= 0
-    ):
+    if settings.external_provider_daily_budget_usd <= 0 or settings.external_provider_monthly_budget_usd <= 0:
         raise ProviderBudgetExceededError("External provider budgets are closed")
     guarded_estimate = estimate * settings.external_provider_price_safety_multiplier
     if not math.isfinite(guarded_estimate) or guarded_estimate <= 0:
@@ -86,11 +83,7 @@ def reserve_transcription_charge(
     allow_downward_adjustment: bool = False,
 ) -> tuple[ChargeReservation, int]:
     credits = pricing.credits_for_video_duration(duration_seconds)
-    min_credits = (
-        pricing.VIDEO_CREDIT_BRACKETS[0].credits
-        if allow_downward_adjustment
-        else credits
-    )
+    min_credits = pricing.VIDEO_CREDIT_BRACKETS[0].credits if allow_downward_adjustment else credits
     cost_estimate = pricing.stt_provider_cost_usd(
         tier=tier,
         duration_seconds=duration_seconds,
@@ -148,10 +141,7 @@ def _processing_charge_requirements(
         model=stt_model,
     )
     normalized_provider = provider.strip().lower()
-    provider_requires_paid = (
-        transcription_cost > 0
-        and normalized_provider not in {"local", "mock"}
-    )
+    provider_requires_paid = transcription_cost > 0 and normalized_provider not in {"local", "mock"}
     return _ProcessingChargeRequirements(
         provider=provider,
         stt_model=stt_model,

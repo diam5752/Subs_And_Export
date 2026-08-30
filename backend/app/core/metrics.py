@@ -42,6 +42,7 @@ def should_log_metrics() -> bool:
 
     return settings.is_dev
 
+
 def _resolve_log_path() -> Path:
     explicit = os.getenv("PIPELINE_LOG_PATH")
     if explicit:
@@ -73,9 +74,7 @@ def log_pipeline_metrics(event: dict[str, Any]) -> None:
 
 
 @contextmanager
-def measure_time(
-    timings_dict: dict[str, float], key: str
-) -> Generator[None, None, None]:
+def measure_time(timings_dict: dict[str, float], key: str) -> Generator[None, None, None]:
     """
     Context manager to measure execution time and store it in a dictionary.
 

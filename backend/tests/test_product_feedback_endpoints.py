@@ -76,9 +76,7 @@ def test_signed_in_feedback_is_attached_to_the_account(client, user_auth_headers
             "message": _payload()["message"],
             "source_path": "/",
             "page_title": "GSUBS Studio",
-            "submitter_key_hash": exported.json()["product_feedback"][0][
-                "submitter_key_hash"
-            ],
+            "submitter_key_hash": exported.json()["product_feedback"][0]["submitter_key_hash"],
             "message_hash": exported.json()["product_feedback"][0]["message_hash"],
             "created_at": exported.json()["product_feedback"][0]["created_at"],
             "notification_status": "pending",

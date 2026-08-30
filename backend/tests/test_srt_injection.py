@@ -11,9 +11,7 @@ def test_srt_injection_sanitization(tmp_path):
     # Payload attempting to inject a fake cue
     injection_payload = "Legit text\n\n999\n00:00:05,000 --> 00:00:06,000\nINJECTED CUE"
 
-    segments = [
-        (1.0, 4.0, injection_payload)
-    ]
+    segments = [(1.0, 4.0, injection_payload)]
 
     write_srt_from_segments(segments, dest)
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
 
 from backend.app.core.auth import UserStore
 from backend.app.core.database import Database
@@ -115,6 +116,159 @@ def erase_account_and_media(
         )
 
 
+def _discover_erasure_job_ids(
+    *,
+    db: Database,
+    journal: ErasureJournal | None,
+    data_dir: Path,
+    user_id: str,
+    expected_job_ids: list[str] | None,
+) -> tuple[set[str] | None, list[str]]:
+    marker_owned_ids = set(list_owned_workspace_ids(data_dir=data_dir, user_id=user_id))
+    if expected_job_ids is not None:
+        expected_ids = set(expected_job_ids)
+        expected_ids.update(marker_owned_ids)
+        return expected_ids, sorted(expected_ids)
+
+    journal_owned_ids = _journal_owned_job_ids(journal=journal, user_id=user_id) if journal is not None else set()
+    with db.session() as discovery_session:
+        database_job_ids = set(
+            discovery_session.scalars(
+                select(DbJob.id).where(DbJob.user_id == user_id).order_by(DbJob.created_at.asc(), DbJob.id.asc()),
+            ).all(),
+        )
+    return None, sorted(database_job_ids | journal_owned_ids | marker_owned_ids)
+
+
+def _lock_erasure_rows(
+    session: Session,
+    *,
+    user_id: str,
+    deletion_job_ids: list[str],
+) -> tuple[DbUser | None, list[DbJob], list[DbJob]]:
+    locked_user = session.scalar(select(DbUser).where(DbUser.id == user_id).with_for_update())
+    jobs = list(
+        session.scalars(
+            select(DbJob)
+            .where(DbJob.user_id == user_id)
+            .order_by(DbJob.created_at.asc(), DbJob.id.asc())
+            .with_for_update(),
+        ).all(),
+    )
+    recorded_jobs = (
+        list(
+            session.scalars(
+                select(DbJob).where(DbJob.id.in_(deletion_job_ids)).with_for_update(),
+            ).all(),
+        )
+        if deletion_job_ids
+        else []
+    )
+    return locked_user, jobs, recorded_jobs
+
+
+def _verify_erasure_ownership(
+    *,
+    data_dir: Path,
+    user_id: str,
+    deletion_job_ids: list[str],
+    recorded_jobs: list[DbJob],
+) -> None:
+    if any(job.user_id != user_id for job in recorded_jobs):
+        raise ErasureReplayConflictError("Restored project ownership conflicts with erasure intent")
+    for job_id in deletion_job_ids:
+        marker_owner = get_workspace_owner(data_dir=data_dir, job_id=job_id)
+        if marker_owner is not None and marker_owner != user_id:
+            raise ErasureReplayConflictError("Workspace ownership marker conflicts with account deletion")
+
+
+def _verify_erasure_job_state(
+    *,
+    jobs: list[DbJob],
+    expected_ids: set[str] | None,
+    locked_job_ids: set[str],
+    locked_user: DbUser | None,
+    require_terminal_jobs: bool,
+) -> None:
+    current_job_ids = {job.id for job in jobs}
+    if _has_unexpected_erasure_jobs(current_job_ids, expected_ids):
+        raise ErasureReplayConflictError("Restored account contains an unrecorded project")
+    if _account_jobs_changed(current_job_ids, expected_ids, locked_job_ids):
+        raise ActiveAccountJobsError("Account jobs changed during deletion")
+    if _has_disallowed_active_jobs(jobs, require_terminal_jobs):
+        raise ActiveAccountJobsError("Account has active media processing")
+    if _account_disappeared(locked_user, expected_ids):
+        raise RuntimeError("Account is no longer available")
+
+
+def _has_unexpected_erasure_jobs(current_job_ids: set[str], expected_ids: set[str] | None) -> bool:
+    return expected_ids is not None and not current_job_ids.issubset(expected_ids)
+
+
+def _account_jobs_changed(
+    current_job_ids: set[str],
+    expected_ids: set[str] | None,
+    locked_job_ids: set[str],
+) -> bool:
+    return expected_ids is None and not current_job_ids.issubset(locked_job_ids)
+
+
+def _has_disallowed_active_jobs(jobs: list[DbJob], require_terminal_jobs: bool) -> bool:
+    return require_terminal_jobs and any(job.status in ACTIVE_JOB_STATUSES for job in jobs)
+
+
+def _account_disappeared(locked_user: DbUser | None, expected_ids: set[str] | None) -> bool:
+    return locked_user is None and expected_ids is None
+
+
+def _erase_job_media(
+    *,
+    deletion_job_ids: list[str],
+    data_dir: Path,
+    user_id: str,
+) -> None:
+    uploads_dir = data_dir / "uploads"
+    artifacts_root = data_dir / "artifacts"
+    for job_id in deletion_job_ids:
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_root,
+            expected_user_id=user_id,
+        )
+        if _workspace_media_remains(job_id=job_id, uploads_dir=uploads_dir, artifacts_root=artifacts_root):
+            raise RuntimeError("Account media cleanup could not be verified")
+        remove_workspace_ownership_after_verified_cleanup(
+            data_dir=data_dir,
+            job_id=job_id,
+            expected_user_id=user_id,
+        )
+
+
+def _delete_account_usage_records(
+    session: Session,
+    *,
+    user_id: str,
+    deletion_job_ids: list[str],
+) -> None:
+    if deletion_job_ids:
+        session.execute(delete(DbTokenUsage).where(DbTokenUsage.job_id.in_(deletion_job_ids)))
+    usage_idempotency_keys = list(
+        session.scalars(
+            select(DbUsageLedger.idempotency_key).where(
+                DbUsageLedger.user_id == user_id,
+                DbUsageLedger.idempotency_key.is_not(None),
+            ),
+        ).all(),
+    )
+    if usage_idempotency_keys:
+        session.execute(
+            delete(DbProviderBudgetReservation).where(
+                DbProviderBudgetReservation.idempotency_key.in_(usage_idempotency_keys),
+            ),
+        )
+
+
 def _erase_account_and_media_locked(
     *,
     db: Database,
@@ -127,26 +281,13 @@ def _erase_account_and_media_locked(
     require_terminal_jobs: bool = True,
 ) -> AccountErasureReport:
     """Erase locally while the caller holds the exclusive account barrier."""
-    uploads_dir = data_dir / "uploads"
-    artifacts_root = data_dir / "artifacts"
-    expected_ids = set(expected_job_ids) if expected_job_ids is not None else None
-    marker_owned_ids = set(
-        list_owned_workspace_ids(data_dir=data_dir, user_id=user_id),
+    expected_ids, deletion_job_ids = _discover_erasure_job_ids(
+        db=db,
+        journal=journal,
+        data_dir=data_dir,
+        user_id=user_id,
+        expected_job_ids=expected_job_ids,
     )
-    if expected_ids is None:
-        journal_owned_ids = _journal_owned_job_ids(journal=journal, user_id=user_id) if journal is not None else set()
-        with db.session() as discovery_session:
-            database_job_ids = set(
-                discovery_session.scalars(
-                    select(DbJob.id).where(DbJob.user_id == user_id).order_by(DbJob.created_at.asc(), DbJob.id.asc()),
-                ).all(),
-            )
-        deletion_job_ids = sorted(
-            database_job_ids | journal_owned_ids | marker_owned_ids,
-        )
-    else:
-        expected_ids.update(marker_owned_ids)
-        deletion_job_ids = sorted(expected_ids)
     locked_job_ids = set(deletion_job_ids)
 
     # Filesystem locks must precede database row locks. An exporter holds the
@@ -159,53 +300,24 @@ def _erase_account_and_media_locked(
                 session=session,
                 user_id=user_id,
             )
-            locked_user = session.scalar(
-                select(DbUser).where(DbUser.id == user_id).with_for_update(),
+            locked_user, jobs, recorded_jobs = _lock_erasure_rows(
+                session,
+                user_id=user_id,
+                deletion_job_ids=deletion_job_ids,
             )
-            jobs = list(
-                session.scalars(
-                    select(DbJob)
-                    .where(DbJob.user_id == user_id)
-                    .order_by(DbJob.created_at.asc(), DbJob.id.asc())
-                    .with_for_update(),
-                ).all(),
+            _verify_erasure_ownership(
+                data_dir=data_dir,
+                user_id=user_id,
+                deletion_job_ids=deletion_job_ids,
+                recorded_jobs=recorded_jobs,
             )
-            current_job_ids = {job.id for job in jobs}
-            recorded_jobs = (
-                list(
-                    session.scalars(
-                        select(DbJob).where(DbJob.id.in_(deletion_job_ids)).with_for_update(),
-                    ).all(),
-                )
-                if deletion_job_ids
-                else []
+            _verify_erasure_job_state(
+                jobs=jobs,
+                expected_ids=expected_ids,
+                locked_job_ids=locked_job_ids,
+                locked_user=locked_user,
+                require_terminal_jobs=require_terminal_jobs,
             )
-            if any(job.user_id != user_id for job in recorded_jobs):
-                raise ErasureReplayConflictError(
-                    "Restored project ownership conflicts with erasure intent",
-                )
-            for job_id in deletion_job_ids:
-                marker_owner = get_workspace_owner(
-                    data_dir=data_dir,
-                    job_id=job_id,
-                )
-                if marker_owner is not None and marker_owner != user_id:
-                    raise ErasureReplayConflictError(
-                        "Workspace ownership marker conflicts with account deletion",
-                    )
-
-            if expected_ids is not None:
-                if not current_job_ids.issubset(expected_ids):
-                    raise ErasureReplayConflictError("Restored account contains an unrecorded project")
-            elif not current_job_ids.issubset(locked_job_ids):
-                # A new project appeared after discovery. Fail closed instead
-                # of deleting a workspace whose exporter we did not lock.
-                raise ActiveAccountJobsError("Account jobs changed during deletion")
-
-            if require_terminal_jobs and any(job.status in ACTIVE_JOB_STATUSES for job in jobs):
-                raise ActiveAccountJobsError("Account has active media processing")
-            if locked_user is None and expected_ids is None:
-                raise RuntimeError("Account is no longer available")
 
             if journal is not None:
                 journal.append(
@@ -214,47 +326,12 @@ def _erase_account_and_media_locked(
                     job_ids=deletion_job_ids,
                 )
 
-            for job_id in deletion_job_ids:
-                delete_job_workspace(
-                    job_id=job_id,
-                    uploads_dir=uploads_dir,
-                    artifacts_dir=artifacts_root,
-                    expected_user_id=user_id,
-                )
-                if _workspace_media_remains(
-                    job_id=job_id,
-                    uploads_dir=uploads_dir,
-                    artifacts_root=artifacts_root,
-                ):
-                    raise RuntimeError(
-                        "Account media cleanup could not be verified",
-                    )
-                remove_workspace_ownership_after_verified_cleanup(
-                    data_dir=data_dir,
-                    job_id=job_id,
-                    expected_user_id=user_id,
-                )
-
-            if deletion_job_ids:
-                session.execute(
-                    delete(DbTokenUsage).where(
-                        DbTokenUsage.job_id.in_(deletion_job_ids),
-                    ),
-                )
-            usage_idempotency_keys = list(
-                session.scalars(
-                    select(DbUsageLedger.idempotency_key).where(
-                        DbUsageLedger.user_id == user_id,
-                        DbUsageLedger.idempotency_key.is_not(None),
-                    ),
-                ).all(),
+            _erase_job_media(
+                deletion_job_ids=deletion_job_ids,
+                data_dir=data_dir,
+                user_id=user_id,
             )
-            if usage_idempotency_keys:
-                session.execute(
-                    delete(DbProviderBudgetReservation).where(
-                        DbProviderBudgetReservation.idempotency_key.in_(usage_idempotency_keys),
-                    ),
-                )
+            _delete_account_usage_records(session, user_id=user_id, deletion_job_ids=deletion_job_ids)
 
             if locked_user is not None:
                 user_store.delete_user_in_session(session, user_id)

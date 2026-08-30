@@ -8,11 +8,12 @@ from ..deps import get_current_user, get_history_store
 
 router = APIRouter()
 
+
 @router.get("/", response_model=List[HistoryEvent])
 def read_history(
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
-    history_store: HistoryStore = Depends(get_history_store)
+    history_store: HistoryStore = Depends(get_history_store),
 ) -> Any:
     """Get recent history for the current user."""
     return history_store.recent_for_user(current_user, limit=limit)

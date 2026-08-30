@@ -1,10 +1,15 @@
-import { Page, Route } from '@playwright/test';
-import { resolve } from 'node:path';
-import el from '@/i18n/el.json';
+import { Page, Route } from "@playwright/test";
+import { resolve } from "node:path";
+
+export {
+  stabilizeUi,
+  waitForDashboardShell,
+  waitForUploadWorkspace,
+} from "./support/dashboardUi";
 
 type MockJob = {
   id: string;
-  status: 'completed' | 'processing' | 'pending' | 'failed';
+  status: "completed" | "processing" | "pending" | "failed";
   progress: number;
   message: string | null;
   created_at: number;
@@ -41,104 +46,106 @@ type MockApiOptions = {
 };
 
 const corsHeaders = {
-  'access-control-allow-origin': '*',
-  'access-control-allow-headers': '*',
-  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "*",
+  "access-control-allow-methods": "GET,POST,PUT,OPTIONS",
 };
 
 const mockUser = {
-  id: 'user-demo-1',
-  email: 'demo@futurist.studio',
-  name: 'Eleni Papadopoulou',
-  provider: 'local',
-  avatar_url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22%3E%3Crect width=%2296%22 height=%2296%22 fill=%22%231b6ca8%22/%3E%3C/svg%3E',
+  id: "user-demo-1",
+  email: "demo@futurist.studio",
+  name: "Eleni Papadopoulou",
+  provider: "local",
+  avatar_url:
+    "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22%3E%3Crect width=%2296%22 height=%2296%22 fill=%22%231b6ca8%22/%3E%3C/svg%3E",
 };
 
 const mockTranscription = [
   {
     start: 0,
     end: 4,
-    text: 'ΒΑΛΤΕ ΥΠΟΘΕΣΕΙΣ ΚΑΙ ΕΛΑΤΕ ΝΑ ΦΤΙΑΞΟΥΜΕ ΜΙΑ ΟΜΑΔΑ',
+    text: "ΒΑΛΤΕ ΥΠΟΘΕΣΕΙΣ ΚΑΙ ΕΛΑΤΕ ΝΑ ΦΤΙΑΞΟΥΜΕ ΜΙΑ ΟΜΑΔΑ",
     words: [
-      { start: 0, end: 0.5, text: 'ΒΑΛΤΕ' },
-      { start: 0.5, end: 1, text: 'ΥΠΟΘΕΣΕΙΣ' },
-      { start: 1, end: 1.5, text: 'ΚΑΙ' },
-      { start: 1.5, end: 2, text: 'ΕΛΑΤΕ' },
-      { start: 2, end: 2.5, text: 'ΝΑ' },
-      { start: 2.5, end: 3, text: 'ΦΤΙΑΞΟΥΜΕ' },
-      { start: 3, end: 3.5, text: 'ΜΙΑ' },
-      { start: 3.5, end: 4, text: 'ΟΜΑΔΑ' },
+      { start: 0, end: 0.5, text: "ΒΑΛΤΕ" },
+      { start: 0.5, end: 1, text: "ΥΠΟΘΕΣΕΙΣ" },
+      { start: 1, end: 1.5, text: "ΚΑΙ" },
+      { start: 1.5, end: 2, text: "ΕΛΑΤΕ" },
+      { start: 2, end: 2.5, text: "ΝΑ" },
+      { start: 2.5, end: 3, text: "ΦΤΙΑΞΟΥΜΕ" },
+      { start: 3, end: 3.5, text: "ΜΙΑ" },
+      { start: 3.5, end: 4, text: "ΟΜΑΔΑ" },
     ],
   },
 ];
 
 const mockJobs: MockJob[] = [
   {
-    id: 'job-futurist',
-    status: 'completed',
+    id: "job-futurist",
+    status: "completed",
     progress: 100,
-    message: 'Rendered safely for mobile viewports',
+    message: "Rendered safely for mobile viewports",
     created_at: 1_714_000_000,
     updated_at: 1_714_003_600,
-    expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+    expires_at: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
     result_data: {
-      video_path: '/static/artifacts/job-futurist/processed.mp4',
-      artifacts_dir: '/static/artifacts/futurist-showcase.zip',
-      public_url: '/static/artifacts/job-futurist/processed.mp4',
-      artifact_url: '/static/artifacts/futurist-showcase.zip',
-      transcription_url: '/static/transcriptions/futurist-showcase.json',
-      original_filename: 'GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4',
+      video_path: "/static/artifacts/job-futurist/processed.mp4",
+      artifacts_dir: "/static/artifacts/futurist-showcase.zip",
+      public_url: "/static/artifacts/job-futurist/processed.mp4",
+      artifact_url: "/static/artifacts/futurist-showcase.zip",
+      transcription_url: "/static/transcriptions/futurist-showcase.json",
+      original_filename: "GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4",
       video_crf: 12,
-      transcribe_tier: 'pro',
-      transcribe_provider: 'local',
+      transcribe_tier: "pro",
+      transcribe_provider: "local",
     },
   },
   {
-    id: 'job-creative-cut',
-    status: 'processing',
+    id: "job-creative-cut",
+    status: "processing",
     progress: 62,
-    message: 'Aligning captions to the beat',
+    message: "Aligning captions to the beat",
     created_at: 1_714_010_000,
     updated_at: 1_714_011_200,
     result_data: {
-      video_path: '/static/videos/creative-cut.mp4',
-      artifacts_dir: '/static/artifacts/creative-cut.zip',
-      original_filename: 'GreekSubtitles_TrendingClip_Highlight.mp4',
+      video_path: "/static/videos/creative-cut.mp4",
+      artifacts_dir: "/static/artifacts/creative-cut.zip",
+      original_filename: "GreekSubtitles_TrendingClip_Highlight.mp4",
       video_crf: 14,
-      transcribe_tier: 'standard',
-      transcribe_provider: 'openai',
+      transcribe_tier: "standard",
+      transcribe_provider: "openai",
     },
   },
   {
-    id: 'job-long-form',
-    status: 'pending',
+    id: "job-long-form",
+    status: "pending",
     progress: 0,
-    message: 'Queued for local turbo',
+    message: "Queued for local turbo",
     created_at: 1_714_020_000,
     updated_at: 1_714_020_050,
     result_data: {
-      video_path: '/static/videos/long-form.mp4',
-      artifacts_dir: '/static/artifacts/long-form.zip',
-      original_filename: 'A_very_long_filename_showing_wrapping_behavior_in_buttons.mp4',
+      video_path: "/static/videos/long-form.mp4",
+      artifacts_dir: "/static/artifacts/long-form.zip",
+      original_filename:
+        "A_very_long_filename_showing_wrapping_behavior_in_buttons.mp4",
       video_crf: 20,
-      transcribe_tier: 'standard',
-      transcribe_provider: 'local',
+      transcribe_tier: "standard",
+      transcribe_provider: "local",
     },
   },
   {
-    id: 'job-failed',
-    status: 'failed',
+    id: "job-failed",
+    status: "failed",
     progress: 0,
-    message: 'Upload failed — please retry',
+    message: "Upload failed — please retry",
     created_at: 1_714_030_000,
     updated_at: 1_714_030_100,
     result_data: {
-      video_path: '/static/videos/failed.mp4',
-      artifacts_dir: '/static/artifacts/failed.zip',
-      original_filename: 'Short_fail_case.mp4',
+      video_path: "/static/videos/failed.mp4",
+      artifacts_dir: "/static/artifacts/failed.zip",
+      original_filename: "Short_fail_case.mp4",
       video_crf: 28,
-      transcribe_tier: 'standard',
-      transcribe_provider: 'local',
+      transcribe_tier: "standard",
+      transcribe_provider: "local",
     },
   },
 ];
@@ -147,99 +154,104 @@ const jobLookup = new Map(mockJobs.map((job) => [job.id, job]));
 
 const mockHistory: MockHistoryEvent[] = [
   {
-    ts: '2024-04-25T10:04:00Z',
+    ts: "2024-04-25T10:04:00Z",
     user_id: mockUser.id,
     email: mockUser.email,
-    kind: 'processing_completed',
-    summary: 'Completed reel with safe subtitle margins',
+    kind: "processing_completed",
+    summary: "Completed reel with safe subtitle margins",
     data: {},
   },
   {
-    ts: '2024-04-25T09:55:00Z',
+    ts: "2024-04-25T09:55:00Z",
     user_id: mockUser.id,
     email: mockUser.email,
-    kind: 'auth_login',
-    summary: 'Signed in from Chrome on macOS',
+    kind: "auth_login",
+    summary: "Signed in from Chrome on macOS",
     data: {},
   },
   {
-    ts: '2024-04-24T18:20:00Z',
+    ts: "2024-04-24T18:20:00Z",
     user_id: mockUser.id,
     email: mockUser.email,
-    kind: 'processing_started',
-    summary: 'Queued long form cut for transcription',
+    kind: "processing_started",
+    summary: "Queued long form cut for transcription",
     data: {},
   },
 ];
 
 export const mockApprovedConsumerContract = {
   schema_version: 1,
-  status: 'approved',
-  classification: 'digital_service_with_prepaid_internal_units',
-  disclosure_id: 'gsubs-b2c-el-2026-08-28-owner-approved-v2',
-  disclosure_sha256: 'a'.repeat(64),
-  locale: 'el',
-  policy_version: '2026-08-28-owner-approved-v2',
-  terms_version: '2026-08-28-owner-approved-v2',
-  withdrawal_notice_version: '2026-08-28-owner-approved-v2',
-  confirmation_template_version: '2026-08-28-owner-approved-v2',
-  terms_url: '/terms',
-  withdrawal_url: '/account/billing',
-  model_withdrawal_form_url: '/terms#withdrawal',
+  status: "approved",
+  classification: "digital_service_with_prepaid_internal_units",
+  disclosure_id: "gsubs-b2c-el-2026-08-28-owner-approved-v2",
+  disclosure_sha256: "a".repeat(64),
+  locale: "el",
+  policy_version: "2026-08-28-owner-approved-v2",
+  terms_version: "2026-08-28-owner-approved-v2",
+  withdrawal_notice_version: "2026-08-28-owner-approved-v2",
+  confirmation_template_version: "2026-08-28-owner-approved-v2",
+  terms_url: "/terms",
+  withdrawal_url: "/account/billing",
+  model_withdrawal_form_url: "/terms#withdrawal",
   trader: {
-    legal_name: 'Ascentia G.P.',
-    legal_form: 'General Partnership (O.E.)',
-    trading_name: 'Ascentia',
-    service: 'GSUBS',
-    tax_identification_number: '802523620',
-    vat_id: 'EL802523620',
-    commercial_register: 'General Commercial Registry (GEMI)',
-    commercial_registration_number: '177974203000',
-    euid: 'ELGEMI.177974203000',
-    address_line_1: 'Agias Varvaras 4',
-    postal_code: '16452',
-    city: 'Argiroupoli, Athens',
-    country: 'GR',
-    support_email: 'info@ascentia-gp.com',
-    support_phone: '+30 698 756 4060',
-    website: 'https://ascentia-gp.com/',
+    legal_name: "Ascentia G.P.",
+    legal_form: "General Partnership (O.E.)",
+    trading_name: "Ascentia",
+    service: "GSUBS",
+    tax_identification_number: "802523620",
+    vat_id: "EL802523620",
+    commercial_register: "General Commercial Registry (GEMI)",
+    commercial_registration_number: "177974203000",
+    euid: "ELGEMI.177974203000",
+    address_line_1: "Agias Varvaras 4",
+    postal_code: "16452",
+    city: "Argiroupoli, Athens",
+    country: "GR",
+    support_email: "info@ascentia-gp.com",
+    support_phone: "+30 698 756 4060",
+    website: "https://ascentia-gp.com/",
   },
   content: {
-    title: 'Προσυμβατικές πληροφορίες αγοράς GSUBS credits',
-    service_description: 'Ψηφιακή υπηρεσία επεξεργασίας βίντεο και ήχου.',
-    credit_description: 'Τα credits είναι προπληρωμένες εσωτερικές μονάδες.',
-    purchase_terms: 'Η αγορά είναι εφάπαξ και δεν αποτελεί συνδρομή.',
-    delivery_timing: 'Τα credits αποδίδονται μετά την επιβεβαίωση πληρωμής.',
-    validity_and_transfer: 'Δεν λήγουν αυτόματα και δεν μεταβιβάζονται.',
-    functionality: 'Η επεξεργασία καταναλώνει credits.',
-    compatibility: 'Απαιτείται υποστηριζόμενο πρόγραμμα περιήγησης.',
-    withdrawal_notice: 'Ισχύουν οι δημοσιευμένοι όροι υπαναχώρησης.',
-    manual_review_notice: 'Οι επιστροφές και διορθώσεις ελέγχονται χειροκίνητα.',
+    title: "Προσυμβατικές πληροφορίες αγοράς GSUBS credits",
+    service_description: "Ψηφιακή υπηρεσία επεξεργασίας βίντεο και ήχου.",
+    credit_description: "Τα credits είναι προπληρωμένες εσωτερικές μονάδες.",
+    purchase_terms: "Η αγορά είναι εφάπαξ και δεν αποτελεί συνδρομή.",
+    delivery_timing: "Τα credits αποδίδονται μετά την επιβεβαίωση πληρωμής.",
+    validity_and_transfer: "Δεν λήγουν αυτόματα και δεν μεταβιβάζονται.",
+    functionality: "Η επεξεργασία καταναλώνει credits.",
+    compatibility: "Απαιτείται υποστηριζόμενο πρόγραμμα περιήγησης.",
+    withdrawal_notice: "Ισχύουν οι δημοσιευμένοι όροι υπαναχώρησης.",
+    manual_review_notice:
+      "Οι επιστροφές και διορθώσεις ελέγχονται χειροκίνητα.",
   },
   required_acceptances: {
-    terms: 'Αποδέχομαι τους όρους και την προσυμβατική ενημέρωση.',
-    immediate_performance: 'Ζητώ να αρχίσει άμεσα η παροχή της υπηρεσίας.',
-    withdrawal_consequences: 'Κατανοώ τις συνέπειες για το δικαίωμα υπαναχώρησης.',
+    terms: "Αποδέχομαι τους όρους και την προσυμβατική ενημέρωση.",
+    immediate_performance: "Ζητώ να αρχίσει άμεσα η παροχή της υπηρεσίας.",
+    withdrawal_consequences:
+      "Κατανοώ τις συνέπειες για το δικαίωμα υπαναχώρησης.",
   },
 };
 
 const unauthorizedResponse = {
   status: 401,
   headers: corsHeaders,
-  contentType: 'application/json',
-  body: JSON.stringify({ detail: 'Unauthorized' }),
+  contentType: "application/json",
+  body: JSON.stringify({ detail: "Unauthorized" }),
 };
 
 function withCors(body: unknown, status = 200) {
   return {
     status,
     headers: corsHeaders,
-    contentType: 'application/json',
+    contentType: "application/json",
     body: JSON.stringify(body),
   };
 }
 
-export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
+export async function mockApi(
+  page: Page,
+  options: MockApiOptions = {},
+): Promise<void> {
   const {
     authenticated = true,
     googleNonceExpiresIn = 600,
@@ -254,47 +266,51 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
   }));
 
   // Pre-set locale to avoid hydration flicker.
-  await page.addInitScript(({ authenticated: isAuthenticated }) => {
-    const browserWindow = window as typeof window & {
-      __mockGoogleCallback?: (response: { credential?: string }) => void;
-    };
-    localStorage.setItem('preferredLocale', 'el');
-    localStorage.removeItem('lastActiveJobId');
-    if (isAuthenticated) {
-      localStorage.setItem('auth_token', 'test-token');
-    } else {
-      localStorage.removeItem('auth_token');
-    }
-    browserWindow.google = {
-      accounts: {
-        id: {
-          initialize: (googleOptions) => {
-            browserWindow.__mockGoogleCallback = googleOptions.callback;
-          },
-          renderButton: (parent) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = 'Σύνδεση με Google';
-            button.addEventListener('click', () => {
-              browserWindow.__mockGoogleCallback?.({
-                credential: 'signed-e2e-google-id-token',
+  await page.addInitScript(
+    ({ authenticated: isAuthenticated }) => {
+      const browserWindow = window as typeof window & {
+        __mockGoogleCallback?: (response: { credential?: string }) => void;
+      };
+      localStorage.setItem("preferredLocale", "el");
+      localStorage.removeItem("lastActiveJobId");
+      if (isAuthenticated) {
+        localStorage.setItem("auth_token", "test-token");
+      } else {
+        localStorage.removeItem("auth_token");
+      }
+      browserWindow.google = {
+        accounts: {
+          id: {
+            initialize: (googleOptions) => {
+              browserWindow.__mockGoogleCallback = googleOptions.callback;
+            },
+            renderButton: (parent) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.textContent = "Σύνδεση με Google";
+              button.addEventListener("click", () => {
+                browserWindow.__mockGoogleCallback?.({
+                  credential: "signed-e2e-google-id-token",
+                });
               });
-            });
-            parent.appendChild(button);
+              parent.appendChild(button);
+            },
           },
         },
-      },
-    };
-  }, { authenticated });
+      };
+    },
+    { authenticated },
+  );
   const shortCircuitOptions = async (route: Route) => {
-    if (route.request().method() === 'OPTIONS') {
-      const origin = route.request().headers().origin ?? 'http://localhost:3000';
+    if (route.request().method() === "OPTIONS") {
+      const origin =
+        route.request().headers().origin ?? "http://localhost:3000";
       await route.fulfill({
         status: 200,
         headers: {
           ...corsHeaders,
-          'access-control-allow-origin': origin,
-          'access-control-allow-credentials': 'true',
+          "access-control-allow-origin": origin,
+          "access-control-allow-credentials": "true",
         },
       });
       return true;
@@ -302,7 +318,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     return false;
   };
 
-  await page.route('**/observability/events', async (route) => {
+  await page.route("**/observability/events", async (route) => {
     if (await shortCircuitOptions(route)) return;
     await route.fulfill({
       status: 204,
@@ -310,7 +326,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     });
   });
 
-  await page.route('**/auth/me', async (route) => {
+  await page.route("**/auth/me", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
@@ -319,148 +335,173 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill(withCors(mockUser));
   });
 
-  await page.route('**/auth/token', async (route) => {
+  await page.route("**/auth/token", async (route) => {
     if (await shortCircuitOptions(route)) return;
     signedIn = true;
-    await route.fulfill(withCors({
-      access_token: 'test-token',
-      token_type: 'bearer',
-      user_id: mockUser.id,
-      name: mockUser.name,
-    }));
+    await route.fulfill(
+      withCors({
+        access_token: "test-token",
+        token_type: "bearer",
+        user_id: mockUser.id,
+        name: mockUser.name,
+      }),
+    );
   });
 
-  await page.route('**/auth/logout', async (route) => {
+  await page.route("**/auth/logout", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
     signedIn = false;
-    await route.fulfill(withCors({ status: 'success' }));
+    await route.fulfill(withCors({ status: "success" }));
   });
 
-  await page.route('**/auth/points', async (route) => {
+  await page.route("**/auth/points", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
-    await route.fulfill(withCors({
-      balance: 125,
-      paid_balance: 100,
-      promotional_balance: 25,
-      reversal_debt: 0,
-      ai_spendable_balance: 100,
-    }));
+    await route.fulfill(
+      withCors({
+        balance: 125,
+        paid_balance: 100,
+        promotional_balance: 25,
+        reversal_debt: 0,
+        ai_spendable_balance: 100,
+      }),
+    );
   });
 
   await page.route(/\/billing\/catalog(?:\?.*)?$/, async (route) => {
     if (await shortCircuitOptions(route)) return;
-    await route.fulfill(withCors({
-      catalog_version: '2026-08-28-v2',
-      currency: 'eur',
-      billing_country_scope: ['GR'],
-      checkout_enabled: checkoutEnabled,
-      consumer_contract_status: 'approved',
-      consumer_contract: mockApprovedConsumerContract,
-      packages: [
-        { key: 'starter', credits: 100, amount_eur_cents: 100, featured: false },
-        { key: 'core', credits: 350, amount_eur_cents: 300, featured: true },
-        { key: 'pro', credits: 1200, amount_eur_cents: 1000, featured: false },
-      ],
-      video_pricing: [
-        { key: 'up_to_3m', max_duration_seconds: 180, credits: 30 },
-        { key: 'up_to_6m', max_duration_seconds: 360, credits: 60 },
-        { key: 'up_to_10m', max_duration_seconds: 600, credits: 100 },
-      ],
-    }));
+    await route.fulfill(
+      withCors({
+        catalog_version: "2026-08-28-v2",
+        currency: "eur",
+        billing_country_scope: ["GR"],
+        checkout_enabled: checkoutEnabled,
+        consumer_contract_status: "approved",
+        consumer_contract: mockApprovedConsumerContract,
+        packages: [
+          {
+            key: "starter",
+            credits: 100,
+            amount_eur_cents: 100,
+            featured: false,
+          },
+          { key: "core", credits: 350, amount_eur_cents: 300, featured: true },
+          {
+            key: "pro",
+            credits: 1200,
+            amount_eur_cents: 1000,
+            featured: false,
+          },
+        ],
+        video_pricing: [
+          { key: "up_to_3m", max_duration_seconds: 180, credits: 30 },
+          { key: "up_to_6m", max_duration_seconds: 360, credits: 60 },
+          { key: "up_to_10m", max_duration_seconds: 600, credits: 100 },
+        ],
+      }),
+    );
   });
 
-  await page.route('**/billing/checkout', async (route) => {
+  await page.route("**/billing/checkout", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
-    await route.fulfill(withCors({
-      purchase_id: 'purchase-e2e',
-      checkout_session_id: 'cs_test_subframe',
-      checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_subframe',
-      status: 'checkout_created',
-    }));
+    await route.fulfill(
+      withCors({
+        purchase_id: "purchase-e2e",
+        checkout_session_id: "cs_test_subframe",
+        checkout_url: "https://checkout.stripe.com/c/pay/cs_test_subframe",
+        status: "checkout_created",
+      }),
+    );
   });
 
-  await page.route('**/auth/register', async (route) => {
+  await page.route("**/auth/register", async (route) => {
     if (await shortCircuitOptions(route)) return;
     await route.fulfill(withCors(mockUser));
   });
 
-  await page.route('**/feedback', async (route) => {
+  await page.route("**/feedback", async (route) => {
     if (await shortCircuitOptions(route)) return;
-    await route.fulfill(withCors({
-      status: 'received',
-      id: 'feedback-e2e',
-    }, 202));
+    await route.fulfill(
+      withCors(
+        {
+          status: "received",
+          id: "feedback-e2e",
+        },
+        202,
+      ),
+    );
   });
 
-  await page.route('**/auth/google/nonce', async (route) => {
+  await page.route("**/auth/google/nonce", async (route) => {
     if (await shortCircuitOptions(route)) return;
-    const origin = route.request().headers().origin ?? 'http://localhost:3000';
+    const origin = route.request().headers().origin ?? "http://localhost:3000";
     await route.fulfill({
       ...withCors({
-        nonce: 'e2e-google-nonce',
+        nonce: "e2e-google-nonce",
         expires_in: googleNonceExpiresIn,
-        client_id: 'e2e-google-client',
+        client_id: "e2e-google-client",
       }),
       headers: {
         ...corsHeaders,
-        'access-control-allow-origin': origin,
-        'access-control-allow-credentials': 'true',
+        "access-control-allow-origin": origin,
+        "access-control-allow-credentials": "true",
       },
     });
   });
 
-  await page.route('**/auth/google', async (route) => {
+  await page.route("**/auth/google", async (route) => {
     if (await shortCircuitOptions(route)) return;
     const payload = route.request().postDataJSON() as { id_token?: string };
-    if (payload.id_token !== 'signed-e2e-google-id-token') {
-      await route.fulfill(withCors({ detail: 'Invalid Google token' }, 401));
+    if (payload.id_token !== "signed-e2e-google-id-token") {
+      await route.fulfill(withCors({ detail: "Invalid Google token" }, 401));
       return;
     }
     signedIn = true;
-    const origin = route.request().headers().origin ?? 'http://localhost:3000';
+    const origin = route.request().headers().origin ?? "http://localhost:3000";
     await route.fulfill({
       ...withCors({
-        access_token: 'google-token',
-        token_type: 'bearer',
+        access_token: "google-token",
+        token_type: "bearer",
         user_id: mockUser.id,
         name: mockUser.name,
       }),
       headers: {
         ...corsHeaders,
-        'access-control-allow-origin': origin,
-        'access-control-allow-credentials': 'true',
+        "access-control-allow-origin": origin,
+        "access-control-allow-credentials": "true",
       },
     });
   });
 
-  await page.route('**/videos/process*', async (route) => {
+  await page.route("**/videos/process*", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
-    await route.fulfill(withCors({
-      ...mockJobs[1],
-      id: 'job-new',
-      status: 'processing',
-      progress: 12,
-      message: 'Uploading…',
-    }));
+    await route.fulfill(
+      withCors({
+        ...mockJobs[1],
+        id: "job-new",
+        status: "processing",
+        progress: 12,
+        message: "Uploading…",
+      }),
+    );
   });
 
-  await page.route('**/videos/jobs/*/export', async (route) => {
+  await page.route("**/videos/jobs/*/export", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
@@ -468,27 +509,31 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     const url = new URL(route.request().url());
-    const parts = url.pathname.split('/');
-    const jobId = parts[parts.indexOf('jobs') + 1] ?? mockJobs[0].id;
+    const parts = url.pathname.split("/");
+    const jobId = parts[parts.indexOf("jobs") + 1] ?? mockJobs[0].id;
     const job = jobLookup.get(jobId) ?? mockJobs[0];
     const request = route.request().postDataJSON() as { resolution?: string };
-    const resolution = request.resolution ?? '1080x1920';
-    const extension = ['srt', 'vtt', 'txt'].includes(resolution) ? resolution : 'mp4';
+    const resolution = request.resolution ?? "1080x1920";
+    const extension = ["srt", "vtt", "txt"].includes(resolution)
+      ? resolution
+      : "mp4";
     const variantPath = `/static/artifacts/${jobId}/processed_${resolution}.${extension}`;
 
-    await route.fulfill(withCors({
-      ...job,
-      result_data: {
-        ...(job.result_data ?? {}),
-        variants: {
-          ...(job.result_data?.variants ?? {}),
-          [resolution]: variantPath,
+    await route.fulfill(
+      withCors({
+        ...job,
+        result_data: {
+          ...(job.result_data ?? {}),
+          variants: {
+            ...(job.result_data?.variants ?? {}),
+            [resolution]: variantPath,
+          },
         },
-      },
-    }));
+      }),
+    );
   });
 
-  await page.route('**/videos/jobs**', async (route) => {
+  await page.route("**/videos/jobs**", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
@@ -497,29 +542,39 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
     const url = new URL(route.request().url());
 
-    if (route.request().method() === 'PUT' && url.pathname.endsWith('/transcription')) {
-      const payload = route.request().postDataJSON() as { cues?: typeof mockTranscription };
+    if (
+      route.request().method() === "PUT" &&
+      url.pathname.endsWith("/transcription")
+    ) {
+      const payload = route.request().postDataJSON() as {
+        cues?: typeof mockTranscription;
+      };
       currentTranscription = (payload.cues ?? []).map((cue) => ({
         ...cue,
         words: cue.words?.map((word) => ({ ...word })) ?? [],
       }));
-      await route.fulfill(withCors({ status: 'ok' }));
+      await route.fulfill(withCors({ status: "ok" }));
       return;
     }
 
-    if (url.pathname.includes('/videos/jobs/paginated')) {
-      await route.fulfill(withCors({
-        items: mockJobs,
-        total: mockJobs.length,
-        page: 1,
-        page_size: 5,
-        total_pages: 1,
-      }));
+    if (url.pathname.includes("/videos/jobs/paginated")) {
+      await route.fulfill(
+        withCors({
+          items: mockJobs,
+          total: mockJobs.length,
+          page: 1,
+          page_size: 5,
+          total_pages: 1,
+        }),
+      );
       return;
     }
 
-    if (url.pathname.startsWith('/videos/jobs/') && url.pathname !== '/videos/jobs') {
-      const id = url.pathname.split('/').pop() ?? '';
+    if (
+      url.pathname.startsWith("/videos/jobs/") &&
+      url.pathname !== "/videos/jobs"
+    ) {
+      const id = url.pathname.split("/").pop() ?? "";
       const job = jobLookup.get(id) ?? mockJobs[0];
       await route.fulfill(withCors(job));
       return;
@@ -530,7 +585,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   // Playwright resolves overlapping page routes in reverse registration
   // order. Keep the exact grant route after the generic jobs route.
-  await page.route('**/videos/jobs/*/download-grant', async (route) => {
+  await page.route("**/videos/jobs/*/download-grant", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
@@ -540,18 +595,21 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       artifact_path?: string;
       filename?: string;
     };
-    const artifactPath = request.artifact_path ?? '/static/artifacts/missing/file.mp4';
-    const filename = request.filename ?? 'download.mp4';
+    const artifactPath =
+      request.artifact_path ?? "/static/artifacts/missing/file.mp4";
+    const filename = request.filename ?? "download.mp4";
     downloadGrantSequence += 1;
     const grant = `e2e-download-grant-${downloadGrantSequence}`;
     downloadGrantFilenames.set(grant, filename);
-    await route.fulfill(withCors({
-      download_url: `${artifactPath}?grant=${grant}`,
-      expires_in: 300,
-    }));
+    await route.fulfill(
+      withCors({
+        download_url: `${artifactPath}?grant=${grant}`,
+        expires_in: 300,
+      }),
+    );
   });
 
-  await page.route('**/history/**', async (route) => {
+  await page.route("**/history/**", async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
@@ -560,51 +618,54 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill(withCors(mockHistory));
   });
 
-  await page.route('**/static/**', async (route) => {
+  await page.route("**/static/**", async (route) => {
     const url = new URL(route.request().url());
 
     // Never intercept Next.js assets (e.g. `/_next/static/**`) or we break hydration.
-    if (url.pathname.startsWith('/_next/static/')) {
+    if (url.pathname.startsWith("/_next/static/")) {
       await route.fallback();
       return;
     }
 
     // Only stub backend-served assets under `/static/**`.
-    if (!url.pathname.startsWith('/static/')) {
+    if (!url.pathname.startsWith("/static/")) {
       await route.fallback();
       return;
     }
 
-    if (url.pathname === '/static/transcriptions/futurist-showcase.json') {
+    if (url.pathname === "/static/transcriptions/futurist-showcase.json") {
       await route.fulfill(withCors(currentTranscription));
       return;
     }
 
     const headers: Record<string, string> = { ...corsHeaders };
-    const grantFilename = downloadGrantFilenames.get(url.searchParams.get('grant') ?? '');
-    if (url.searchParams.get('download') === 'true' || grantFilename) {
+    const grantFilename = downloadGrantFilenames.get(
+      url.searchParams.get("grant") ?? "",
+    );
+    if (url.searchParams.get("download") === "true" || grantFilename) {
       // REGRESSION: The static-artifact mock ignored the public filename query
       // contract and exposed the internal processed_<format> artifact name.
-      const filename = (
-        grantFilename
-        || url.searchParams.get('filename')
-        || url.pathname.split('/').pop()
-        || 'processed.txt'
-      );
-      headers['content-disposition'] = (
-        `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
-      );
+      const filename =
+        grantFilename ||
+        url.searchParams.get("filename") ||
+        url.pathname.split("/").pop() ||
+        "processed.txt";
+      headers["content-disposition"] =
+        `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`;
     }
 
-    if (url.pathname.startsWith('/static/videos/') || url.pathname.endsWith('.mp4')) {
+    if (
+      url.pathname.startsWith("/static/videos/") ||
+      url.pathname.endsWith(".mp4")
+    ) {
       // REGRESSION: completed previews and their granted downloads can both
       // use artifact-scoped MP4 paths. Serving those as text leaves duration
       // at zero and makes player gestures untestable across every engine.
       await route.fulfill({
         status: 200,
         headers,
-        contentType: 'video/mp4',
-        path: resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+        contentType: "video/mp4",
+        path: resolve(process.cwd(), "../backend/tests/data/demo_output.mp4"),
       });
       return;
     }
@@ -612,58 +673,8 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill({
       status: 200,
       headers,
-      contentType: 'text/plain',
-      body: 'stub',
+      contentType: "text/plain",
+      body: "stub",
     });
-  });
-}
-
-export async function stabilizeUi(page: Page): Promise<void> {
-  // The product deliberately keeps short-lived presence and job polling alive.
-  // Wait for the document and the rendered surface instead of a global network
-  // state that a healthy, observable application does not promise to reach.
-  await page.waitForLoadState('domcontentloaded');
-  await page.evaluate(async () => {
-    if ('fonts' in document) {
-      await document.fonts.ready;
-    }
-  });
-  await page.addStyleTag({
-    content: `
-      *, *::before, *::after { 
-        transition-duration: 0s !important;
-        animation-duration: 0s !important;
-        caret-color: transparent !important;
-      }
-      video { background: #000 !important; }
-    `,
-  });
-}
-
-export async function waitForDashboardShell(page: Page): Promise<void> {
-  await page.waitForLoadState('domcontentloaded');
-  await page.getByRole('button', { name: el.profileLabel }).waitFor({
-    state: 'visible',
-    timeout: 30_000,
-  });
-}
-
-export async function waitForUploadWorkspace(
-  page: Page,
-  options: { authenticated?: boolean } = {},
-): Promise<void> {
-  const { authenticated = true } = options;
-  await page.waitForLoadState('domcontentloaded');
-  if (authenticated) {
-    await waitForDashboardShell(page);
-  } else {
-    await page.getByRole('link', { name: el.guestSignIn }).waitFor({
-      state: 'visible',
-      timeout: 30_000,
-    });
-  }
-  await page.getByTestId('upload-section').waitFor({
-    state: 'visible',
-    timeout: 30_000,
   });
 }

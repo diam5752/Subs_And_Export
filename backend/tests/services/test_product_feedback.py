@@ -349,11 +349,14 @@ def test_claimed_signed_in_feedback_is_not_delivered_after_account_deletion(
         session.delete(user)
 
     notifier = Mock()
-    assert store.deliver_notification(
-        notification,
-        notifier=notifier,
-        now=now + 1,
-    ) is False
+    assert (
+        store.deliver_notification(
+            notification,
+            notifier=notifier,
+            now=now + 1,
+        )
+        is False
+    )
     notifier.send.assert_not_called()
     with feedback_db.session() as session:
         assert session.get(DbProductFeedback, receipt.id) is None

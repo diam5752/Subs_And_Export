@@ -18,6 +18,7 @@ class JobResponse(BaseModel):
     result_data: dict[str, Any] | None
     balance: int | None = None
 
+
 class PaginatedJobsResponse(BaseModel):
     items: list[JobResponse]
     total: int
@@ -25,8 +26,10 @@ class PaginatedJobsResponse(BaseModel):
     page_size: int
     total_pages: int
 
+
 class BatchDeleteRequest(BaseModel):
     job_ids: Annotated[list[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
+
 
 class BatchDeleteResponse(BaseModel):
     status: str

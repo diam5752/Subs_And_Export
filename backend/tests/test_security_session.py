@@ -5,12 +5,14 @@ import pytest
 def test_user_data_session():
     """Test user data for session security test."""
     import uuid
+
     unique_id = uuid.uuid4().hex[:8]
     return {
         "email": f"security_test_{unique_id}@example.com",
         "password": "InitialPassword123",
-        "name": "Security User"
+        "name": "Security User",
     }
+
 
 class TestSessionSecurity:
     """Tests for session security vulnerabilities."""
@@ -27,20 +29,14 @@ class TestSessionSecurity:
         # 2. Login Device A (Attacker or Old Session)
         resp_a = client.post(
             "/auth/token",
-            data={
-                "username": test_user_data_session["email"],
-                "password": test_user_data_session["password"]
-            }
+            data={"username": test_user_data_session["email"], "password": test_user_data_session["password"]},
         )
         token_a = resp_a.json()["access_token"]
 
         # 3. Login Device B (Victim or Current Session)
         resp_b = client.post(
             "/auth/token",
-            data={
-                "username": test_user_data_session["email"],
-                "password": test_user_data_session["password"]
-            }
+            data={"username": test_user_data_session["email"], "password": test_user_data_session["password"]},
         )
         token_b = resp_b.json()["access_token"]
 
@@ -52,11 +48,8 @@ class TestSessionSecurity:
         new_password = "NewPassword456"
         resp_update = client.put(
             "/auth/password",
-            json={
-                "password": new_password,
-                "confirm_password": new_password
-            },
-            headers={"Authorization": f"Bearer {token_b}"}
+            json={"password": new_password, "confirm_password": new_password},
+            headers={"Authorization": f"Bearer {token_b}"},
         )
         assert resp_update.status_code == 200
 
@@ -71,20 +64,13 @@ class TestSessionSecurity:
 
         # 7. Verify login with OLD password fails
         fail_login = client.post(
-             "/auth/token",
-             data={
-                 "username": test_user_data_session["email"],
-                 "password": test_user_data_session["password"]
-             }
-         )
+            "/auth/token",
+            data={"username": test_user_data_session["email"], "password": test_user_data_session["password"]},
+        )
         assert fail_login.status_code == 400
 
         # 8. Verify login with NEW password succeeds
         new_login = client.post(
-             "/auth/token",
-             data={
-                 "username": test_user_data_session["email"],
-                 "password": new_password
-             }
-         )
+            "/auth/token", data={"username": test_user_data_session["email"], "password": new_password}
+        )
         assert new_login.status_code == 200

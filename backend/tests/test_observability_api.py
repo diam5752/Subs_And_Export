@@ -25,21 +25,27 @@ def test_anonymous_event_schema_is_content_free(
 ) -> None:
     store = install_store(client, tmp_path)
 
-    accepted = client.post("/observability/events", json={
-        "kind": "action",
-        "name": "export_started",
-        "outcome": "started",
-        "export_format": "1080p",
-        "route": "studio",
-        "viewport": "wide",
-    })
-    rejected = client.post("/observability/events", json={
-        "kind": "frontend_error",
-        "name": "window_error",
-        "message": "private subtitle content",
-        "route": "studio",
-        "viewport": "wide",
-    })
+    accepted = client.post(
+        "/observability/events",
+        json={
+            "kind": "action",
+            "name": "export_started",
+            "outcome": "started",
+            "export_format": "1080p",
+            "route": "studio",
+            "viewport": "wide",
+        },
+    )
+    rejected = client.post(
+        "/observability/events",
+        json={
+            "kind": "frontend_error",
+            "name": "window_error",
+            "message": "private subtitle content",
+            "route": "studio",
+            "viewport": "wide",
+        },
+    )
 
     assert accepted.status_code == 204
     assert rejected.status_code == 422

@@ -9,7 +9,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 GRANT_VERSION = 1
 MIN_SECRET_BYTES = 32
@@ -63,11 +63,7 @@ def _validate_file_path(file_path: str) -> None:
 
 
 def _validate_claim_text(value: str, *, label: str, maximum: int) -> None:
-    if (
-        not value
-        or len(value) > maximum
-        or any(ord(character) < 32 or ord(character) == 127 for character in value)
-    ):
+    if not value or len(value) > maximum or any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise DownloadGrantError(f"Download grant {label} is invalid")
 
 
@@ -141,21 +137,9 @@ def create_download_grant(
     return f"{encoded_payload}.{_encode_base64url(signature)}"
 
 
-def validate_download_grant(
-    token: str,
-    *,
-    secret: str,
-    expected_file_path: str,
-    ttl_seconds: int,
-    now: int | None = None,
-) -> DownloadGrantClaims:
-    """Validate a grant without disclosing which claim failed to the caller."""
-    secret_bytes = _secret_bytes(secret)
-    _validate_ttl(ttl_seconds)
-    _validate_file_path(expected_file_path)
+def _decode_signed_payload(token: str, *, secret_bytes: bytes) -> dict[str, Any]:
     if not token or len(token) > MAX_TOKEN_CHARS or token.count(".") != 1:
         raise DownloadGrantError("Download grant is malformed")
-
     encoded_payload, encoded_signature = token.split(".", 1)
     if _BASE64URL_RE.fullmatch(encoded_payload) is None:
         raise DownloadGrantError("Download grant encoding is invalid")
@@ -167,7 +151,6 @@ def validate_download_grant(
     ).digest()
     if not hmac.compare_digest(supplied_signature, expected_signature):
         raise DownloadGrantError("Download grant signature is invalid")
-
     try:
         payload = json.loads(
             _decode_base64url(encoded_payload).decode("utf-8"),
@@ -177,7 +160,14 @@ def validate_download_grant(
         raise DownloadGrantError("Download grant payload is invalid") from exc
     if not isinstance(payload, dict) or set(payload) != {"exp", "iat", "name", "path", "uid", "v"}:
         raise DownloadGrantError("Download grant payload is invalid")
+    return cast(dict[str, Any], payload)
 
+
+def _validated_claim_values(
+    payload: dict[str, Any],
+    *,
+    ttl_seconds: int,
+) -> tuple[str, str, str, int, int]:
     version = payload["v"]
     issued_at = payload["iat"]
     expires_at = payload["exp"]
@@ -199,24 +189,43 @@ def validate_download_grant(
     _validate_claim_text(user_id, label="user", maximum=MAX_USER_ID_CHARS)
     _validate_claim_text(filename, label="filename", maximum=MAX_FILENAME_CHARS)
     _validate_file_path(file_path)
+    return user_id, file_path, filename, issued_at, expires_at
+
+
+def _validate_grant_window(*, issued_at: int, expires_at: int, now: int | None) -> None:
+    current_time = int(time.time()) if now is None else now
+    if isinstance(current_time, bool) or not isinstance(current_time, int) or current_time < 0 or issued_at < 0:
+        raise DownloadGrantError("Download grant current time is invalid")
+    if issued_at > current_time + 30:
+        raise DownloadGrantError("Download grant is not active")
+    if current_time >= expires_at:
+        raise DownloadGrantError("Download grant has expired")
+
+
+def validate_download_grant(
+    token: str,
+    *,
+    secret: str,
+    expected_file_path: str,
+    ttl_seconds: int,
+    now: int | None = None,
+) -> DownloadGrantClaims:
+    """Validate a grant without disclosing which claim failed to the caller."""
+    secret_bytes = _secret_bytes(secret)
+    _validate_ttl(ttl_seconds)
+    _validate_file_path(expected_file_path)
+    payload = _decode_signed_payload(token, secret_bytes=secret_bytes)
+    user_id, file_path, filename, issued_at, expires_at = _validated_claim_values(
+        payload,
+        ttl_seconds=ttl_seconds,
+    )
     if not hmac.compare_digest(
         file_path.encode("utf-8"),
         expected_file_path.encode("utf-8"),
     ):
         raise DownloadGrantError("Download grant is for a different artifact")
 
-    current_time = int(time.time()) if now is None else now
-    if (
-        isinstance(current_time, bool)
-        or not isinstance(current_time, int)
-        or current_time < 0
-        or issued_at < 0
-    ):
-        raise DownloadGrantError("Download grant current time is invalid")
-    if issued_at > current_time + 30:
-        raise DownloadGrantError("Download grant is not active")
-    if current_time >= expires_at:
-        raise DownloadGrantError("Download grant has expired")
+    _validate_grant_window(issued_at=issued_at, expires_at=expires_at, now=now)
     return DownloadGrantClaims(
         user_id=user_id,
         file_path=file_path,

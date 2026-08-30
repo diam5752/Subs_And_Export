@@ -7,17 +7,24 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any, Callable, List, Sequence
+from typing import List, Sequence
 
 from backend.app.core.config import settings
 from backend.app.services import settings_utils
+from backend.app.services.subtitle_layout import SOFT_BREAK_PUNCTUATION as SOFT_BREAK_PUNCTUATION
+from backend.app.services.subtitle_layout import STRONG_BREAK_PUNCTUATION as STRONG_BREAK_PUNCTUATION
+from backend.app.services.subtitle_layout import chunk_items as chunk_items
+from backend.app.services.subtitle_layout import effective_max_chars as effective_max_chars
+from backend.app.services.subtitle_layout import format_active_word_text as format_active_word_text
+from backend.app.services.subtitle_layout import format_karaoke_text as format_karaoke_text
+from backend.app.services.subtitle_layout import split_long_cues as split_long_cues
+from backend.app.services.subtitle_layout import wrap_lines as wrap_lines
+from backend.app.services.subtitle_layout import wrap_word_timings as wrap_word_timings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 
 logger = logging.getLogger(__name__)
 
 TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
-STRONG_BREAK_PUNCTUATION = frozenset(".!?;:…")
-SOFT_BREAK_PUNCTUATION = frozenset(",")
 
 
 @functools.lru_cache(maxsize=4096)
@@ -83,9 +90,7 @@ def parse_srt(transcript_path: Path) -> List[TimeRange]:
             continue
         # second line expected to be timecode
         time_line = lines[1]
-        match = re.match(
-            r"(\d+:\d{2}:\d{2}[,.]\d+)\s*-->\s*(\d+:\d{2}:\d{2}[,.]\d+)", time_line
-        )
+        match = re.match(r"(\d+:\d{2}:\d{2}[,.]\d+)\s*-->\s*(\d+:\d{2}:\d{2}[,.]\d+)", time_line)
         if not match:
             continue
         start_raw, end_raw = match.groups()
@@ -159,9 +164,8 @@ def position_ass_dialogue_events(
     midpoint centers it, and the maximum anchors its top at the safe edge.
     """
     position = settings_utils.normalize_subtitle_position(subtitle_position)
-    progress = (
-        (position - settings_utils.SUBTITLE_POSITION_MIN)
-        / (settings_utils.SUBTITLE_POSITION_MAX - settings_utils.SUBTITLE_POSITION_MIN)
+    progress = (position - settings_utils.SUBTITLE_POSITION_MIN) / (
+        settings_utils.SUBTITLE_POSITION_MAX - settings_utils.SUBTITLE_POSITION_MIN
     )
     safe_margin = play_res_y * (settings_utils.SUBTITLE_POSITION_MIN / 100)
     usable_height = play_res_y - (2 * safe_margin)
@@ -187,7 +191,129 @@ def position_ass_dialogue_events(
     return positioned
 
 
-def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secondary_color: str) -> List[str]:
+def _active_events_without_word_timings(
+    cue: Cue,
+    *,
+    max_lines: int,
+    primary_color: str,
+) -> List[str]:
+    if max_lines != 0:
+        return [format_ass_dialogue(cue.start, cue.end, cue.text)]
+    tokens = [token for token in cue.text.split() if token]
+    if not tokens:
+        return []
+    step = max(0.01, cue.end - cue.start) / len(tokens)
+    return [
+        format_ass_dialogue(
+            cue.start + (index * step),
+            cue.end if index == len(tokens) - 1 else cue.start + ((index + 1) * step),
+            f"{{\\c{primary_color}&}}{token}",
+        )
+        for index, token in enumerate(tokens)
+    ]
+
+
+def _active_word_line_structure(cue: Cue) -> List[List[WordTiming]]:
+    if cue.words is None:
+        return []
+    line_structure: List[List[WordTiming]] = []
+    word_iter = iter(cue.words)
+    try:
+        for raw_line in cue.text.split("\\N"):
+            line_structure.append(
+                [next(word_iter) for _ in raw_line.split()],
+            )
+    except StopIteration:
+        return [cue.words]
+    return line_structure
+
+
+def _active_word_formats(
+    line_structure: Sequence[Sequence[WordTiming]],
+    *,
+    primary_color: str,
+    secondary_color: str,
+) -> dict[int, tuple[str, str, str]]:
+    templates = (
+        f"{{\\alpha&H00&\\c{secondary_color}&}}",
+        f"{{\\alpha&H00&\\c{primary_color}&}}",
+        f"{{\\alpha&HFF&\\c{secondary_color}&}}",
+    )
+    formats: dict[int, tuple[str, str, str]] = {}
+    for line_words in line_structure:
+        for word in line_words:
+            formats.setdefault(
+                id(word),
+                (
+                    f"{templates[0]}{word.text}",
+                    f"{templates[1]}{word.text}",
+                    f"{templates[2]}{word.text}",
+                ),
+            )
+    return formats
+
+
+def _formatted_word_block(
+    line_structure: Sequence[Sequence[WordTiming]],
+    formats: dict[int, tuple[str, str, str]],
+    *,
+    active_word_id: int | None,
+) -> str:
+    rendered_lines: list[str] = []
+    for line_words in line_structure:
+        rendered_lines.append(
+            " ".join(
+                formats[id(word)][0 if active_word_id is None else (1 if id(word) == active_word_id else 2)]
+                for word in line_words
+            )
+        )
+    return "\\N".join(rendered_lines)
+
+
+def _timed_active_word_events(
+    cue: Cue,
+    *,
+    line_structure: Sequence[Sequence[WordTiming]],
+    formats: dict[int, tuple[str, str, str]],
+) -> List[str]:
+    if cue.words is None:
+        return []
+    events = [
+        format_ass_dialogue(
+            cue.start,
+            cue.end,
+            _formatted_word_block(
+                line_structure,
+                formats,
+                active_word_id=None,
+            ),
+            layer=0,
+        )
+    ]
+    for word in cue.words:
+        if id(word) not in formats:
+            continue
+        events.append(
+            format_ass_dialogue(
+                word.start,
+                word.end,
+                _formatted_word_block(
+                    line_structure,
+                    formats,
+                    active_word_id=id(word),
+                ),
+                layer=1,
+            )
+        )
+    return events
+
+
+def generate_active_word_ass(
+    cue: Cue,
+    max_lines: int,
+    primary_color: str,
+    secondary_color: str,
+) -> List[str]:
     """
     Generates ASS dialogue lines for 'active word' highlighting.
     Each word gets its own dialogue event, appearing for its duration.
@@ -196,122 +322,116 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     When max_lines>0: Show all words with the active word highlighted.
     """
     if not cue.words:
-        if max_lines == 0:
-            # REGRESSION: one-word mode used to display the entire sentence when
-            # a provider returned cue-level timestamps only. Interpolate stable
-            # word windows so the selected mode remains truthful and usable.
-            tokens = [token for token in cue.text.split() if token]
-            if not tokens:
-                return []
-
-            cue_duration = max(0.01, cue.end - cue.start)
-            step = cue_duration / len(tokens)
-            return [
-                format_ass_dialogue(
-                    cue.start + (index * step),
-                    cue.end if index == len(tokens) - 1 else cue.start + ((index + 1) * step),
-                    f"{{\\c{primary_color}&}}{token}",
-                )
-                for index, token in enumerate(tokens)
-            ]
-
-        # Fallback to standard dialogue for multi-word modes.
-        return [format_ass_dialogue(cue.start, cue.end, cue.text)]
-
-    lines = []
-
-    # Single Word Mode (max_lines == 0): Show ONLY the active word, one at a time
+        return _active_events_without_word_timings(
+            cue,
+            max_lines=max_lines,
+            primary_color=primary_color,
+        )
     if max_lines == 0:
-        for word in cue.words:
-            if not word.text.strip():
-                continue
-            # Render just this word in primary color for its duration
-            word_text = f"{{\\c{primary_color}&}}{word.text}"
-            lines.append(format_ass_dialogue(word.start, word.end, word_text))
-        return lines
+        return [
+            format_ass_dialogue(
+                word.start,
+                word.end,
+                f"{{\\c{primary_color}&}}{word.text}",
+            )
+            for word in cue.words
+            if word.text.strip()
+        ]
+    line_structure = _active_word_line_structure(cue)
+    formats = _active_word_formats(
+        line_structure,
+        primary_color=primary_color,
+        secondary_color=secondary_color,
+    )
+    return _timed_active_word_events(
+        cue,
+        line_structure=line_structure,
+        formats=formats,
+    )
 
-    # Multi-word Mode (max_lines > 0): Highlight active word in full sentence
-    # Reconstruct the line structure from cue.text (which handles max_lines wrapping)
-    # cue.text contains "\\N" for line breaks. We must preserve this structure.
-    # We map the flattened cue.words list into a nested structure based on cue.text lines.
 
-    line_struct: List[List[WordTiming]] = []
-    raw_lines = cue.text.split("\\N")
+def _clone_cues(cues: Sequence[Cue]) -> List[Cue]:
+    return [
+        Cue(
+            start=cue.start,
+            end=cue.end,
+            text=cue.text,
+            words=(
+                [WordTiming(start=word.start, end=word.end, text=word.text) for word in cue.words if word.text]
+                if cue.words
+                else None
+            ),
+        )
+        for cue in cues
+    ]
 
-    word_iter = iter(cue.words)
-    try:
-        for raw_line in raw_lines:
-            line_words = []
-            tokens = raw_line.split()
-            for _ in tokens:
-                line_words.append(next(word_iter))
-            line_struct.append(line_words)
-    except StopIteration:
-        # Fallback if text/words desync (should not happen with normal flow)
-        line_struct = [cue.words]
 
-    # Optimization: Pre-calculate formatted strings for all words to avoid N^2 string formatting
-    # We need 3 states for each word:
-    # 1. Base Dim (visible, secondary color) - for Layer 0
-    # 2. Active Highlight (visible, primary color) - for Layer 1 (active word)
-    # 3. Hidden (transparent) - for Layer 1 (inactive words)
+def _trim_cue_words(cue: Cue) -> None:
+    if not cue.words:
+        return
+    trimmed_words = [
+        WordTiming(
+            start=word.start,
+            end=min(word.end, cue.end),
+            text=word.text,
+        )
+        for word in cue.words
+        if word.start < cue.end and min(word.end, cue.end) > word.start
+    ]
+    if trimmed_words:
+        cue.words = trimmed_words
+        cue.text = " ".join(word.text for word in trimmed_words)
+        return
+    cue.words = None
+    cue.text = ""
+    logger.warning("All words clipped for cue at %s due to overlap", cue.start)
 
-    # Map word object ID to its pre-calculated format tuple: (base_dim, active_lit, hidden)
-    # We use object ID because WordTiming instances in cue.words are unique objects per word
-    word_formats = {}
 
-    # Pre-calculate formatting strings once
-    base_dim_template = f"{{\\alpha&H00&\\c{secondary_color}&}}"
-    active_lit_template = f"{{\\alpha&H00&\\c{primary_color}&}}"
-    hidden_template = f"{{\\alpha&HFF&\\c{secondary_color}&}}"
+def _clamp_overlapping_cue(current: Cue, next_cue: Cue, *, min_gap_s: float) -> None:
+    if current.end <= current.start:
+        logger.warning(
+            "Dropping invalid cue before overlap check: %s - %s",
+            current.start,
+            current.end,
+        )
+        return
+    if current.end <= next_cue.start:
+        return
 
-    # Flatten logic to pre-calc for all unique words found in line_struct
-    # (Note: line_struct contains references to the same objects as cue.words)
-    for line_words in line_struct:
-        for w in line_words:
-            w_id = id(w)
-            if w_id not in word_formats:
-                word_formats[w_id] = (
-                    f"{base_dim_template}{w.text}",   # 0: Base Dim
-                    f"{active_lit_template}{w.text}", # 1: Active Lit
-                    f"{hidden_template}{w.text}"      # 2: Hidden
-                )
+    desired_end = next_cue.start - min_gap_s
+    logger.info(
+        "Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s",
+        current.start,
+        current.end,
+        next_cue.start,
+        next_cue.end,
+        desired_end,
+    )
+    if desired_end > current.start:
+        current.end = desired_end
+    elif next_cue.start > current.start:
+        current.end = next_cue.start
+    else:
+        if next_cue.start < current.start:
+            logger.warning(
+                "Weird overlap: Next starts BEFORE current? Current:%s Next:%s",
+                current.start,
+                next_cue.start,
+            )
+        return
+    _trim_cue_words(current)
 
-    # 1. Base Layer (Layer 0): All Dim
-    base_lines = []
-    for line_words in line_struct:
-        # Join using the Base Dim version (index 0)
-        line_parts = [word_formats[id(w)][0] for w in line_words]
-        base_lines.append(" ".join(line_parts))
 
-    full_text_dim = "\\N".join(base_lines)
-    lines.append(format_ass_dialogue(cue.start, cue.end, full_text_dim, layer=0))
-
-    # 2. Active Layers (Layer 1): One event per word
-    # For each word, we reconstruct the full text but with THAT word 'lit' and others 'hidden'
-    for word in cue.words:
-        target_id = id(word)
-
-        # Check if word is actually used in the structure (handling potential sync issues)
-        if target_id not in word_formats:
-            continue
-
-        built_lines = []
-        for line_words in line_struct:
-            line_parts = []
-            for w in line_words:
-                w_id = id(w)
-                # If this is the active word, use Active Lit (index 1)
-                # Otherwise use Hidden (index 2)
-                fmt_idx = 1 if w_id == target_id else 2
-                line_parts.append(word_formats[w_id][fmt_idx])
-
-            built_lines.append(" ".join(line_parts))
-
-        active_text = "\\N".join(built_lines)
-        lines.append(format_ass_dialogue(word.start, word.end, active_text, layer=1))
-
-    return lines
+def _keep_normalized_cue(cue: Cue) -> bool:
+    if cue.end > cue.start and cue.text.strip():
+        return True
+    logger.warning(
+        "Dropping cue from ASS normalization (zero duration or empty text): start=%s end=%s text=%r",
+        cue.start,
+        cue.end,
+        cue.text,
+    )
+    return False
 
 
 def normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
@@ -325,490 +445,137 @@ def normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
     if cues:
         logger.info("First cue: %s - %s, Last cue: %s - %s", cues[0].start, cues[0].end, cues[-1].start, cues[-1].end)
 
-    cloned: List[Cue] = []
-    for cue in cues:
-        cloned_words: List[WordTiming] | None = None
-        if cue.words:
-            cloned_words = [
-                WordTiming(start=w.start, end=w.end, text=w.text)
-                for w in cue.words
-                if w.text
-            ]
-        cloned.append(Cue(start=cue.start, end=cue.end, text=cue.text, words=cloned_words))
-
+    cloned = _clone_cues(cues)
     cloned.sort(key=lambda c: (c.start, c.end))
-
-    # ASS timestamps are emitted with 2 decimal places.
-    # Use a small gap to avoid rounding artifacts that can create visible overlaps.
-    min_gap_s = 0.01
-
-    for idx in range(len(cloned) - 1):
-        current = cloned[idx]
-        next_cue = cloned[idx + 1]
-
-        if current.end <= current.start:
-            logger.warning("Dropping invalid cue before overlap check: %s - %s", current.start, current.end)
-            continue
-
-        # If overlapping, clamp current to (next.start - gap) when possible.
-        # Rationale: We prefer to show the next subtitle accurately as it's often
-        # a fresh sentence or thought.
-        desired_end = next_cue.start - min_gap_s
-
-        # If segments strictly overlap (current.end > next.start)
-        if current.end > next_cue.start:
-            logger.info("Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s",
-                        current.start, current.end, next_cue.start, next_cue.end, desired_end)
-
-            # Check if clamping would destroy the segment
-            if desired_end <= current.start:
-                # DANGER: next cue starts before or at the same time as current.
-                # If they start at the same time, we'll keep both but they might overprint.
-                # If 'current' is already very short, don't clamp further.
-                if next_cue.start <= current.start:
-                    # Keep current end, let them overlap (better than losing text)
-                    if next_cue.start < current.start:
-                         logger.warning("Weird overlap: Next starts BEFORE current? Current:%s Next:%s", current.start, next_cue.start)
-                    continue
-                else:
-                    # Clamp to next.start exactly if gap is too large
-                    current.end = next_cue.start
-                    logger.info("Clamped current end to next start: %s", current.end)
-            else:
-                current.end = desired_end
-                logger.info("Clamped current end to desired end: %s", current.end)
-
-            # Update words text if they were clipped
-            if current.words:
-                trimmed_words: List[WordTiming] = []
-                for w in current.words:
-                    if w.start >= current.end:
-                        continue
-                    w_end = min(w.end, current.end)
-                    if w_end <= w.start:
-                        # If word is entirely after the new end, skip it
-                        continue
-                    trimmed_words.append(WordTiming(start=w.start, end=w_end, text=w.text))
-
-                if trimmed_words:
-                    current.words = trimmed_words
-                    current.text = " ".join(w.text for w in trimmed_words)
-                else:
-                    # If all words were clipped, text becomes empty and it will be dropped below
-                    current.words = None
-                    current.text = ""
-                    logger.warning("All words clipped for cue at %s due to overlap", current.start)
-
-    # Drop empty/zero-length cues (libass can behave oddly on them).
-    final_cues = []
-    for c in cloned:
-        if c.end > c.start and c.text.strip():
-            final_cues.append(c)
-        else:
-            logger.warning("Dropping cue from ASS normalization (zero duration or empty text): start=%s end=%s text=%r", c.start, c.end, c.text)
-
+    for index, current in enumerate(cloned[:-1]):
+        _clamp_overlapping_cue(
+            current,
+            cloned[index + 1],
+            min_gap_s=0.01,
+        )
+    final_cues = [cue for cue in cloned if _keep_normalized_cue(cue)]
     logger.info("Exiting normalize_cues_for_ass with %d cues", len(final_cues))
     return final_cues
 
 
-def effective_max_chars(*, max_chars: int, font_size: int, play_res_x: int) -> int:
-    """
-    Derive a safe character limit for line wrapping based on the intended font size.
-    """
-    if max_chars <= 0:
-        return 1
-    if font_size <= 0:
-        return max_chars
-
-    base_font = settings.default_sub_font_size
-    base_width = settings.default_width
-    width_scale = (play_res_x / base_width) if base_width > 0 else 1.0
-    font_scale = (base_font / font_size) if base_font > 0 else 1.0
-
-    effective = int(round(max_chars * width_scale * font_scale))
-    return max(10, min(40, effective))
-
-
-def _line_text_length(texts: Sequence[str]) -> int:
-    if not texts:
-        return 0
-    return sum(len(text) for text in texts) + max(0, len(texts) - 1)
-
-
-def _line_break_bonus(last_text: str) -> float:
-    stripped = last_text.rstrip()
-    if not stripped:
-        return 0.0
-    tail = stripped[-1]
-    if tail in STRONG_BREAK_PUNCTUATION:
-        return 0.45
-    if tail in SOFT_BREAK_PUNCTUATION:
-        return 0.18
-    return 0.0
-
-
-def _wrap_items_balanced(
-    items: Sequence[Any],
-    get_text: Callable[[Any], str],
-    max_chars: int,
-) -> List[List[Any]]:
-    if not items:
-        return []
-
-    safe_max_chars = max(1, max_chars)
-    texts = [get_text(item) for item in items]
-    item_count = len(items)
-
-    @functools.lru_cache(maxsize=None)
-    def best_layout(start_index: int) -> tuple[float, tuple[int, ...]]:
-        if start_index >= item_count:
-            return 0.0, ()
-
-        best_cost: float | None = None
-        best_breaks: tuple[int, ...] | None = None
-        running_length = 0
-
-        for end_index in range(start_index, item_count):
-            text = texts[end_index]
-            running_length = len(text) if end_index == start_index else running_length + 1 + len(text)
-            overflow = max(0, running_length - safe_max_chars)
-
-            if overflow > 0 and end_index > start_index:
-                break
-
-            is_last_line = end_index == item_count - 1
-            visible_length = min(running_length, safe_max_chars)
-            slack = max(0, safe_max_chars - visible_length)
-            gap_weight = 0.35 if is_last_line else 1.0
-            line_cost = (overflow ** 2) * 1000.0 + (slack ** 2) * gap_weight
-            if not is_last_line:
-                line_cost -= _line_break_bonus(text)
-
-            next_cost, next_breaks = best_layout(end_index + 1)
-            total_cost = line_cost + next_cost
-
-            if best_cost is None or total_cost < best_cost:
-                best_cost = total_cost
-                best_breaks = (end_index + 1, *next_breaks)
-
-        if best_cost is None or best_breaks is None:
-            fallback_break = min(start_index + 1, item_count)
-            return 0.0, (fallback_break,)
-
-        return best_cost, best_breaks
-
-    _, breakpoints = best_layout(0)
-    lines: List[List[Any]] = []
-    start_index = 0
-    for end_index in breakpoints:
-        lines.append(list(items[start_index:end_index]))
-        start_index = end_index
-
-    if not lines:
-        return [list(items)]
-    return lines
-
-
-def _score_wrapped_chunk(
-    wrapped_lines: Sequence[Sequence[str]],
-    *,
-    max_chars: int,
-    max_lines: int,
-    remaining_items: int,
-) -> float:
-    if not wrapped_lines:
-        return float("-inf")
-
-    lengths = [_line_text_length(line) for line in wrapped_lines]
-    safe_max_chars = max(1, max_chars)
-    safe_max_lines = max(1, max_lines)
-    total_tokens = sum(len(line) for line in wrapped_lines)
-    fill_ratio = sum(min(length, safe_max_chars) for length in lengths) / (safe_max_lines * safe_max_chars)
-    imbalance = ((max(lengths) - min(lengths)) / safe_max_chars) if len(lengths) > 1 else 0.0
-    unused_line_penalty = 0.0
-    if remaining_items > 0 and len(wrapped_lines) < safe_max_lines:
-        unused_line_penalty = ((safe_max_lines - len(wrapped_lines)) / safe_max_lines) * 0.25
-    single_token_penalty = 0.45 if remaining_items > 0 and total_tokens == 1 else 0.0
-
-    tail_penalty = 0.0
-    if remaining_items == 1:
-        tail_penalty = 0.6
-    elif remaining_items == 2:
-        tail_penalty = 0.18
-
-    last_line = list(wrapped_lines[-1])
-    last_token = str(last_line[-1]) if last_line else ""
-    punctuation_bonus = _line_break_bonus(last_token)
-
-    return fill_ratio - (imbalance * 0.35) - unused_line_penalty - single_token_penalty - tail_penalty + punctuation_bonus
-
-
-def wrap_lines(
-    words: List[str],
-    max_chars: int = settings.max_sub_line_chars,
-    max_lines: int = 2,
-) -> List[List[str]]:
-    """
-    Wrap words into multiple lines without overflowing the safe width.
-    """
-    if not words:
-        return []
-    return _wrap_items_balanced(words, lambda word: word, max_chars)
-
-
-def wrap_word_timings(
-    words: List[WordTiming],
-    max_chars: int = settings.max_sub_line_chars,
-    max_lines: int = 2,
-) -> List[List[WordTiming]]:
-    """
-    Wrap WordTiming objects into multiple lines without overflowing the safe width.
-    """
-    if not words:
-        return []
-    return _wrap_items_balanced(words, lambda word: word.text, max_chars)
-
-
-def format_karaoke_text(
-    cue: Cue, max_lines: int = 2, max_chars: int = settings.max_sub_line_chars
-) -> str:
-    """
-    Format text for ASS subtitles with karaoke tags (\\k).
-    """
-    if not cue.words:
-        # Fallback to static wrapping if no timing data
-        text = cue.text or ""
-        raw_lines = wrap_lines(text.split(), max_chars=max_chars, max_lines=max_lines)
-        return "\\N".join(" ".join(line) for line in raw_lines)
-
-    # Use wrap_word_timings to splits WordTiming objects into LINES (not pages)
-    lines_of_words = wrap_word_timings(cue.words, max_chars=max_chars, max_lines=max_lines)
-
-    ass_lines = []
-    current_time = cue.start
-
-    for line_words in lines_of_words:
-        line_parts = []
-        for i, word in enumerate(line_words):
-            # Calculate gap from previous event
-            gap = word.start - current_time
-
-            # Determine prefix (space or gap filler)
-            # If not the very first word of the line, we usually want a space visual
-            prefix = " " if i > 0 else ""
-
-            if gap > 0.01:
-                # Significant gap: assign it to the prefix
-                gap_cs = int(round(gap * 100))
-                line_parts.append(f"{{\\k{gap_cs}}}{prefix}")
-            elif i > 0:
-                # No significant gap, but we have a space.
-                line_parts.append(prefix)
-
-            # Duration of the word itself
-            dur = word.end - word.start
-            dur_cs = int(round(dur * 100))
-            if dur_cs < 1: dur_cs = 1 # Minimal duration
-
-            line_parts.append(f"{{\\k{dur_cs}}}{word.text}")
-
-            current_time = word.end
-
-        ass_lines.append("".join(line_parts))
-
-    return "\\N".join(ass_lines)
-
-
-def format_active_word_text(
-    cue: Cue, max_lines: int, max_chars: int = settings.max_sub_line_chars
-) -> str:
-    """
-    Wrap cue text for active-word rendering while preserving word/token alignment.
-    """
-    if max_lines <= 1:
-        return cue.text
-
-    if cue.words:
-        words = [w.text for w in cue.words if w.text]
-    else:
-        words = [w for w in cue.text.split() if w]
-
-    wrapped_lines = wrap_lines(words, max_chars=max_chars, max_lines=max_lines)
-    if not wrapped_lines:
-        return ""
-
-    joined = [" ".join(line) for line in wrapped_lines]
-    return "\\N".join(joined)
-
-
-def chunk_items(
-    items: List[Any],
-    get_text: Callable[[Any], str],
-    max_chars: int,
-    max_lines: int
-) -> List[List[Any]]:
-    """
-    Chunk items into groups that fit within max_lines while preferring
-    balanced line lengths and natural breakpoints.
-    """
-    if not items:
-        return []
-
-    total_items = len(items)
-
-    @functools.lru_cache(maxsize=None)
-    def best_chunking(start_index: int) -> tuple[float, tuple[int, ...]]:
-        if start_index >= total_items:
-            return 0.0, ()
-
-        best_score = float("-inf")
-        best_breaks: tuple[int, ...] = (min(start_index + 1, total_items),)
-        candidate_texts: List[str] = []
-
-        for end_index in range(start_index, total_items):
-            candidate_texts.append(get_text(items[end_index]))
-            wrapped = wrap_lines(candidate_texts, max_chars=max_chars, max_lines=max_lines)
-            wrapped_count = len(wrapped)
-
-            if wrapped_count > max_lines and end_index > start_index:
-                break
-
-            chunk_score = _score_wrapped_chunk(
-                wrapped,
-                max_chars=max_chars,
-                max_lines=max_lines,
-                remaining_items=total_items - end_index - 1,
-            )
-            next_score, next_breaks = best_chunking(end_index + 1)
-            total_score = chunk_score + next_score
-
-            if total_score >= best_score:
-                best_score = total_score
-                best_breaks = (end_index + 1, *next_breaks)
-
-        return best_score, best_breaks
-
-    _, breakpoints = best_chunking(0)
-    chunks: List[List[Any]] = []
-    start_index = 0
-    for end_index in breakpoints:
-        chunks.append(list(items[start_index:end_index]))
-        start_index = end_index
-    return chunks
-
-
-def split_long_cues(
-    cues: Sequence[Cue],
-    max_chars: int = settings.max_sub_line_chars,
-    max_lines: int = 2
+def _load_render_cues(
+    transcript_path: Path | None,
+    cues: List[Cue] | None,
 ) -> List[Cue]:
-    """
-    Split long cues into multiple shorter cues to ensure they fit within max_lines.
-    """
-    new_cues = []
+    if cues is not None:
+        return list(cues)
+    if transcript_path is None:
+        raise ValueError("Either transcript_path or cues must be provided")
+    return [Cue(start=start, end=end, text=normalize_text(text)) for start, end, text in parse_srt(transcript_path)]
 
-    for cue in cues:
-        # 1. First check if the WHOLE cue fits (optimization)
-        # using the same wrapping logic we'll use for display
-        cues_text_words = cue.text.split()
-        full_wrapped = wrap_lines(cues_text_words, max_chars=max_chars, max_lines=max_lines)
-        if len(full_wrapped) <= max_lines:
-            new_cues.append(cue)
-            continue
 
-        # 2. If it doesn't fit, we need to split it
-        if cue.words:
-            # Flatten words first (handling phrase expansion)
-            all_words: List[WordTiming] = []
-            for w in cue.words:
-                if " " in w.text.strip():
-                    # It's a phrase. Split it.
-                    sub_texts = w.text.split()
-                    if len(sub_texts) > 1:
-                        # Linear interpolation for sub-words
-                        total_dur = w.end - w.start
-                        total_chars = len(w.text.replace(" ", ""))
-                        current_sub_start = w.start
+def _sanitize_render_cues(cues: Sequence[Cue]) -> List[Cue]:
+    return [
+        Cue(
+            start=cue.start,
+            end=cue.end,
+            text=sanitize_ass_text(cue.text),
+            words=(
+                [
+                    WordTiming(
+                        start=word.start,
+                        end=word.end,
+                        text=sanitize_ass_text(word.text),
+                    )
+                    for word in cue.words
+                ]
+                if cue.words
+                else None
+            ),
+        )
+        for cue in cues
+    ]
 
-                        for i, sw_text in enumerate(sub_texts):
-                            char_count = len(sw_text)
-                            # avoid div by zero
-                            frac = (char_count / total_chars) if total_chars > 0 else (1.0 / len(sub_texts))
-                            dur = total_dur * frac
 
-                            # Adjust end time
-                            sub_end = min(current_sub_start + dur, w.end)
-                            # Ensure last one aligns perfectly
-                            if i == len(sub_texts) - 1:
-                                sub_end = w.end
+def _prepare_render_cues(
+    cues: Sequence[Cue],
+    *,
+    effective_chars: int,
+    max_lines: int,
+) -> List[Cue]:
+    prepared = _sanitize_render_cues(cues)
+    if max_lines == 1:
+        prepared = split_long_cues(
+            prepared,
+            max_chars=effective_chars,
+            max_lines=1,
+        )
+    prepared = normalize_cues_for_ass(prepared)
+    if max_lines > 1:
+        prepared = split_long_cues(
+            prepared,
+            max_chars=effective_chars,
+            max_lines=max_lines,
+        )
+        prepared = normalize_cues_for_ass(prepared)
+    return prepared
 
-                            all_words.append(WordTiming(
-                                start=current_sub_start,
-                                end=sub_end,
-                                text=sw_text
-                            ))
-                            current_sub_start = sub_end
-                    else:
-                        all_words.append(w)
-                else:
-                    all_words.append(w)
 
-            # Use optimized chunking
-            word_chunks = chunk_items(all_words, lambda w: w.text, max_chars, max_lines)
+def _resolve_ass_output(
+    *,
+    transcript_path: Path | None,
+    output_dir: Path | None,
+) -> Path:
+    if output_dir is None:
+        if transcript_path is None:
+            raise ValueError("output_dir is required when transcript_path is omitted")
+        output_dir = transcript_path.parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_stem = transcript_path.stem if transcript_path is not None else "subtitles"
+    return output_dir / f"{output_stem}.ass"
 
-            for chunk_words in word_chunks:
-                chunk_text = " ".join([cw.text for cw in chunk_words])
-                chunk_start = chunk_words[0].start
-                chunk_end = chunk_words[-1].end
 
-                # Ensure we don't drop the official end time if it's longer
-                # (unless we split, in which case the last chunk ends at cue.end)
-                if chunk_words is word_chunks[-1]:
-                     chunk_end = max(chunk_end, cue.end)
-
-                new_cues.append(Cue(
-                    start=chunk_start,
-                    end=chunk_end,
-                    text=chunk_text,
-                    words=list(chunk_words)
-                ))
-
-        elif max_lines > 0:
-            # Fallback for standard model (no words) - Use Linear Interpolation
-            cues_text_words = cue.text.split()
-
-            # Use optimized chunking on strings
-            text_chunks = chunk_items(cues_text_words, lambda s: s, max_chars, max_lines)
-
-            cue_duration = cue.end - cue.start
-            total_chars = len(cue.text.replace(" ", "")) # Approximation
-            if total_chars == 0: total_chars = 1
-
-            current_start = cue.start
-
-            for i, chunk_strs in enumerate(text_chunks):
-                chunk_text = " ".join(chunk_strs)
-
-                # Estimate duration
-                chunk_chars = len(chunk_text.replace(" ", ""))
-                duration = (chunk_chars / total_chars) * cue_duration
-                chunk_end = current_start + duration
-
-                # Clamp/Extend
-                if i == len(text_chunks) - 1:
-                    chunk_end = cue.end
-                else:
-                    chunk_end = min(chunk_end, cue.end)
-
-                new_cues.append(Cue(
-                    start=current_start,
-                    end=chunk_end,
-                    text=chunk_text,
-                    words=None
-                ))
-                current_start = chunk_end
-
-    return new_cues
+def _render_cue_events(
+    cue: Cue,
+    *,
+    highlight_style: str,
+    max_lines: int,
+    effective_chars: int,
+    primary_color: str,
+    secondary_color: str,
+    subtitle_position: int,
+    font_size: int,
+    play_res_x: int,
+    play_res_y: int,
+) -> List[str]:
+    if highlight_style == "active" and (max_lines == 0 or cue.words):
+        active_text = cue.text
+        if max_lines > 0:
+            active_text = format_active_word_text(
+                cue,
+                max_lines=max_lines,
+                max_chars=effective_chars,
+            )
+        active_events = generate_active_word_ass(
+            Cue(
+                start=cue.start,
+                end=cue.end,
+                text=active_text,
+                words=cue.words,
+            ),
+            max_lines=max_lines,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+        )
+    else:
+        text = format_karaoke_text(
+            cue,
+            max_lines=max_lines,
+            max_chars=effective_chars,
+        )
+        active_events = [format_ass_dialogue(cue.start, cue.end, text)]
+    return position_ass_dialogue_events(
+        active_events,
+        subtitle_position=subtitle_position,
+        font_size=font_size,
+        play_res_x=play_res_x,
+        play_res_y=play_res_y,
+    )
 
 
 def create_styled_subtitle_file(
@@ -831,64 +598,27 @@ def create_styled_subtitle_file(
     play_res_x: int = settings.default_width,
     play_res_y: int = settings.default_height,
     output_dir: Path | None = None,
-    highlight_style: str = "karaoke", # "karaoke" (fill) or "active" (pop)
+    highlight_style: str = "karaoke",  # "karaoke" (fill) or "active" (pop)
 ) -> Path:
     """
     Convert an SRT transcript to an ASS file with styling for vertical video.
     """
-    parsed_cues: List[Cue]
-    if cues is not None:
-        parsed_cues = list(cues)
-    elif transcript_path is not None:
-        parsed_cues = [
-            Cue(start=s, end=e, text=normalize_text(t))
-            for s, e, t in parse_srt(transcript_path)
-        ]
-    else:
-        raise ValueError("Either transcript_path or cues must be provided")
-
+    parsed_cues = _load_render_cues(transcript_path, cues)
     effective_chars = effective_max_chars(
         max_chars=settings.max_sub_line_chars,
         font_size=font_size,
         play_res_x=play_res_x,
     )
 
-    # Security: Sanitize all cues
-    sanitized_cues = []
-    for cue in parsed_cues:
-        safe_text = sanitize_ass_text(cue.text)
-        safe_words = None
-        if cue.words:
-            safe_words = [
-                WordTiming(start=w.start, end=w.end, text=sanitize_ass_text(w.text))
-                for w in cue.words
-            ]
-        sanitized_cues.append(Cue(start=cue.start, end=cue.end, text=safe_text, words=safe_words))
-    parsed_cues = sanitized_cues
-
-    # Pre-processing: If Single Line mode (max_lines=1), split long cues
-    if max_lines == 1:
-        # Reuse split_long_cues logic which handles max_lines=1 specifically
-        parsed_cues = split_long_cues(parsed_cues, max_chars=effective_chars, max_lines=1)
-
-    parsed_cues = normalize_cues_for_ass(parsed_cues)
-
-    # Split for standard line wrapping if max_lines > 1
-    if max_lines > 1:
-        parsed_cues = split_long_cues(
-            parsed_cues,
-            max_chars=effective_chars,
-            max_lines=max_lines
-        )
-        parsed_cues = normalize_cues_for_ass(parsed_cues)
-
-    if output_dir is None:
-        if transcript_path is None:
-            raise ValueError("output_dir is required when transcript_path is omitted")
-        output_dir = transcript_path.parent
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_stem = transcript_path.stem if transcript_path is not None else "subtitles"
-    ass_path = output_dir / f"{output_stem}.ass"
+    parsed_cues = _prepare_render_cues(
+        parsed_cues,
+        effective_chars=effective_chars,
+        max_lines=max_lines,
+    )
+    ass_path = _resolve_ass_output(
+        transcript_path=transcript_path,
+        output_dir=output_dir,
+    )
 
     # Keep a valid fallback style margin; every event below receives an exact
     # top-center position so multi-line blocks remain inside the safe frame.
@@ -916,49 +646,20 @@ def create_styled_subtitle_file(
     lines = [header]
 
     for cue in parsed_cues:
-        if highlight_style == "active" and (max_lines == 0 or cue.words):
-            # ACTIVE WORD MODE (Pop effect)
-            active_cue = cue
-            if max_lines > 0:
-                active_text = format_active_word_text(
-                    cue,
-                    max_lines=max_lines,
-                    max_chars=effective_chars,
-                )
-                active_cue = Cue(
-                    start=cue.start,
-                    end=cue.end,
-                    text=active_text,
-                    words=cue.words,
-                )
-
-            active_events = generate_active_word_ass(
-                active_cue,
+        lines.extend(
+            _render_cue_events(
+                cue,
+                highlight_style=highlight_style,
                 max_lines=max_lines,
+                effective_chars=effective_chars,
                 primary_color=primary_color,
                 secondary_color=secondary_color,
+                subtitle_position=position_pct,
+                font_size=render_font_size,
+                play_res_x=play_res_x,
+                play_res_y=play_res_y,
             )
-            lines.extend(
-                position_ass_dialogue_events(
-                    active_events,
-                    subtitle_position=position_pct,
-                    font_size=render_font_size,
-                    play_res_x=play_res_x,
-                    play_res_y=play_res_y,
-                )
-            )
-        else:
-            # STANDARD / KARAOKE FILL MODE
-            text = format_karaoke_text(cue, max_lines=max_lines, max_chars=effective_chars)
-            lines.extend(
-                position_ass_dialogue_events(
-                    [format_ass_dialogue(cue.start, cue.end, text)],
-                    subtitle_position=position_pct,
-                    font_size=render_font_size,
-                    play_res_x=play_res_x,
-                    play_res_y=play_res_y,
-                )
-            )
+        )
 
     ass_path.write_text("\n".join(lines), encoding="utf-8")
     return ass_path

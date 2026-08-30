@@ -130,9 +130,7 @@ def test_scribe_parses_word_timestamps_without_real_network(
         "tag_audio_events": "false",
     }
     assert deleted == {
-        "args": (
-            "http://app-edge:8081/elevenlabs/v1/speech-to-text/transcripts/safeTranscript123",
-        ),
+        "args": ("http://app-edge:8081/elevenlabs/v1/speech-to-text/transcripts/safeTranscript123",),
         "headers": {"xi-api-key": "test-key"},
         "timeout": (5.0, 30.0),
     }
@@ -185,15 +183,11 @@ def test_scribe_rejects_responses_without_word_timestamps(
     with pytest.raises(RuntimeError, match="word timestamps"):
         ElevenLabsScribeTranscriber(
             api_key="test-key",
-            transport=lambda *args, **kwargs: FakeResponse(
-                {"transcription_id": "invalidWords123", "text": "Γεια"}
-            ),
+            transport=lambda *args, **kwargs: FakeResponse({"transcription_id": "invalidWords123", "text": "Γεια"}),
             delete_transport=delete_transport,
         ).transcribe(audio_path, tmp_path / "output", language="el", model="scribe_v2")
 
-    assert deleted == [
-        f"{settings.elevenlabs_api_base.rstrip('/')}/v1/speech-to-text/transcripts/invalidWords123"
-    ]
+    assert deleted == [f"{settings.elevenlabs_api_base.rstrip('/')}/v1/speech-to-text/transcripts/invalidWords123"]
     provider_erasure_journal.append_provider_transcript.assert_called_once_with(
         provider="elevenlabs",
         transcript_id="invalidWords123",
@@ -251,9 +245,7 @@ def test_scribe_retries_provider_deletion_then_fails_closed(
     with pytest.raises(RuntimeError, match="could not delete"):
         ElevenLabsScribeTranscriber(
             api_key="test-key",
-            transport=lambda *args, **kwargs: FakeResponse(
-                {"transcription_id": "deleteRetry123", "words": []}
-            ),
+            transport=lambda *args, **kwargs: FakeResponse({"transcription_id": "deleteRetry123", "words": []}),
             delete_transport=delete_transport,
             retry_sleep=retry_sleep,
         ).transcribe(audio_path, tmp_path / "output")
@@ -279,17 +271,13 @@ def test_scribe_best_effort_deletes_but_fails_without_a_durable_tombstone(
     monkeypatch.setattr(settings, "external_provider_per_request_budget_usd", 0.25)
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
-    provider_erasure_journal.append_provider_transcript.side_effect = RuntimeError(
-        "journal unavailable"
-    )
+    provider_erasure_journal.append_provider_transcript.side_effect = RuntimeError("journal unavailable")
     delete_transport = MagicMock(return_value=FakeResponse(None))
 
     with pytest.raises(RuntimeError, match="journal unavailable"):
         ElevenLabsScribeTranscriber(
             api_key="test-key",
-            transport=lambda *args, **kwargs: FakeResponse(
-                {"transcription_id": "durableFirst123", "words": []}
-            ),
+            transport=lambda *args, **kwargs: FakeResponse({"transcription_id": "durableFirst123", "words": []}),
             delete_transport=delete_transport,
         ).transcribe(audio_path, tmp_path / "output")
 
@@ -377,9 +365,7 @@ def test_scribe_deletes_provider_transcript_before_honouring_late_cancellation(
     with pytest.raises(InterruptedError, match="cancelled"):
         ElevenLabsScribeTranscriber(
             api_key="test-key",
-            transport=lambda *args, **kwargs: FakeResponse(
-                {"transcription_id": "cancelAfterDelete123", "words": []}
-            ),
+            transport=lambda *args, **kwargs: FakeResponse({"transcription_id": "cancelAfterDelete123", "words": []}),
             delete_transport=delete_transport,
         ).transcribe(
             audio_path,

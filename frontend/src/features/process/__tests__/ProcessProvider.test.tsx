@@ -1,8 +1,8 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { I18nProvider } from '@/context/I18nContext';
-import { ProcessProvider, useProcessContext } from '../ProcessContext';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { I18nProvider } from "@/context/I18nContext";
+import { ProcessProvider, useProcessContext } from "../ProcessContext";
 
 function PositionReader() {
   const { subtitlePosition } = useProcessContext();
@@ -21,14 +21,16 @@ function StartHarness() {
             width: 1080,
             height: 1920,
             aspectWarning: false,
-            thumbnailUrl: 'blob:thumb',
+            thumbnailUrl: "blob:thumb",
             durationSeconds: 42,
           });
         }}
       >
         set-video-info
       </button>
-      <button type="button" onClick={handleStart}>start</button>
+      <button type="button" onClick={handleStart}>
+        start
+      </button>
     </div>
   );
 }
@@ -55,10 +57,10 @@ const baseProps = {
   onFileSelect: jest.fn(),
   isProcessing: false,
   progress: 0,
-  statusMessage: '',
-  error: '',
-  onStartProcessing: jest.fn(async () => { }),
-  onReprocessJob: jest.fn(async () => { }),
+  statusMessage: "",
+  error: "",
+  onStartProcessing: jest.fn(async () => {}),
+  onReprocessJob: jest.fn(async () => {}),
   onReset: jest.fn(),
   onCancelProcessing: undefined,
   selectedJob: null,
@@ -68,20 +70,23 @@ const baseProps = {
   totalJobs: 0,
 };
 
-describe('ProcessProvider', () => {
+describe("ProcessProvider", () => {
   beforeEach(() => {
     localStorage.clear();
-    Object.defineProperty(window, 'scrollTo', { value: jest.fn(), writable: true });
+    Object.defineProperty(window, "scrollTo", {
+      value: jest.fn(),
+      writable: true,
+    });
   });
 
-  it('clamps stored subtitlePosition to backend limits', () => {
+  it("clamps stored subtitlePosition to backend limits", () => {
     localStorage.setItem(
-      'lastUsedSubtitleSettings',
+      "lastUsedSubtitleSettings",
       JSON.stringify({
         position: 120,
         size: 85,
         lines: 2,
-        color: '#FFFF00',
+        color: "#FFFF00",
         karaoke: true,
         timestamp: Date.now(),
       }),
@@ -95,10 +100,10 @@ describe('ProcessProvider', () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId('position')).toHaveTextContent('95');
+    expect(screen.getByTestId("position")).toHaveTextContent("95");
   });
 
-  it('opens the file picker when starting without a file', () => {
+  it("opens the file picker when starting without a file", () => {
     render(
       <I18nProvider initialLocale="en">
         <ProcessProvider {...baseProps}>
@@ -107,26 +112,26 @@ describe('ProcessProvider', () => {
       </I18nProvider>,
     );
 
-    const input = screen.getByTestId('file-input') as HTMLInputElement;
-    const clickSpy = jest.spyOn(input, 'click');
+    const input = screen.getByTestId("file-input") as HTMLInputElement;
+    const clickSpy = jest.spyOn(input, "click");
 
-    fireEvent.click(screen.getByRole('button', { name: 'start' }));
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
 
     expect(clickSpy).toHaveBeenCalled();
   });
 
-  it('passes the detected video duration into start processing', () => {
+  it("passes the detected video duration into start processing", () => {
     /**
      * REGRESSION: `handleStart` forwards `videoInfo.durationSeconds` to the backend
      * processing request so pricing and downstream limits can use real source length.
      */
-    const onStartProcessing = jest.fn(async () => { });
+    const onStartProcessing = jest.fn(async () => {});
 
     render(
       <I18nProvider initialLocale="en">
         <ProcessProvider
           {...baseProps}
-          selectedFile={new File(['video'], 'clip.mp4', { type: 'video/mp4' })}
+          selectedFile={new File(["video"], "clip.mp4", { type: "video/mp4" })}
           onStartProcessing={onStartProcessing}
         >
           <StartHarness />
@@ -134,77 +139,81 @@ describe('ProcessProvider', () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'set-video-info' }));
-    fireEvent.click(screen.getByRole('button', { name: 'start' }));
+    fireEvent.click(screen.getByRole("button", { name: "set-video-info" }));
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
 
     expect(onStartProcessing).toHaveBeenCalledWith(
       expect.objectContaining({
-        outputQuality: 'balanced',
+        outputQuality: "balanced",
         sourceDurationSeconds: 42,
       }),
     );
   });
 
-  it('reprocesses a completed job instead of opening the picker', () => {
+  it("reprocesses a completed job instead of opening the picker", () => {
     /**
      * REGRESSION: When a completed job is selected (thumbnail/preview available),
      * clicking "Start Processing" must re-render the existing source video (create a reprocess job) instead of
      * opening the upload picker.
      */
     const completedJob = {
-      id: 'job-1',
-      status: 'completed',
+      id: "job-1",
+      status: "completed",
       progress: 100,
       message: null,
       created_at: Date.now(),
       updated_at: Date.now(),
       result_data: {
-        transcribe_provider: 'groq',
-        transcribe_tier: 'standard',
-        video_path: '/videos/test.mp4',
-        artifacts_dir: '/tmp/artifacts'
+        transcribe_provider: "groq",
+        transcribe_tier: "standard",
+        video_path: "/videos/test.mp4",
+        artifacts_dir: "/tmp/artifacts",
       },
     };
 
-    const onReprocessJob = jest.fn(async () => { });
+    const onReprocessJob = jest.fn(async () => {});
 
     render(
       <I18nProvider initialLocale="en">
-        <ProcessProvider {...baseProps} selectedJob={completedJob} onReprocessJob={onReprocessJob}>
+        <ProcessProvider
+          {...baseProps}
+          selectedJob={completedJob}
+          onReprocessJob={onReprocessJob}
+        >
           <StartHarness />
         </ProcessProvider>
       </I18nProvider>,
     );
 
-    const input = screen.getByTestId('file-input') as HTMLInputElement;
-    const clickSpy = jest.spyOn(input, 'click');
+    const input = screen.getByTestId("file-input") as HTMLInputElement;
+    const clickSpy = jest.spyOn(input, "click");
 
-    fireEvent.click(screen.getByRole('button', { name: 'start' }));
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
 
     expect(clickSpy).not.toHaveBeenCalled();
     expect(onReprocessJob).toHaveBeenCalledWith(
-      'job-1',
+      "job-1",
       expect.objectContaining({
-        outputQuality: 'balanced',
-        transcribeProvider: 'mock',
-        transcribeMode: 'standard',
+        outputQuality: "balanced",
+        transcribeProvider: "mock",
+        transcribeMode: "standard",
       }),
     );
   });
 
-  it('stays on the captions step when revisiting a completed job', async () => {
+  it("stays on the captions step when revisiting a completed job", async () => {
     const completedJob = {
-      id: 'job-1',
-      status: 'completed',
+      id: "job-1",
+      status: "completed",
       progress: 100,
       message: null,
       created_at: Date.now(),
       updated_at: Date.now(),
       result_data: {
-        transcribe_provider: 'groq',
-        transcribe_tier: 'standard',
-        video_path: '/videos/test.mp4',
-        artifacts_dir: '/tmp/artifacts'
+        transcribe_provider: "groq",
+        transcribe_tier: "standard",
+        video_path: "/videos/test.mp4",
+        artifacts_dir: "/tmp/artifacts",
       },
     };
 
@@ -216,8 +225,9 @@ describe('ProcessProvider', () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'pick-model' }));
-    await waitFor(() => expect(screen.getByTestId('step')).toHaveTextContent('2'));
+    fireEvent.click(screen.getByRole("button", { name: "pick-model" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("step")).toHaveTextContent("2"),
+    );
   });
-
 });

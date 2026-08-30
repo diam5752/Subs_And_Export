@@ -15,9 +15,7 @@ down_revision = "0023_beta_login_promotion"
 branch_labels = None
 depends_on = None
 
-DOWNGRADE_WITH_FEEDBACK_ERROR = (
-    "Cannot downgrade product feedback after messages were submitted."
-)
+DOWNGRADE_WITH_FEEDBACK_ERROR = "Cannot downgrade product feedback after messages were submitted."
 
 
 def upgrade() -> None:

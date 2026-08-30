@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset
+    name="GSubs cognitive complexity"
+    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd"
+>
+    <description>Require every Java method to have cognitive complexity at most 15.</description>
+    <rule ref="category/java/design.xml/CognitiveComplexity">
+        <properties>
+            <!-- PMD reports at or above reportLevel, so 16 enforces a maximum of 15. -->
+            <property name="reportLevel" value="16" />
+        </properties>
+    </rule>
+</ruleset>

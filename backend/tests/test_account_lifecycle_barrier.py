@@ -78,9 +78,7 @@ def test_account_lifecycle_locks_do_not_collide_between_users(tmp_path: Path) ->
     colliding_user_id = next(
         candidate
         for index in range(1, 10_000)
-        if (
-            candidate := f"other-user-{index}"
-        )
+        if (candidate := f"other-user-{index}")
         and int.from_bytes(
             hashlib.sha256(candidate.encode("utf-8")).digest()[:2],
             byteorder="big",

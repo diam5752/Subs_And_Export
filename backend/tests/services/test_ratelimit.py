@@ -41,10 +41,7 @@ class TestGetClientIp:
         assert get_client_ip(request) == "10.0.0.1"
 
     def test_forwarded_for_multiple(self) -> None:
-        request = MockRequest(
-            client_host=None,
-            headers={"x-forwarded-for": "10.0.0.1, 10.0.0.2, 192.168.1.1"}
-        )
+        request = MockRequest(client_host=None, headers={"x-forwarded-for": "10.0.0.1, 10.0.0.2, 192.168.1.1"})
         request.client.host = None
         # Should take last IP (rightmost)
         assert get_client_ip(request) == "192.168.1.1"

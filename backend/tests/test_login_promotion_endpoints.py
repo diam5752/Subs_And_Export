@@ -90,11 +90,14 @@ def test_local_login_awards_beta_credits_only_once(client: TestClient, monkeypat
         }
     ]
     with db.session() as session:
-        assert session.scalar(
-            select(func.count())
-            .select_from(DbCreditPromotionClaim)
-            .where(DbCreditPromotionClaim.campaign_id == campaign_id)
-        ) == 1
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(DbCreditPromotionClaim)
+                .where(DbCreditPromotionClaim.campaign_id == campaign_id)
+            )
+            == 1
+        )
 
 
 def test_google_login_uses_the_same_beta_campaign(client: TestClient, monkeypatch) -> None:
@@ -147,10 +150,13 @@ def test_login_still_succeeds_after_the_twenty_slots_are_exhausted(
 
     email = f"beta-exhausted-{secrets.token_hex(8)}@example.com"
     password = "testpassword123"
-    assert client.post(
-        "/auth/register",
-        json={"email": email, "password": password, "name": "Later Beta Tester"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/auth/register",
+            json={"email": email, "password": password, "name": "Later Beta Tester"},
+        ).status_code
+        == 200
+    )
 
     try:
         response = client.post(
@@ -171,10 +177,13 @@ def test_login_fails_closed_when_an_enabled_grant_cannot_be_recorded(
     monkeypatch.setattr(settings, "beta_login_promotion_enabled", True)
     email = f"beta-failure-{secrets.token_hex(8)}@example.com"
     password = "testpassword123"
-    assert client.post(
-        "/auth/register",
-        json={"email": email, "password": password, "name": "Beta Failure"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/auth/register",
+            json={"email": email, "password": password, "name": "Beta Failure"},
+        ).status_code
+        == 200
+    )
 
     class FailingPromotionStore:
         def claim_for_login(self, *_args, **_kwargs):

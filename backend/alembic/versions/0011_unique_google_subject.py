@@ -28,9 +28,7 @@ def upgrade() -> None:
         """
     ).scalar_one_or_none()
     if duplicate is not None:
-        raise RuntimeError(
-            "Cannot enforce unique Google subjects while duplicate identities exist."
-        )
+        raise RuntimeError("Cannot enforce unique Google subjects while duplicate identities exist.")
     op.drop_index("ix_users_google_sub", table_name="users")
     op.create_index(
         "ix_users_google_sub",

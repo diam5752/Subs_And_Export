@@ -20,12 +20,8 @@ BETA_CAMPAIGN_ID = "beta_first_20_logins_v1"
 PREVIOUS_MAX_CLAIMS = 50
 RESTORED_MAX_CLAIMS = 20
 CREDIT_AMOUNT = 30
-CAMPAIGN_CONTRACT_ERROR = (
-    "The Beta login promotion does not match the reviewed 50-by-30 predecessor contract."
-)
-UNSAFE_RESTORE_ERROR = (
-    "Cannot restore the 20-slot Beta promotion after a slot above 20 was awarded."
-)
+CAMPAIGN_CONTRACT_ERROR = "The Beta login promotion does not match the reviewed 50-by-30 predecessor contract."
+UNSAFE_RESTORE_ERROR = "Cannot restore the 20-slot Beta promotion after a slot above 20 was awarded."
 
 
 def _lock_and_read_campaign(connection: Connection) -> tuple[int, int, int]:
@@ -109,11 +105,7 @@ def downgrade() -> None:
     """Return to the predecessor cap without changing claims or ordinals."""
     connection = op.get_bind()
     max_claims, credit_amount, claimed_count = _lock_and_read_campaign(connection)
-    if (
-        max_claims != RESTORED_MAX_CLAIMS
-        or credit_amount != CREDIT_AMOUNT
-        or claimed_count > RESTORED_MAX_CLAIMS
-    ):
+    if max_claims != RESTORED_MAX_CLAIMS or credit_amount != CREDIT_AMOUNT or claimed_count > RESTORED_MAX_CLAIMS:
         raise RuntimeError(CAMPAIGN_CONTRACT_ERROR)
 
     result = connection.execute(

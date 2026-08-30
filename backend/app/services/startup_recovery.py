@@ -15,8 +15,7 @@ from backend.app.services.usage_ledger import UsageLedgerStore
 
 _INTERRUPTED_JOB_STATUSES = frozenset({"pending", "processing"})
 _RESTART_FAILURE_MESSAGE = (
-    "Processing was interrupted by a service restart. "
-    "Reserved credits were refunded; please try again."
+    "Processing was interrupted by a service restart. Reserved credits were refunded; please try again."
 )
 
 
@@ -38,10 +37,7 @@ def reconcile_interrupted_media_jobs(db: Database) -> int:
     ):
         with lock_job_workspace(data_dir=data_dir, job_id=candidate.id):
             current_job = job_store.get_job(candidate.id)
-            if (
-                current_job is None
-                or current_job.status not in _INTERRUPTED_JOB_STATUSES
-            ):
+            if current_job is None or current_job.status not in _INTERRUPTED_JOB_STATUSES:
                 continue
 
             journal.append_job_terminal(

@@ -17,6 +17,52 @@ from .social_intelligence import SocialCopy
 logger = logging.getLogger(__name__)
 
 
+def _copy_available_artifacts(artifact_dir: Path, sources: tuple[Path, ...]) -> None:
+    for source in sources:
+        try:
+            if source.exists():
+                shutil.copy2(source, artifact_dir / source.name)
+        except FileNotFoundError:
+            continue
+
+
+def _persist_social_copy(artifact_dir: Path, social_copy: SocialCopy) -> None:
+    generic = social_copy.generic
+    social_txt = (
+        f"Title (EL): {generic.title_el}\n"
+        f"Description (EL): {generic.description_el}\n"
+        f"Title (EN): {generic.title_en}\n"
+        f"Description (EN): {generic.description_en}\n"
+        f"Hashtags: {' '.join(generic.hashtags)}\n"
+    )
+    (artifact_dir / "social_copy.txt").write_text(social_txt, encoding="utf-8")
+    social_json = {
+        "title_el": generic.title_el,
+        "description_el": generic.description_el,
+        "title_en": generic.title_en,
+        "description_en": generic.description_en,
+        "hashtags": generic.hashtags,
+    }
+    (artifact_dir / "social_copy.json").write_text(
+        json.dumps(social_json, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _serialize_cues(cues: list[Cue]) -> list[dict[str, Any]]:
+    return [
+        {
+            "start": cue.start,
+            "end": cue.end,
+            "text": cue.text,
+            "words": (
+                [{"start": word.start, "end": word.end, "text": word.text} for word in cue.words] if cue.words else None
+            ),
+        }
+        for cue in cues
+    ]
+
+
 def _prepare_cues_for_delivery(
     cues: list[Cue] | None,
     *,
@@ -57,36 +103,12 @@ def persist_artifacts(
     subtitle_size: int = settings.default_sub_font_size,
 ) -> None:
     artifact_dir.mkdir(parents=True, exist_ok=True)
-
-    for src in (audio_path, srt_path, ass_path):
-        try:
-            if src.exists():
-                shutil.copy2(src, artifact_dir / src.name)
-        except FileNotFoundError:
-            continue
+    _copy_available_artifacts(artifact_dir, (audio_path, srt_path, ass_path))
 
     (artifact_dir / "transcript.txt").write_text(transcript_text, encoding="utf-8")
 
     if social_copy:
-        social_txt = (
-            f"Title (EL): {social_copy.generic.title_el}\n"
-            f"Description (EL): {social_copy.generic.description_el}\n"
-            f"Title (EN): {social_copy.generic.title_en}\n"
-            f"Description (EN): {social_copy.generic.description_en}\n"
-            f"Hashtags: {' '.join(social_copy.generic.hashtags)}\n"
-        )
-        (artifact_dir / "social_copy.txt").write_text(social_txt, encoding="utf-8")
-
-        social_json = {
-            "title_el": social_copy.generic.title_el,
-            "description_el": social_copy.generic.description_el,
-            "title_en": social_copy.generic.title_en,
-            "description_en": social_copy.generic.description_en,
-            "hashtags": social_copy.generic.hashtags,
-        }
-        (artifact_dir / "social_copy.json").write_text(
-            json.dumps(social_json, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        _persist_social_copy(artifact_dir, social_copy)
 
     delivery_cues = _prepare_cues_for_delivery(
         cues,
@@ -94,21 +116,7 @@ def persist_artifacts(
         subtitle_size=subtitle_size,
     )
 
-    cues_data: list[dict[str, Any]] = []
-    if delivery_cues:
-        cues_data = [
-            {
-                "start": c.start,
-                "end": c.end,
-                "text": c.text,
-                "words": (
-                    [{"start": w.start, "end": w.end, "text": w.text} for w in c.words]
-                    if c.words
-                    else None
-                ),
-            }
-            for c in delivery_cues
-        ]
+    cues_data = _serialize_cues(delivery_cues)
 
     (artifact_dir / "transcription.json").write_text(
         json.dumps(cues_data, ensure_ascii=False, indent=2), encoding="utf-8"

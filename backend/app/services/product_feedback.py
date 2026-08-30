@@ -163,11 +163,7 @@ class FeedbackStore:
         normalized_path = normalize_source_path(source_path)
         normalized_title = normalize_page_title(page_title)
         created_at = int(time.time()) if now is None else int(now)
-        actor_identity = (
-            f"user:{submitter.id}"
-            if submitter is not None
-            else f"ip:{client_ip.strip() or 'unknown'}"
-        )
+        actor_identity = f"user:{submitter.id}" if submitter is not None else f"ip:{client_ip.strip() or 'unknown'}"
         actor_hash = _digest(self.hash_secret, "actor", actor_identity)
         message_hash = _digest(self.hash_secret, "message", normalized_message.casefold())
 
@@ -187,8 +183,7 @@ class FeedbackStore:
                 .where(
                     DbProductFeedback.submitter_key_hash == actor_hash,
                     DbProductFeedback.message_hash == message_hash,
-                    DbProductFeedback.created_at
-                    >= created_at - FEEDBACK_DUPLICATE_WINDOW_SECONDS,
+                    DbProductFeedback.created_at >= created_at - FEEDBACK_DUPLICATE_WINDOW_SECONDS,
                 )
                 .order_by(DbProductFeedback.created_at.desc())
                 .limit(1),
@@ -248,9 +243,7 @@ class FeedbackStore:
             for row in rows:
                 row.notification_status = "sending"
                 row.notification_attempts += 1
-                row.notification_next_attempt_at = (
-                    now + FEEDBACK_NOTIFICATION_LEASE_SECONDS
-                )
+                row.notification_next_attempt_at = now + FEEDBACK_NOTIFICATION_LEASE_SECONDS
                 notifications.append(
                     FeedbackNotification(
                         id=row.id,
@@ -282,9 +275,7 @@ class FeedbackStore:
                     notification.submitter_user_id,
                 )
             row = session.scalar(
-                select(DbProductFeedback)
-                .where(DbProductFeedback.id == notification.id)
-                .with_for_update(),
+                select(DbProductFeedback).where(DbProductFeedback.id == notification.id).with_for_update(),
             )
             if (
                 row is None
@@ -292,11 +283,7 @@ class FeedbackStore:
                 or row.notification_attempts != notification.attempt_number
             ):
                 return False
-            user = (
-                session.get(DbUser, row.submitter_user_id)
-                if row.submitter_user_id is not None
-                else None
-            )
+            user = session.get(DbUser, row.submitter_user_id) if row.submitter_user_id is not None else None
             if row.submitter_user_id is not None and user is None:
                 return False
 
@@ -329,11 +316,7 @@ class FeedbackStore:
     ) -> None:
         with self.db.session() as session:
             row = session.get(DbProductFeedback, feedback_id)
-            if (
-                row is None
-                or row.notification_status != "sending"
-                or row.notification_attempts != attempt_number
-            ):
+            if row is None or row.notification_status != "sending" or row.notification_attempts != attempt_number:
                 return
             row.notification_status = "sent"
             row.notification_sent_at = now
@@ -350,11 +333,7 @@ class FeedbackStore:
     ) -> None:
         with self.db.session() as session:
             row = session.get(DbProductFeedback, feedback_id)
-            if (
-                row is None
-                or row.notification_status != "sending"
-                or row.notification_attempts != attempt_number
-            ):
+            if row is None or row.notification_status != "sending" or row.notification_attempts != attempt_number:
                 return
             retry_delay = min(6 * 60 * 60, 30 * (2 ** min(attempt_number - 1, 9)))
             row.notification_status = "pending"

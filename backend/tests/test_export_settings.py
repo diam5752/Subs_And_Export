@@ -4,6 +4,7 @@ SUBTITLE EXPORT SETTINGS REGRESSION TESTS
 These tests verify that subtitle settings (color, max_lines, highlight_style)
 are correctly passed through the export pipeline and applied in the generated ASS file.
 """
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -31,15 +32,10 @@ class TestSubtitleSettingsExport:
                 "start": 0,
                 "end": 2,
                 "text": "Hello World",
-                "words": [
-                    {"start": 0, "end": 1, "text": "Hello"},
-                    {"start": 1, "end": 2, "text": "World"}
-                ]
+                "words": [{"start": 0, "end": 1, "text": "Hello"}, {"start": 1, "end": 2, "text": "World"}],
             }
         ]
-        (artifact_dir / "transcription.json").write_text(
-            json.dumps(transcription_data), encoding="utf-8"
-        )
+        (artifact_dir / "transcription.json").write_text(json.dumps(transcription_data), encoding="utf-8")
 
         job_store = MagicMock()
         job = MagicMock()
@@ -49,6 +45,7 @@ class TestSubtitleSettingsExport:
 
         def fake_burn(*args, **kwargs):
             Path(args[2]).touch()
+
         monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
 
         return {
@@ -76,18 +73,23 @@ class TestSubtitleSettingsExport:
         )
 
         video_processing.generate_video_variant(
-            "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
-            setup["job_store"], "u1",
+            "job1",
+            setup["input_video"],
+            setup["artifact_dir"],
+            "1280x720",
+            setup["job_store"],
+            "u1",
             subtitle_settings={
                 "subtitle_color": "&H00FFFFFF",  # WHITE
                 "karaoke_enabled": True,
                 "subtitle_size": 100,
-            }
+            },
         )
 
         assert len(style_calls) == 1
-        assert style_calls[0]["primary_color"] == "&H00FFFFFF", \
+        assert style_calls[0]["primary_color"] == "&H00FFFFFF", (
             f"Expected WHITE color, got {style_calls[0]['primary_color']}"
+        )
 
     def test_export_applies_cyan_color(self, monkeypatch, mock_export_setup):
         """REGRESSION: Verify CYAN color is applied in exports."""
@@ -108,13 +110,17 @@ class TestSubtitleSettingsExport:
         )
 
         video_processing.generate_video_variant(
-            "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
-            setup["job_store"], "u1",
+            "job1",
+            setup["input_video"],
+            setup["artifact_dir"],
+            "1280x720",
+            setup["job_store"],
+            "u1",
             subtitle_settings={
                 "subtitle_color": "&H00FFFF00",  # CYAN
                 "karaoke_enabled": True,
                 "subtitle_size": 100,
-            }
+            },
         )
 
         assert len(style_calls) == 1
@@ -139,14 +145,18 @@ class TestSubtitleSettingsExport:
         )
 
         video_processing.generate_video_variant(
-            "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
-            setup["job_store"], "u1",
+            "job1",
+            setup["input_video"],
+            setup["artifact_dir"],
+            "1280x720",
+            setup["job_store"],
+            "u1",
             subtitle_settings={
                 "max_subtitle_lines": 0,  # Single word mode
                 "highlight_style": "active-graphics",
                 "karaoke_enabled": True,
                 "subtitle_size": 100,
-            }
+            },
         )
 
         assert len(style_calls) == 1
@@ -172,13 +182,17 @@ class TestSubtitleSettingsExport:
         )
 
         video_processing.generate_video_variant(
-            "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
-            setup["job_store"], "u1",
+            "job1",
+            setup["input_video"],
+            setup["artifact_dir"],
+            "1280x720",
+            setup["job_store"],
+            "u1",
             subtitle_settings={
                 "max_subtitle_lines": 2,
                 "karaoke_enabled": True,
                 "subtitle_size": 100,
-            }
+            },
         )
 
         assert len(style_calls) == 1
@@ -208,8 +222,12 @@ class TestSubtitleSettingsExport:
         )
 
         video_processing.generate_video_variant(
-            "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
-            setup["job_store"], "u1",
+            "job1",
+            setup["input_video"],
+            setup["artifact_dir"],
+            "1280x720",
+            setup["job_store"],
+            "u1",
             subtitle_settings={
                 "subtitle_color": "&H00FF00FF",  # MAGENTA
                 "max_subtitle_lines": 1,
@@ -217,7 +235,7 @@ class TestSubtitleSettingsExport:
                 "karaoke_enabled": True,
                 "subtitle_size": 100,
                 "shadow_strength": 6,
-            }
+            },
         )
 
         assert len(style_calls) == 1

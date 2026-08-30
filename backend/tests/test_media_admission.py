@@ -129,9 +129,7 @@ def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_fail
         user_auth_headers,
         metadata={
             "authorized_credits": 30,
-            "transcribe_provider": settings.transcribe_tier_provider[
-                settings.default_transcribe_tier
-            ],
+            "transcribe_provider": settings.transcribe_tier_provider[settings.default_transcribe_tier],
         },
         content=b"private-video",
     )
@@ -294,10 +292,7 @@ def test_five_customers_process_concurrently_and_sixth_is_rejected_before_upload
         )
 
     with ThreadPoolExecutor(max_workers=settings.max_active_media_jobs) as executor:
-        futures = [
-            executor.submit(submit, headers)
-            for headers in headers_by_user[: settings.max_active_media_jobs]
-        ]
+        futures = [executor.submit(submit, headers) for headers in headers_by_user[: settings.max_active_media_jobs]]
         assert all_started.wait(timeout=15)
 
         sixth = submit(headers_by_user[-1])

@@ -41,25 +41,30 @@ def java_major(java_home: Path) -> int | None:
         return None
 
 
-def candidate_homes() -> list[Path]:
-    candidates: list[Path] = []
-
+def _configured_java_homes() -> list[Path]:
     java_home = os.environ.get("JAVA_HOME")
-    if java_home:
-        candidates.append(Path(java_home))
+    return [Path(java_home)] if java_home else []
 
+
+def _java_home_tool_candidates() -> list[Path]:
     java_home_tool = Path("/usr/libexec/java_home")
-    if java_home_tool.exists():
-        completed = subprocess.run(
-            [str(java_home_tool), "-v", str(REQUIRED_MAJOR)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            check=False,
-        )
-        if completed.returncode == 0 and completed.stdout.strip():
-            candidates.append(Path(completed.stdout.strip()))
+    if not java_home_tool.exists():
+        return []
 
+    completed = subprocess.run(
+        [str(java_home_tool), "-v", str(REQUIRED_MAJOR)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return []
+    return [Path(completed.stdout.strip())]
+
+
+def _virtual_machine_candidates() -> list[Path]:
+    candidates: list[Path] = []
     for root in (
         Path.home() / "Library" / "Java" / "JavaVirtualMachines",
         Path("/Library/Java/JavaVirtualMachines"),
@@ -67,7 +72,11 @@ def candidate_homes() -> list[Path]:
         if not root.exists():
             continue
         candidates.extend(path / "Contents" / "Home" for path in root.iterdir() if path.is_dir())
+    return candidates
 
+
+def _homebrew_candidates() -> list[Path]:
+    candidates: list[Path] = []
     for cellar in (Path("/opt/homebrew/Cellar/openjdk"), Path("/usr/local/Cellar/openjdk")):
         if not cellar.exists():
             continue
@@ -76,7 +85,10 @@ def candidate_homes() -> list[Path]:
             for version in cellar.iterdir()
             if version.is_dir()
         )
+    return candidates
 
+
+def _unique_paths(candidates: list[Path]) -> list[Path]:
     unique: list[Path] = []
     seen: set[Path] = set()
     for candidate in candidates:
@@ -85,6 +97,13 @@ def candidate_homes() -> list[Path]:
             unique.append(resolved)
             seen.add(resolved)
     return unique
+
+
+def candidate_homes() -> list[Path]:
+    candidates = (
+        _configured_java_homes() + _java_home_tool_candidates() + _virtual_machine_candidates() + _homebrew_candidates()
+    )
+    return _unique_paths(candidates)
 
 
 def resolve_jdk25() -> Path | None:

@@ -34,11 +34,13 @@ sys.modules["pydub"] = MagicMock()
 def setup_test_database():
     """Create test database and run migrations before tests."""
     import subprocess
+
     test_db_url = os.environ.get("GSP_DATABASE_URL", "postgresql+psycopg://gsp:gsp@localhost:5432/gsp_test")
 
     # Create the test database if it doesn't exist
     try:
         import psycopg
+
         # Parse URL to get connection details
         # Format: postgresql+psycopg://user:pass@host:port/dbname
         parts = test_db_url.replace("postgresql+psycopg://", "").split("/")
@@ -64,7 +66,7 @@ def setup_test_database():
         cwd=os.path.dirname(os.path.dirname(__file__)),
         capture_output=True,
         text=True,
-        env={**os.environ, "GSP_DATABASE_URL": test_db_url}
+        env={**os.environ, "GSP_DATABASE_URL": test_db_url},
     )
     if result.returncode != 0:
         print(f"Migration warning: {result.stderr}")
@@ -135,6 +137,7 @@ def client(
 @pytest.fixture
 def user_auth_headers(client: TestClient) -> dict[str, str]:
     import secrets
+
     # Use unique email per test to avoid conflicts
     email = f"test_{secrets.token_hex(4)}@example.com"
     password = "testpassword123"
@@ -195,7 +198,9 @@ def prevent_paid_api_calls(monkeypatch):
         pass
 
     try:
-        monkeypatch.setattr("backend.app.services.transcription.openai_cloud._resolve_openai_api_key", lambda *args: None)
+        monkeypatch.setattr(
+            "backend.app.services.transcription.openai_cloud._resolve_openai_api_key", lambda *args: None
+        )
         monkeypatch.setattr("backend.app.services.transcription.groq_cloud._resolve_groq_api_key", lambda *args: None)
     except (ImportError, AttributeError):
         pass

@@ -30,7 +30,11 @@ This root file is the only repository instruction file. Do not add singular, nes
 
 - Add the smallest regression test at the affected Python, TypeScript, Java, database, or browser boundary.
 - Iterate with `make check-fast` or the narrow `make test-backend`, `make test-frontend`, or frontend test/spec command that covers the change.
-- Keep new functions within the repository complexity and size limits; improve rather than expand an existing baseline.
+- Run `make format` for the canonical Ruff-format and Prettier output; CI rejects formatting drift.
+- Keep every tracked or new non-ignored hand-written code file at or below 700 physical lines, including legacy code, tests, migrations, and deployment sources. There is no grandfathered file-length baseline.
+- Do not use inline Ruff-format, Prettier, PMD or jscpd suppression markers; `make check-quality-suppressions` enforces zero bypasses.
+- Keep every Python, JavaScript, TypeScript, and Java function at cognitive complexity 15 or below, and total duplicated lines at 3% or below. These gates are independent of the cyclomatic-complexity ratchet and have no legacy exemptions.
+- Keep new functions within the cyclomatic-complexity and active-line limits; improve rather than expand an existing baseline.
 - After the pull request exists and targeted checks pass, run `make ci` once. Treat the required GitHub security and image workflows as part of the merge gate.
 
 ## Delivery

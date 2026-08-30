@@ -47,8 +47,7 @@ def _provider_available(engine: TranscriptionEngine) -> bool:
         return bool(resolve_groq_api_key())
     if engine.provider == "elevenlabs":
         budgets_open = (
-            settings.external_provider_monthly_budget_usd > 0
-            and settings.external_provider_per_request_budget_usd > 0
+            settings.external_provider_monthly_budget_usd > 0 and settings.external_provider_per_request_budget_usd > 0
         )
         return settings.elevenlabs_enabled and budgets_open and bool(resolve_elevenlabs_api_key())
     return bool(resolve_openai_api_key())

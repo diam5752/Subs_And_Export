@@ -9,26 +9,33 @@ from backend.app.core.errors import register_exception_handlers, sanitize_messag
 dummy_app = FastAPI()
 register_exception_handlers(dummy_app)
 
+
 class MockModel(BaseModel):
     name: str = Field(..., max_length=5)
+
 
 @dummy_app.get("/error/http")
 async def trigger_http_error():
     raise HTTPException(status_code=403, detail="Access to /app/secret denied")
 
+
 @dummy_app.post("/error/validation")
 async def trigger_validation_error(model: MockModel):
     return model
+
 
 @dummy_app.get("/error/db")
 async def trigger_db_error():
     raise SQLAlchemyError("Duplicate entry for /home/db/data")
 
+
 @dummy_app.get("/error/unhandled")
 async def trigger_unhandled_error():
     raise Exception("Something went wrong at /var/log/crash")
 
+
 client = TestClient(dummy_app, raise_server_exceptions=False)
+
 
 def test_sanitize_message_strips_internal_paths():
     """Test that internal paths are replaced with [INTERNAL_PATH]."""
@@ -47,12 +54,14 @@ def test_sanitize_message_strips_internal_paths():
     assert "[INTERNAL_PATH]" in sanitized3
     assert "/data/uploads" not in sanitized3
 
+
 def test_http_exception_handler_sanitizes():
     """Test that explicit HTTP exceptions are sanitized."""
     response = client.get("/error/http")
     assert response.status_code == 403
     assert "[INTERNAL_PATH]" in response.json()["detail"]
     assert "/app/secret" not in response.json()["detail"]
+
 
 def test_validation_exception_handler():
     """Test that validation errors are returned in a clean format."""
@@ -62,6 +71,7 @@ def test_validation_exception_handler():
     assert "Validation Error" in detail
     assert "body.name" in detail
 
+
 def test_database_exception_handler():
     """Test that database errors return generic messages and error codes."""
     response = client.get("/error/db")
@@ -70,6 +80,7 @@ def test_database_exception_handler():
     assert data["code"] == "DB_ERROR"
     assert "Please try again later" in data["detail"]
     assert "/home/db/data" not in data["detail"]
+
 
 def test_global_exception_handler():
     """Test that unhandled exceptions return generic messages and error codes."""

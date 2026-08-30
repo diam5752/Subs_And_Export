@@ -1,509 +1,576 @@
-import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
+import React from "react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
 
-import { I18nProvider } from '@/context/I18nContext';
-import { api } from '@/lib/api';
-import type { JobResponse } from '@/lib/api';
+import { I18nProvider } from "@/context/I18nContext";
+import { api } from "@/lib/api";
+import type { JobResponse } from "@/lib/api";
 
-import { ProcessProvider, useProcessContext } from '../ProcessContext';
+import { ProcessProvider, useProcessContext } from "../ProcessContext";
 
-jest.mock('@/lib/api', () => ({
-    API_BASE: 'http://localhost:8080',
-    api: {
-        exportVideo: jest.fn(),
-        getJobStatus: jest.fn(),
-        createArtifactDownloadGrant: jest.fn(),
-        getJobsPaginated: jest.fn(),
-        updateJobTranscription: jest.fn(),
-    },
+jest.mock("@/lib/api", () => ({
+  API_BASE: "http://localhost:8080",
+  api: {
+    exportVideo: jest.fn(),
+    getJobStatus: jest.fn(),
+    createArtifactDownloadGrant: jest.fn(),
+    getJobsPaginated: jest.fn(),
+    updateJobTranscription: jest.fn(),
+  },
 }));
 
 function ExportHarness() {
-    const { handleExport, exportError, exportProgress, videoUrl } = useProcessContext();
+  const { handleExport, exportError, exportProgress, videoUrl } =
+    useProcessContext();
 
-    return (
-        <div>
-            <button type="button" onClick={() => void handleExport('srt')}>
-                export-srt
-            </button>
-            <button type="button" onClick={() => void handleExport('vtt')}>
-                export-vtt
-            </button>
-            <button type="button" onClick={() => void handleExport('1080x1920')}>
-                export-1080
-            </button>
-            <button type="button" onClick={() => void handleExport('720x1280')}>
-                export-720
-            </button>
-            <div data-testid="video-url">{videoUrl ?? ''}</div>
-            <div data-testid="export-error">{exportError ?? ''}</div>
-            <div data-testid="export-progress">{exportProgress['1080x1920'] ?? 'pending'}</div>
-        </div>
-    );
+  return (
+    <div>
+      <button type="button" onClick={() => void handleExport("srt")}>
+        export-srt
+      </button>
+      <button type="button" onClick={() => void handleExport("vtt")}>
+        export-vtt
+      </button>
+      <button type="button" onClick={() => void handleExport("1080x1920")}>
+        export-1080
+      </button>
+      <button type="button" onClick={() => void handleExport("720x1280")}>
+        export-720
+      </button>
+      <div data-testid="video-url">{videoUrl ?? ""}</div>
+      <div data-testid="export-error">{exportError ?? ""}</div>
+      <div data-testid="export-progress">
+        {exportProgress["1080x1920"] ?? "pending"}
+      </div>
+    </div>
+  );
 }
 
 function TranscriptPersistenceHarness() {
-    const {
-        cues,
-        setCues,
-        editingCueIndex,
-        editingCueDraft,
-        transcriptSaveError,
-        beginEditingCue,
-        handleUpdateDraft,
-        saveEditingCue,
-    } = useProcessContext();
+  const {
+    cues,
+    setCues,
+    editingCueIndex,
+    editingCueDraft,
+    transcriptSaveError,
+    beginEditingCue,
+    handleUpdateDraft,
+    saveEditingCue,
+  } = useProcessContext();
 
-    return (
-        <div>
-            <button
-                type="button"
-                onClick={() => setCues([{
-                    start: 0,
-                    end: 2,
-                    text: 'ORIGINAL TEXT',
-                    words: [
-                        { start: 0, end: 1, text: 'ORIGINAL' },
-                        { start: 1, end: 2, text: 'TEXT' },
-                    ],
-                }])}
-            >
-                seed-transcript
-            </button>
-            <button type="button" onClick={() => beginEditingCue(0)}>edit-first-cue</button>
-            <input
-                aria-label="transcript-draft"
-                value={editingCueDraft}
-                onChange={(event) => handleUpdateDraft(event.target.value)}
-            />
-            <button type="button" onClick={() => void saveEditingCue()}>save-transcript</button>
-            <div data-testid="persisted-cue-text">{cues[0]?.text ?? ''}</div>
-            <div data-testid="editing-cue-index">{editingCueIndex ?? 'none'}</div>
-            <div data-testid="transcript-save-error">{transcriptSaveError ?? ''}</div>
-        </div>
-    );
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() =>
+          setCues([
+            {
+              start: 0,
+              end: 2,
+              text: "ORIGINAL TEXT",
+              words: [
+                { start: 0, end: 1, text: "ORIGINAL" },
+                { start: 1, end: 2, text: "TEXT" },
+              ],
+            },
+          ])
+        }
+      >
+        seed-transcript
+      </button>
+      <button type="button" onClick={() => beginEditingCue(0)}>
+        edit-first-cue
+      </button>
+      <input
+        aria-label="transcript-draft"
+        value={editingCueDraft}
+        onChange={(event) => handleUpdateDraft(event.target.value)}
+      />
+      <button type="button" onClick={() => void saveEditingCue()}>
+        save-transcript
+      </button>
+      <div data-testid="persisted-cue-text">{cues[0]?.text ?? ""}</div>
+      <div data-testid="editing-cue-index">{editingCueIndex ?? "none"}</div>
+      <div data-testid="transcript-save-error">{transcriptSaveError ?? ""}</div>
+    </div>
+  );
 }
 
 function TranscriptLoadHarness() {
-    const { cues, transcriptLoadError } = useProcessContext();
+  const { cues, transcriptLoadError } = useProcessContext();
 
-    return (
-        <div>
-            <div data-testid="loaded-cue-text">{cues[0]?.text ?? ''}</div>
-            <div data-testid="transcript-load-error">{transcriptLoadError ?? ''}</div>
-        </div>
-    );
+  return (
+    <div>
+      <div data-testid="loaded-cue-text">{cues[0]?.text ?? ""}</div>
+      <div data-testid="transcript-load-error">{transcriptLoadError ?? ""}</div>
+    </div>
+  );
 }
 
 const baseProps = {
-    selectedFile: null,
-    onFileSelect: jest.fn(),
-    isProcessing: false,
-    progress: 0,
-    statusMessage: '',
-    error: '',
-    onStartProcessing: jest.fn(async () => { }),
-    onReprocessJob: jest.fn(async () => { }),
-    onReset: jest.fn(),
-    onCancelProcessing: undefined,
-    selectedJob: {
-        id: 'job-1',
-        status: 'completed',
-        progress: 100,
-        message: null,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        result_data: {
-            video_path: '/static/artifacts/job-1/processed.mp4',
-            artifacts_dir: '/static/artifacts/job-1',
-            public_url: '/static/artifacts/job-1/processed.mp4',
-            original_filename: 'E Isous.mp4',
-        },
+  selectedFile: null,
+  onFileSelect: jest.fn(),
+  isProcessing: false,
+  progress: 0,
+  statusMessage: "",
+  error: "",
+  onStartProcessing: jest.fn(async () => {}),
+  onReprocessJob: jest.fn(async () => {}),
+  onReset: jest.fn(),
+  onCancelProcessing: undefined,
+  selectedJob: {
+    id: "job-1",
+    status: "completed",
+    progress: 100,
+    message: null,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    result_data: {
+      video_path: "/static/artifacts/job-1/processed.mp4",
+      artifacts_dir: "/static/artifacts/job-1",
+      public_url: "/static/artifacts/job-1/processed.mp4",
+      original_filename: "E Isous.mp4",
     },
-    onJobSelect: jest.fn(),
-    statusStyles: {},
-    buildStaticUrl: jest.fn(() => null),
-    totalJobs: 1,
+  },
+  onJobSelect: jest.fn(),
+  statusStyles: {},
+  buildStaticUrl: jest.fn(() => null),
+  totalJobs: 1,
 };
 
 function ExportTestBed({
-    buildStaticUrl = baseProps.buildStaticUrl,
-    onRefreshJobs,
+  buildStaticUrl = baseProps.buildStaticUrl,
+  onRefreshJobs,
 }: {
-    buildStaticUrl?: (path?: string | null) => string | null;
-    onRefreshJobs?: () => Promise<void>;
+  buildStaticUrl?: (path?: string | null) => string | null;
+  onRefreshJobs?: () => Promise<void>;
 }) {
-    const [selectedJob, setSelectedJob] = React.useState<JobResponse | null>(baseProps.selectedJob);
+  const [selectedJob, setSelectedJob] = React.useState<JobResponse | null>(
+    baseProps.selectedJob,
+  );
 
-    return (
-        <ProcessProvider
-            {...baseProps}
-            selectedJob={selectedJob}
-            onJobSelect={setSelectedJob}
-            onRefreshJobs={onRefreshJobs}
-            buildStaticUrl={buildStaticUrl}
-        >
-            <ExportHarness />
-        </ProcessProvider>
-    );
+  return (
+    <ProcessProvider
+      {...baseProps}
+      selectedJob={selectedJob}
+      onJobSelect={setSelectedJob}
+      onRefreshJobs={onRefreshJobs}
+      buildStaticUrl={buildStaticUrl}
+    >
+      <ExportHarness />
+    </ProcessProvider>
+  );
 }
 
 function TranscriptTestBed() {
-    return (
-        <ProcessProvider {...baseProps}>
-            <TranscriptPersistenceHarness />
-        </ProcessProvider>
-    );
+  return (
+    <ProcessProvider {...baseProps}>
+      <TranscriptPersistenceHarness />
+    </ProcessProvider>
+  );
 }
 
 const jobWithTranscript = {
-    ...baseProps.selectedJob,
-    result_data: {
-        ...baseProps.selectedJob.result_data,
-        transcription_url: '/static/artifacts/job-1/transcription.json',
-    },
+  ...baseProps.selectedJob,
+  result_data: {
+    ...baseProps.selectedJob.result_data,
+    transcription_url: "/static/artifacts/job-1/transcription.json",
+  },
 } as JobResponse;
 
 function TranscriptLoadTestBed() {
-    return (
-        <ProcessProvider {...baseProps} selectedJob={jobWithTranscript}>
-            <TranscriptLoadHarness />
-        </ProcessProvider>
-    );
+  return (
+    <ProcessProvider {...baseProps} selectedJob={jobWithTranscript}>
+      <TranscriptLoadHarness />
+    </ProcessProvider>
+  );
 }
 
-describe('ProcessProvider export handling', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        localStorage.clear();
-        (api.exportVideo as jest.Mock).mockRejectedValue(new Error('Export failed'));
-        (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
-            download_url: '/static/artifacts/job-1/scoped-download.mp4?grant=signed-grant',
-            expires_in: 300,
-        });
-        (api.updateJobTranscription as jest.Mock).mockResolvedValue({ status: 'ok' });
-        (api.getJobStatus as jest.Mock).mockResolvedValue(baseProps.selectedJob);
+describe("ProcessProvider export handling", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+    (api.exportVideo as jest.Mock).mockRejectedValue(
+      new Error("Export failed"),
+    );
+    (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
+      download_url:
+        "/static/artifacts/job-1/scoped-download.mp4?grant=signed-grant",
+      expires_in: 300,
     });
+    (api.updateJobTranscription as jest.Mock).mockResolvedValue({
+      status: "ok",
+    });
+    (api.getJobStatus as jest.Mock).mockResolvedValue(baseProps.selectedJob);
+  });
 
-    it('stores a visible export error when variant export fails', async () => {
-        render(
-            <I18nProvider initialLocale="en">
-                <ExportTestBed />
-            </I18nProvider>,
+  it("stores a visible export error when variant export fails", async () => {
+    render(
+      <I18nProvider initialLocale="en">
+        <ExportTestBed />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "export-srt" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("export-error")).toHaveTextContent(
+        "Export failed",
+      );
+    });
+  });
+
+  it("downloads a high-quality 1080p export without switching the preview to the same file", async () => {
+    const updatedJob = {
+      ...baseProps.selectedJob,
+      result_data: {
+        ...baseProps.selectedJob.result_data,
+        variants: {
+          "1080x1920": "/static/artifacts/job-1/processed-1080.mp4",
+        },
+      },
+    };
+    const buildStaticUrl = jest.fn((path?: string | null) =>
+      path ? `https://static.local${path}` : null,
+    );
+    const onRefreshJobs = jest.fn(async () => {});
+    const clickSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <ExportTestBed
+            onRefreshJobs={onRefreshJobs}
+            buildStaticUrl={buildStaticUrl}
+          />
+        </I18nProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "export-1080" }));
+
+      // REGRESSION: automatically previewing the exported MP4 while also
+      // clicking its download link caused two full private-media fetches.
+      await waitFor(() => {
+        expect(api.exportVideo).toHaveBeenCalledWith(
+          "job-1",
+          "1080x1920",
+          expect.objectContaining({ video_quality: "high quality" }),
         );
+      });
+      expect(screen.getByTestId("video-url")).toHaveTextContent(
+        "https://static.local/static/artifacts/job-1/processed.mp4",
+      );
+      expect(onRefreshJobs).toHaveBeenCalled();
+      expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
+        "job-1",
+        "/static/artifacts/job-1/processed-1080.mp4",
+        "E Isous_subs.mp4",
+      );
+      expect(clickSpy).toHaveBeenCalled();
+      const clickedLink = clickSpy.mock.instances.at(
+        -1,
+      ) as unknown as HTMLAnchorElement;
+      expect(clickedLink.download).toBe("E Isous_subs.mp4");
+      expect(clickedLink.href).toBe(
+        "https://static.local/static/artifacts/job-1/scoped-download.mp4?grant=signed-grant",
+      );
+    } finally {
+      clickSpy.mockRestore();
+    }
+  });
 
-        fireEvent.click(screen.getByRole('button', { name: 'export-srt' }));
-
-        await waitFor(() => {
-            expect(screen.getByTestId('export-error')).toHaveTextContent('Export failed');
-        });
+  it("polls and exposes real render progress while a video export is running", async () => {
+    jest.useFakeTimers();
+    let finishExport: (job: JobResponse) => void = () => undefined;
+    const pendingExport = new Promise<JobResponse>((resolve) => {
+      finishExport = resolve;
     });
-
-    it('downloads a high-quality 1080p export without switching the preview to the same file', async () => {
-        const updatedJob = {
-            ...baseProps.selectedJob,
-            result_data: {
-                ...baseProps.selectedJob.result_data,
-                variants: {
-                    '1080x1920': '/static/artifacts/job-1/processed-1080.mp4',
-                },
-            },
-        };
-        const buildStaticUrl = jest.fn((path?: string | null) => path ? `https://static.local${path}` : null);
-        const onRefreshJobs = jest.fn(async () => { });
-        const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
-        (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <ExportTestBed
-                        onRefreshJobs={onRefreshJobs}
-                        buildStaticUrl={buildStaticUrl}
-                    />
-                </I18nProvider>,
-            );
-
-            fireEvent.click(screen.getByRole('button', { name: 'export-1080' }));
-
-            // REGRESSION: automatically previewing the exported MP4 while also
-            // clicking its download link caused two full private-media fetches.
-            await waitFor(() => {
-                expect(api.exportVideo).toHaveBeenCalledWith(
-                    'job-1',
-                    '1080x1920',
-                    expect.objectContaining({ video_quality: 'high quality' }),
-                );
-            });
-            expect(screen.getByTestId('video-url')).toHaveTextContent(
-                'https://static.local/static/artifacts/job-1/processed.mp4',
-            );
-            expect(onRefreshJobs).toHaveBeenCalled();
-            expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
-                'job-1',
-                '/static/artifacts/job-1/processed-1080.mp4',
-                'E Isous_subs.mp4',
-            );
-            expect(clickSpy).toHaveBeenCalled();
-            const clickedLink = clickSpy.mock.instances.at(-1) as unknown as HTMLAnchorElement;
-            expect(clickedLink.download).toBe('E Isous_subs.mp4');
-            expect(clickedLink.href).toBe(
-                'https://static.local/static/artifacts/job-1/scoped-download.mp4?grant=signed-grant',
-            );
-        } finally {
-            clickSpy.mockRestore();
-        }
+    (api.exportVideo as jest.Mock).mockReturnValue(pendingExport);
+    (api.getJobStatus as jest.Mock).mockResolvedValue({
+      ...baseProps.selectedJob,
+      progress: 42,
     });
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <ExportTestBed />
+        </I18nProvider>,
+      );
 
-    it('polls and exposes real render progress while a video export is running', async () => {
-        jest.useFakeTimers();
-        let finishExport: (job: JobResponse) => void = () => undefined;
-        const pendingExport = new Promise<JobResponse>((resolve) => {
-            finishExport = resolve;
-        });
-        (api.exportVideo as jest.Mock).mockReturnValue(pendingExport);
-        (api.getJobStatus as jest.Mock).mockResolvedValue({
-            ...baseProps.selectedJob,
-            progress: 42,
-        });
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <ExportTestBed />
-                </I18nProvider>,
-            );
+      fireEvent.click(screen.getByRole("button", { name: "export-1080" }));
+      await act(async () => {
+        jest.advanceTimersByTime(750);
+        await Promise.resolve();
+      });
 
-            fireEvent.click(screen.getByRole('button', { name: 'export-1080' }));
-            await act(async () => {
-                jest.advanceTimersByTime(750);
-                await Promise.resolve();
-            });
+      await waitFor(() => {
+        expect(api.getJobStatus).toHaveBeenCalledWith("job-1");
+        expect(screen.getByTestId("export-progress")).toHaveTextContent("42");
+      });
 
-            await waitFor(() => {
-                expect(api.getJobStatus).toHaveBeenCalledWith('job-1');
-                expect(screen.getByTestId('export-progress')).toHaveTextContent('42');
-            });
+      await act(async () => finishExport(baseProps.selectedJob));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 
-            await act(async () => finishExport(baseProps.selectedJob));
-        } finally {
-            jest.useRealTimers();
-        }
-    });
+  it("uses the low-size profile for the fast 720p export", async () => {
+    const updatedJob = {
+      ...baseProps.selectedJob,
+      result_data: {
+        ...baseProps.selectedJob.result_data,
+        variants: {
+          "720x1280": "/static/artifacts/job-1/processed-720.mp4",
+        },
+      },
+    };
+    const clickSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
 
-    it('uses the low-size profile for the fast 720p export', async () => {
-        const updatedJob = {
-            ...baseProps.selectedJob,
-            result_data: {
-                ...baseProps.selectedJob.result_data,
-                variants: {
-                    '720x1280': '/static/artifacts/job-1/processed-720.mp4',
-                },
-            },
-        };
-        const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
-        (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <ExportTestBed buildStaticUrl={(path) => path ?? null} />
+        </I18nProvider>,
+      );
 
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <ExportTestBed buildStaticUrl={(path) => path ?? null} />
-                </I18nProvider>,
-            );
+      fireEvent.click(screen.getByRole("button", { name: "export-720" }));
 
-            fireEvent.click(screen.getByRole('button', { name: 'export-720' }));
-
-            await waitFor(() => {
-                expect(api.exportVideo).toHaveBeenCalledWith(
-                    'job-1',
-                    '720x1280',
-                    expect.objectContaining({ video_quality: 'low size' }),
-                );
-            });
-            expect(clickSpy).toHaveBeenCalled();
-            expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
-                'job-1',
-                '/static/artifacts/job-1/processed-720.mp4',
-                'E Isous_subs.mp4',
-            );
-        } finally {
-            clickSpy.mockRestore();
-        }
-    });
-
-    it('fails closed instead of opening the raw private artifact when grant creation fails', async () => {
-        const updatedJob = {
-            ...baseProps.selectedJob,
-            result_data: {
-                ...baseProps.selectedJob.result_data,
-                variants: {
-                    '720x1280': '/static/artifacts/job-1/processed-720.mp4',
-                },
-            },
-        };
-        const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
-        const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
-        (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
-        (api.createArtifactDownloadGrant as jest.Mock).mockRejectedValue(
-            new Error('Secure download could not be prepared'),
+      await waitFor(() => {
+        expect(api.exportVideo).toHaveBeenCalledWith(
+          "job-1",
+          "720x1280",
+          expect.objectContaining({ video_quality: "low size" }),
         );
+      });
+      expect(clickSpy).toHaveBeenCalled();
+      expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
+        "job-1",
+        "/static/artifacts/job-1/processed-720.mp4",
+        "E Isous_subs.mp4",
+      );
+    } finally {
+      clickSpy.mockRestore();
+    }
+  });
 
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <ExportTestBed buildStaticUrl={(path) => path ?? null} />
-                </I18nProvider>,
-            );
+  it("fails closed instead of opening the raw private artifact when grant creation fails", async () => {
+    const updatedJob = {
+      ...baseProps.selectedJob,
+      result_data: {
+        ...baseProps.selectedJob.result_data,
+        variants: {
+          "720x1280": "/static/artifacts/job-1/processed-720.mp4",
+        },
+      },
+    };
+    const clickSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
+    (api.createArtifactDownloadGrant as jest.Mock).mockRejectedValue(
+      new Error("Secure download could not be prepared"),
+    );
 
-            fireEvent.click(screen.getByRole('button', { name: 'export-720' }));
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <ExportTestBed buildStaticUrl={(path) => path ?? null} />
+        </I18nProvider>,
+      );
 
-            await waitFor(() => {
-                expect(screen.getByTestId('export-error')).toHaveTextContent(
-                    'Secure download could not be prepared',
-                );
-            });
-            expect(clickSpy).not.toHaveBeenCalled();
-            expect(openSpy).not.toHaveBeenCalled();
-        } finally {
-            clickSpy.mockRestore();
-            openSpy.mockRestore();
-        }
-    });
+      fireEvent.click(screen.getByRole("button", { name: "export-720" }));
 
-    it('downloads subtitle-file exports without switching the preview player variant', async () => {
-        const updatedJob = {
-            ...baseProps.selectedJob,
-            result_data: {
-                ...baseProps.selectedJob.result_data,
-                variants: {
-                    vtt: '/static/artifacts/job-1/processed.vtt',
-                },
-            },
-        };
-        const buildStaticUrl = jest.fn((path?: string | null) => path ? `https://static.local${path}` : null);
-        const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
-        (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
-
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <ExportTestBed buildStaticUrl={buildStaticUrl} />
-                </I18nProvider>,
-            );
-
-            expect(screen.getByTestId('video-url')).toHaveTextContent('https://static.local/static/artifacts/job-1/processed.mp4');
-
-            fireEvent.click(screen.getByRole('button', { name: 'export-vtt' }));
-
-            await waitFor(() => {
-                expect(api.exportVideo).toHaveBeenCalledWith('job-1', 'vtt', expect.any(Object));
-            });
-            expect(screen.getByTestId('video-url')).toHaveTextContent('https://static.local/static/artifacts/job-1/processed.mp4');
-        } finally {
-            clickSpy.mockRestore();
-        }
-    });
-
-    it('persists an inline transcript correction before closing the shared editor', async () => {
-        render(
-            <I18nProvider initialLocale="en">
-                <TranscriptTestBed />
-            </I18nProvider>,
+      await waitFor(() => {
+        expect(screen.getByTestId("export-error")).toHaveTextContent(
+          "Secure download could not be prepared",
         );
+      });
+      expect(clickSpy).not.toHaveBeenCalled();
+      expect(openSpy).not.toHaveBeenCalled();
+    } finally {
+      clickSpy.mockRestore();
+      openSpy.mockRestore();
+    }
+  });
 
-        fireEvent.click(screen.getByRole('button', { name: 'seed-transcript' }));
-        fireEvent.click(screen.getByRole('button', { name: 'edit-first-cue' }));
-        fireEvent.change(screen.getByRole('textbox', { name: 'transcript-draft' }), {
-            target: { value: 'Διορθωμένος υπότιτλος' },
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'save-transcript' }));
+  it("downloads subtitle-file exports without switching the preview player variant", async () => {
+    const updatedJob = {
+      ...baseProps.selectedJob,
+      result_data: {
+        ...baseProps.selectedJob.result_data,
+        variants: {
+          vtt: "/static/artifacts/job-1/processed.vtt",
+        },
+      },
+    };
+    const buildStaticUrl = jest.fn((path?: string | null) =>
+      path ? `https://static.local${path}` : null,
+    );
+    const clickSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
 
-        await waitFor(() => {
-            expect(api.updateJobTranscription).toHaveBeenCalledWith(
-                'job-1',
-                [expect.objectContaining({ text: 'Διορθωμένος υπότιτλος' })],
-            );
-            expect(screen.getByTestId('editing-cue-index')).toHaveTextContent('none');
-        });
-        expect(screen.getByTestId('persisted-cue-text')).toHaveTextContent('Διορθωμένος υπότιτλος');
-        expect(screen.getByTestId('transcript-save-error')).toBeEmptyDOMElement();
-    });
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <ExportTestBed buildStaticUrl={buildStaticUrl} />
+        </I18nProvider>,
+      );
 
-    it('rolls back the preview and keeps the editor open when persistence fails', async () => {
-        (api.updateJobTranscription as jest.Mock).mockRejectedValueOnce(new Error('Save unavailable'));
-        render(
-            <I18nProvider initialLocale="en">
-                <TranscriptTestBed />
-            </I18nProvider>,
+      expect(screen.getByTestId("video-url")).toHaveTextContent(
+        "https://static.local/static/artifacts/job-1/processed.mp4",
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "export-vtt" }));
+
+      await waitFor(() => {
+        expect(api.exportVideo).toHaveBeenCalledWith(
+          "job-1",
+          "vtt",
+          expect.any(Object),
         );
+      });
+      expect(screen.getByTestId("video-url")).toHaveTextContent(
+        "https://static.local/static/artifacts/job-1/processed.mp4",
+      );
+    } finally {
+      clickSpy.mockRestore();
+    }
+  });
 
-        fireEvent.click(screen.getByRole('button', { name: 'seed-transcript' }));
-        fireEvent.click(screen.getByRole('button', { name: 'edit-first-cue' }));
-        fireEvent.change(screen.getByRole('textbox', { name: 'transcript-draft' }), {
-            target: { value: 'unsaved subtitle' },
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'save-transcript' }));
+  it("persists an inline transcript correction before closing the shared editor", async () => {
+    render(
+      <I18nProvider initialLocale="en">
+        <TranscriptTestBed />
+      </I18nProvider>,
+    );
 
-        await waitFor(() => {
-            expect(screen.getByTestId('transcript-save-error')).toHaveTextContent('Save unavailable');
-        });
-        expect(screen.getByTestId('persisted-cue-text')).toHaveTextContent('ORIGINAL TEXT');
-        expect(screen.getByTestId('editing-cue-index')).toHaveTextContent('0');
-        expect(screen.getByRole('textbox', { name: 'transcript-draft' })).toHaveValue('unsaved subtitle');
+    fireEvent.click(screen.getByRole("button", { name: "seed-transcript" }));
+    fireEvent.click(screen.getByRole("button", { name: "edit-first-cue" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "transcript-draft" }),
+      {
+        target: { value: "Διορθωμένος υπότιτλος" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "save-transcript" }));
+
+    await waitFor(() => {
+      expect(api.updateJobTranscription).toHaveBeenCalledWith("job-1", [
+        expect.objectContaining({ text: "Διορθωμένος υπότιτλος" }),
+      ]);
+      expect(screen.getByTestId("editing-cue-index")).toHaveTextContent("none");
     });
+    expect(screen.getByTestId("persisted-cue-text")).toHaveTextContent(
+      "Διορθωμένος υπότιτλος",
+    );
+    expect(screen.getByTestId("transcript-save-error")).toBeEmptyDOMElement();
+  });
 
-    it('loads a valid server-backed transcript', async () => {
-        const originalFetch = global.fetch;
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: true,
-            json: async () => [{ start: 0, end: 1, text: 'Loaded cue', words: [] }],
-        } as Response) as jest.MockedFunction<typeof fetch>;
+  it("rolls back the preview and keeps the editor open when persistence fails", async () => {
+    (api.updateJobTranscription as jest.Mock).mockRejectedValueOnce(
+      new Error("Save unavailable"),
+    );
+    render(
+      <I18nProvider initialLocale="en">
+        <TranscriptTestBed />
+      </I18nProvider>,
+    );
 
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <TranscriptLoadTestBed />
-                </I18nProvider>,
-            );
+    fireEvent.click(screen.getByRole("button", { name: "seed-transcript" }));
+    fireEvent.click(screen.getByRole("button", { name: "edit-first-cue" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "transcript-draft" }),
+      {
+        target: { value: "unsaved subtitle" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "save-transcript" }));
 
-            await waitFor(() => {
-                expect(screen.getByTestId('loaded-cue-text')).toHaveTextContent('Loaded cue');
-            });
-            expect(global.fetch).toHaveBeenCalledWith(
-                'http://localhost:8080/static/artifacts/job-1/transcription.json',
-                { credentials: 'include' },
-            );
-            expect(screen.getByTestId('transcript-load-error')).toBeEmptyDOMElement();
-        } finally {
-            global.fetch = originalFetch;
-        }
+    await waitFor(() => {
+      expect(screen.getByTestId("transcript-save-error")).toHaveTextContent(
+        "Save unavailable",
+      );
     });
+    expect(screen.getByTestId("persisted-cue-text")).toHaveTextContent(
+      "ORIGINAL TEXT",
+    );
+    expect(screen.getByTestId("editing-cue-index")).toHaveTextContent("0");
+    expect(
+      screen.getByRole("textbox", { name: "transcript-draft" }),
+    ).toHaveValue("unsaved subtitle");
+  });
 
-    it('surfaces an unavailable transcript without emitting a console error', async () => {
-        const originalFetch = global.fetch;
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: false,
-            status: 404,
-            json: async () => ({}),
-        } as Response) as jest.MockedFunction<typeof fetch>;
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+  it("loads a valid server-backed transcript", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ start: 0, end: 1, text: "Loaded cue", words: [] }],
+    } as Response) as jest.MockedFunction<typeof fetch>;
 
-        try {
-            render(
-                <I18nProvider initialLocale="en">
-                    <TranscriptLoadTestBed />
-                </I18nProvider>,
-            );
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <TranscriptLoadTestBed />
+        </I18nProvider>,
+      );
 
-            await waitFor(() => {
-                expect(screen.getByTestId('transcript-load-error')).toHaveTextContent(
-                    'The transcript is no longer available',
-                );
-            });
-            expect(screen.getByTestId('loaded-cue-text')).toBeEmptyDOMElement();
-            expect(consoleErrorSpy).not.toHaveBeenCalled();
-        } finally {
-            global.fetch = originalFetch;
-            consoleErrorSpy.mockRestore();
-        }
-    });
+      await waitFor(() => {
+        expect(screen.getByTestId("loaded-cue-text")).toHaveTextContent(
+          "Loaded cue",
+        );
+      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        "http://localhost:8080/static/artifacts/job-1/transcription.json",
+        { credentials: "include" },
+      );
+      expect(screen.getByTestId("transcript-load-error")).toBeEmptyDOMElement();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("surfaces an unavailable transcript without emitting a console error", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as Response) as jest.MockedFunction<typeof fetch>;
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    try {
+      render(
+        <I18nProvider initialLocale="en">
+          <TranscriptLoadTestBed />
+        </I18nProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("transcript-load-error")).toHaveTextContent(
+          "The transcript is no longer available",
+        );
+      });
+      expect(screen.getByTestId("loaded-cue-text")).toBeEmptyDOMElement();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+      consoleErrorSpy.mockRestore();
+    }
+  });
 });

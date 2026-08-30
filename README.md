@@ -82,17 +82,35 @@ remains an equivalent alias.
 Individual checks:
 
 ```bash
+make format
+make check-format
+make check-file-length
+make check-quality-suppressions
 make test-backend
 make test-frontend
 make check-complexity
+make check-cognitive
+make check-duplicates
 make check-java
 cd frontend && npm run build && npm run e2e
 ```
 
-The complexity gate covers production Python, TypeScript and Java. New functions
-must stay at cyclomatic complexity 10 or below and at 50 active lines or below.
-Existing hotspots are tracked in a reviewed ratchet: they may improve, but any new
-or worsened hotspot fails CI.
+Ruff format is canonical for all Python, and Prettier is canonical for supported
+frontend/web files. Every tracked or new non-ignored hand-written code file, including legacy code,
+tests, migrations and deployment sources, must stay at 700 physical lines or
+fewer. Generated data, lock files, media and documentation are outside that
+file-length definition.
+
+Inline Ruff-format, Prettier, PMD and jscpd suppression markers are rejected. Structural findings must
+be fixed in code instead of hidden from the analyzers.
+
+Cognitive complexity is enforced independently at 15 per function across Python,
+TypeScript/JavaScript and Java, with no legacy exemptions. Duplicate analysis
+covers production code and tests, counts blocks of at least 100 successive tokens
+across at least 10 lines, and permits at most 3% duplicated lines. The
+existing Lizard ratchet remains separate: new functions must stay at cyclomatic
+complexity 10 or below and at 50 active lines or below, while existing hotspots
+may improve but may not regress.
 
 Pull requests also run CodeQL across all three languages, reject newly introduced
 high/critical dependency vulnerabilities and committed secrets, and build plus

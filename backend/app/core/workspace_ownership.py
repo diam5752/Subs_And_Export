@@ -232,61 +232,18 @@ def _locked_registry(
     create: bool,
 ) -> Iterator[int | None]:
     root = data_dir.resolve() / _REGISTRY_DIR
-    if create:
-        try:
-            root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        except OSError as exc:
-            raise WorkspaceOwnershipError(
-                "Workspace ownership registry is unavailable",
-            ) from exc
-    elif not root.exists():
-        if root.is_symlink():
-            raise WorkspaceOwnershipError(
-                "Workspace ownership registry is invalid",
-            )
+    if not _prepare_registry_root(root, create=create):
         yield None
         return
 
     directory_fd: int | None = None
-    parent_fd: int | None = None
     lock_fd: int | None = None
     locked = False
     try:
-        directory_fd = os.open(
-            root,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-        )
-        directory_stat = os.fstat(directory_fd)
-        if not stat.S_ISDIR(directory_stat.st_mode):
-            raise WorkspaceOwnershipError(
-                "Workspace ownership registry is invalid",
-            )
-        os.fchmod(directory_fd, 0o700)
+        directory_fd = _open_registry_directory(root)
         if create:
-            parent_fd = os.open(
-                root.parent,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-            )
-            parent_stat = os.fstat(parent_fd)
-            if not stat.S_ISDIR(parent_stat.st_mode):
-                raise WorkspaceOwnershipError(
-                    "Workspace ownership registry parent is invalid",
-                )
-            os.fsync(parent_fd)
-            os.close(parent_fd)
-            parent_fd = None
-        lock_fd = os.open(
-            _REGISTRY_LOCK,
-            os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW,
-            0o600,
-            dir_fd=directory_fd,
-        )
-        lock_stat = os.fstat(lock_fd)
-        if not stat.S_ISREG(lock_stat.st_mode):
-            raise WorkspaceOwnershipError(
-                "Workspace ownership registry lock is invalid",
-            )
-        os.fchmod(lock_fd, 0o600)
+            _sync_registry_parent(root)
+        lock_fd = _open_registry_lock(directory_fd)
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         locked = True
         _scavenge_stale_temporary_markers(directory_fd)
@@ -302,10 +259,67 @@ def _locked_registry(
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
         if lock_fd is not None:
             os.close(lock_fd)
-        if parent_fd is not None:
-            os.close(parent_fd)
         if directory_fd is not None:
             os.close(directory_fd)
+
+
+def _prepare_registry_root(root: Path, *, create: bool) -> bool:
+    if create:
+        try:
+            root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        except OSError as exc:
+            raise WorkspaceOwnershipError("Workspace ownership registry is unavailable") from exc
+        return True
+    if root.exists():
+        return True
+    if root.is_symlink():
+        raise WorkspaceOwnershipError("Workspace ownership registry is invalid")
+    return False
+
+
+def _open_registry_directory(root: Path) -> int:
+    directory_fd = os.open(
+        root,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    try:
+        if not stat.S_ISDIR(os.fstat(directory_fd).st_mode):
+            raise WorkspaceOwnershipError("Workspace ownership registry is invalid")
+        os.fchmod(directory_fd, 0o700)
+        return directory_fd
+    except BaseException:
+        os.close(directory_fd)
+        raise
+
+
+def _sync_registry_parent(root: Path) -> None:
+    parent_fd = os.open(
+        root.parent,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    try:
+        if not stat.S_ISDIR(os.fstat(parent_fd).st_mode):
+            raise WorkspaceOwnershipError("Workspace ownership registry parent is invalid")
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
+
+
+def _open_registry_lock(directory_fd: int) -> int:
+    lock_fd = os.open(
+        _REGISTRY_LOCK,
+        os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW,
+        0o600,
+        dir_fd=directory_fd,
+    )
+    try:
+        if not stat.S_ISREG(os.fstat(lock_fd).st_mode):
+            raise WorkspaceOwnershipError("Workspace ownership registry lock is invalid")
+        os.fchmod(lock_fd, 0o600)
+        return lock_fd
+    except BaseException:
+        os.close(lock_fd)
+        raise
 
 
 def _read_marker(

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import re
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -66,26 +65,69 @@ def build_python_graph(root: Path) -> tuple[dict[Path, set[Path]], list[str]]:
     for module_name, path in modules.items():
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    target = resolve_python_import(module_name, alias.name, 0, modules)
-                    if target:
-                        graph[path].add(modules[target])
-                    elif alias.name.startswith("frontend"):
-                        violations.append(
-                            f"Cross-stack import: {path.relative_to(REPO_ROOT)} imports {alias.name}"
-                        )
-            elif isinstance(node, ast.ImportFrom):
-                module = node.module or ""
-                target = resolve_python_import(module_name, module, node.level, modules)
-                if target:
-                    graph[path].add(modules[target])
-                elif module.startswith("frontend"):
-                    violations.append(
-                        f"Cross-stack import: {path.relative_to(REPO_ROOT)} imports {module}"
-                    )
+            _register_python_node(
+                node=node,
+                source_module=module_name,
+                source_path=path,
+                modules=modules,
+                graph=graph,
+                violations=violations,
+            )
 
     return graph, violations
+
+
+def _register_python_import(
+    *,
+    source_module: str,
+    source_path: Path,
+    import_name: str,
+    level: int,
+    modules: dict[str, Path],
+    graph: dict[Path, set[Path]],
+    violations: list[str],
+) -> None:
+    target = resolve_python_import(source_module, import_name, level, modules)
+    if target:
+        graph[source_path].add(modules[target])
+        return
+    if import_name.startswith("frontend"):
+        violations.append(
+            f"Cross-stack import: {source_path.relative_to(REPO_ROOT)} imports {import_name}",
+        )
+
+
+def _register_python_node(
+    *,
+    node: ast.AST,
+    source_module: str,
+    source_path: Path,
+    modules: dict[str, Path],
+    graph: dict[Path, set[Path]],
+    violations: list[str],
+) -> None:
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            _register_python_import(
+                source_module=source_module,
+                source_path=source_path,
+                import_name=alias.name,
+                level=0,
+                modules=modules,
+                graph=graph,
+                violations=violations,
+            )
+        return
+    if isinstance(node, ast.ImportFrom):
+        _register_python_import(
+            source_module=source_module,
+            source_path=source_path,
+            import_name=node.module or "",
+            level=node.level,
+            modules=modules,
+            graph=graph,
+            violations=violations,
+        )
 
 
 def resolve_ts_import(source_path: Path, spec: str) -> Path | None:
@@ -122,15 +164,57 @@ def build_ts_graph(root: Path) -> tuple[dict[Path, set[Path]], list[str]]:
         for match in TS_IMPORT_RE.finditer(text):
             spec = match.group(1)
             if "backend" in spec:
-                violations.append(
-                    f"Cross-stack import: {path.relative_to(REPO_ROOT)} imports {spec}"
-                )
+                violations.append(f"Cross-stack import: {path.relative_to(REPO_ROOT)} imports {spec}")
                 continue
             target = resolve_ts_import(path, spec)
             if target and target in files:
                 files[path].add(target)
 
     return files, violations
+
+
+def _record_cycle(
+    neighbor: Path,
+    stack: list[Path],
+    cycles: list[list[Path]],
+    seen_signatures: set[tuple[str, ...]],
+) -> None:
+    start = stack.index(neighbor)
+    cycle = stack[start:] + [neighbor]
+    signature = tuple(sorted(str(item.relative_to(REPO_ROOT)) for item in cycle[:-1]))
+    if signature in seen_signatures:
+        return
+    seen_signatures.add(signature)
+    cycles.append(cycle)
+
+
+def _visit_cycle_node(
+    node: Path,
+    graph: dict[Path, set[Path]],
+    visited: set[Path],
+    stack: list[Path],
+    on_stack: set[Path],
+    cycles: list[list[Path]],
+    seen_signatures: set[tuple[str, ...]],
+) -> None:
+    visited.add(node)
+    stack.append(node)
+    on_stack.add(node)
+    for neighbor in graph.get(node, set()):
+        if neighbor not in visited:
+            _visit_cycle_node(
+                neighbor,
+                graph,
+                visited,
+                stack,
+                on_stack,
+                cycles,
+                seen_signatures,
+            )
+        elif neighbor in on_stack:
+            _record_cycle(neighbor, stack, cycles, seen_signatures)
+    stack.pop()
+    on_stack.remove(node)
 
 
 def find_cycles(graph: dict[Path, set[Path]]) -> list[list[Path]]:
@@ -140,26 +224,17 @@ def find_cycles(graph: dict[Path, set[Path]]) -> list[list[Path]]:
     cycles: list[list[Path]] = []
     seen_signatures: set[tuple[str, ...]] = set()
 
-    def dfs(node: Path) -> None:
-        visited.add(node)
-        stack.append(node)
-        on_stack.add(node)
-        for neighbor in graph.get(node, set()):
-            if neighbor not in visited:
-                dfs(neighbor)
-            elif neighbor in on_stack:
-                start = stack.index(neighbor)
-                cycle = stack[start:] + [neighbor]
-                signature = tuple(sorted(str(item.relative_to(REPO_ROOT)) for item in cycle[:-1]))
-                if signature not in seen_signatures:
-                    seen_signatures.add(signature)
-                    cycles.append(cycle)
-        stack.pop()
-        on_stack.remove(node)
-
     for node in graph:
         if node not in visited:
-            dfs(node)
+            _visit_cycle_node(
+                node,
+                graph,
+                visited,
+                stack,
+                on_stack,
+                cycles,
+                seen_signatures,
+            )
     return cycles
 
 

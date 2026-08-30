@@ -1,4 +1,3 @@
-
 from backend.app.api.endpoints.settings import parse_resolution
 from backend.app.core import config
 
@@ -9,15 +8,18 @@ def test_parse_resolution_huge_values():
     assert w is None
     assert h is None
 
+
 def test_parse_resolution_valid():
     w, h = parse_resolution("1920x1080")
     assert w == 1920
     assert h == 1080
 
+
 def test_parse_resolution_invalid_format():
     w, h = parse_resolution("invalid")
     assert w is None
     assert h is None
+
 
 def test_parse_resolution_max_limit():
     """Test boundary condition."""
@@ -28,6 +30,6 @@ def test_parse_resolution_max_limit():
     assert h == limit
 
     # Limit + 1 should fail
-    w, h = parse_resolution(f"{limit+1}x{limit}")
+    w, h = parse_resolution(f"{limit + 1}x{limit}")
     assert w is None
     assert h is None

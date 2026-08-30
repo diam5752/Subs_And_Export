@@ -133,11 +133,7 @@ def lock_provider_transcription(
     with _lock_capacity_pool(
         data_dir=data_dir or settings.data_dir,
         pool_name="provider-transcription",
-        capacity=(
-            settings.provider_transcription_slots
-            if capacity is None
-            else capacity
-        ),
+        capacity=(settings.provider_transcription_slots if capacity is None else capacity),
         slots_required=slots_required,
         timeout_seconds=timeout_seconds,
         timeout_error=ProviderTranscriptionCapacityTimeoutError,
@@ -171,11 +167,7 @@ def publish_locked_render_storage_reservation(
                 f"render-{slot_index}.lock",
             )
             try:
-                payload = (
-                    f"{reserved_bytes}\n".encode("ascii")
-                    if position == 0 and reserved_bytes > 0
-                    else b""
-                )
+                payload = f"{reserved_bytes}\n".encode("ascii") if position == 0 and reserved_bytes > 0 else b""
                 os.ftruncate(lock_fd, 0)
                 if payload:
                     written = os.write(lock_fd, payload)
@@ -201,45 +193,13 @@ def active_render_storage_reservation_bytes(
     total = 0
     try:
         for slot_index in range(resolved_capacity):
-            lock_fd = _open_lock_file(
-                directory_fd,
-                f"render-{slot_index}.lock",
-            )
-            acquired = False
+            lock_fd = _open_lock_file(directory_fd, f"render-{slot_index}.lock")
+            acquired = _try_lock_exclusive(lock_fd)
             try:
-                try:
-                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    acquired = True
-                except BlockingIOError:
-                    pass
-
                 if acquired:
-                    # An unlocked slot has no live owner. Remove metadata left
-                    # by a killed worker before admitting more disk work.
-                    if os.fstat(lock_fd).st_size:
-                        os.ftruncate(lock_fd, 0)
-                        os.fsync(lock_fd)
+                    _clear_abandoned_render_reservation(lock_fd)
                     continue
-
-                os.lseek(lock_fd, 0, os.SEEK_SET)
-                raw_value = os.read(lock_fd, 65)
-                if not raw_value:
-                    continue
-                if len(raw_value) > 64:
-                    raise RuntimeError("Render storage reservation is malformed")
-                try:
-                    decoded = raw_value.decode("ascii").strip()
-                except UnicodeDecodeError as exc:
-                    raise RuntimeError(
-                        "Render storage reservation is malformed",
-                    ) from exc
-                if not decoded.isdigit():
-                    raise RuntimeError("Render storage reservation is malformed")
-                reservation = int(decoded)
-                _validate_storage_reservation(reservation)
-                total += reservation
-                if total > _MAX_STORAGE_RESERVATION_BYTES:
-                    raise RuntimeError("Render storage reservations exceed safe bounds")
+                total = _add_active_render_reservation(total, lock_fd)
             finally:
                 if acquired:
                     fcntl.flock(lock_fd, fcntl.LOCK_UN)
@@ -249,30 +209,57 @@ def active_render_storage_reservation_bytes(
     return total
 
 
+def _try_lock_exclusive(lock_fd: int) -> bool:
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+def _clear_abandoned_render_reservation(lock_fd: int) -> None:
+    # An unlocked slot has no live owner. Remove metadata left by a killed
+    # worker before admitting more disk work.
+    if os.fstat(lock_fd).st_size:
+        os.ftruncate(lock_fd, 0)
+        os.fsync(lock_fd)
+
+
+def _add_active_render_reservation(total: int, lock_fd: int) -> int:
+    os.lseek(lock_fd, 0, os.SEEK_SET)
+    raw_value = os.read(lock_fd, 65)
+    if not raw_value:
+        return total
+    if len(raw_value) > 64:
+        raise RuntimeError("Render storage reservation is malformed")
+    try:
+        decoded = raw_value.decode("ascii").strip()
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("Render storage reservation is malformed") from exc
+    if not decoded.isdigit():
+        raise RuntimeError("Render storage reservation is malformed")
+    reservation = int(decoded)
+    _validate_storage_reservation(reservation)
+    updated_total = total + reservation
+    if updated_total > _MAX_STORAGE_RESERVATION_BYTES:
+        raise RuntimeError("Render storage reservations exceed safe bounds")
+    return updated_total
+
+
 def _validate_timeout(timeout_seconds: float) -> None:
     if not math.isfinite(timeout_seconds) or timeout_seconds < 0:
         raise ValueError("Media-capacity lock timeout cannot be negative or non-finite")
 
 
 def _validate_slot_count(value: int, *, label: str) -> None:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, int)
-        or value < 1
-        or value > _MAX_CAPACITY_SLOTS
-    ):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1 or value > _MAX_CAPACITY_SLOTS:
         raise ValueError(
             f"Media-capacity {label} must be between 1 and {_MAX_CAPACITY_SLOTS}",
         )
 
 
 def _validate_storage_reservation(value: int) -> None:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, int)
-        or value < 0
-        or value > _MAX_STORAGE_RESERVATION_BYTES
-    ):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > _MAX_STORAGE_RESERVATION_BYTES:
         raise ValueError("Render storage reservation is outside safe bounds")
 
 
@@ -284,10 +271,7 @@ def _validate_slot_indexes(
     if not slot_indexes or len(set(slot_indexes)) != len(slot_indexes):
         raise ValueError("Render storage reservation requires unique held slots")
     if any(
-        isinstance(slot_index, bool)
-        or not isinstance(slot_index, int)
-        or slot_index < 0
-        or slot_index >= capacity
+        isinstance(slot_index, bool) or not isinstance(slot_index, int) or slot_index < 0 or slot_index >= capacity
         for slot_index in slot_indexes
     ):
         raise ValueError("Render storage reservation references an invalid slot")
@@ -382,6 +366,48 @@ def _lock_capacity_pool(
     timeout_error: type[TimeoutError],
     timeout_message: str,
 ) -> Iterator[tuple[int, ...]]:
+    _validate_capacity_pool_request(
+        pool_name=pool_name,
+        capacity=capacity,
+        slots_required=slots_required,
+        timeout_seconds=timeout_seconds,
+    )
+
+    directory_fd = _open_lock_directory(data_dir)
+    acquired: list[tuple[int, int]] = []
+    deadline = time.monotonic() + timeout_seconds
+    last_busy_error: BlockingIOError | None = None
+    try:
+        while len(acquired) < slots_required:
+            acquired, attempt_error = _try_acquire_capacity_slots(
+                directory_fd=directory_fd,
+                pool_name=pool_name,
+                capacity=capacity,
+                slots_required=slots_required,
+            )
+            last_busy_error = attempt_error or last_busy_error
+            if len(acquired) == slots_required:
+                break
+            _release_capacity_slots(acquired)
+            acquired = []
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise timeout_error(timeout_message) from last_busy_error
+            time.sleep(min(_MEDIA_LOCK_POLL_SECONDS, remaining))
+
+        yield tuple(slot_index for slot_index, _ in acquired)
+    finally:
+        _release_capacity_slots(acquired)
+        os.close(directory_fd)
+
+
+def _validate_capacity_pool_request(
+    *,
+    pool_name: str,
+    capacity: int,
+    slots_required: int,
+    timeout_seconds: float,
+) -> None:
     _validate_timeout(timeout_seconds)
     _validate_slot_count(capacity, label="capacity")
     _validate_slot_count(slots_required, label="slot request")
@@ -390,43 +416,35 @@ def _lock_capacity_pool(
     if pool_name not in _POOL_NAMES:
         raise ValueError("Unknown media-capacity pool")
 
-    directory_fd = _open_lock_directory(data_dir)
+
+def _try_acquire_capacity_slots(
+    *,
+    directory_fd: int,
+    pool_name: str,
+    capacity: int,
+    slots_required: int,
+) -> tuple[list[tuple[int, int]], BlockingIOError | None]:
     acquired: list[tuple[int, int]] = []
-    deadline = time.monotonic() + timeout_seconds
     last_busy_error: BlockingIOError | None = None
     try:
-        while len(acquired) < slots_required:
-            acquired.clear()
-            for slot_index in range(capacity):
-                lock_fd = _open_lock_file(
-                    directory_fd,
-                    f"{pool_name}-{slot_index}.lock",
-                )
-                try:
-                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError as exc:
-                    last_busy_error = exc
-                    os.close(lock_fd)
-                    continue
-                acquired.append((slot_index, lock_fd))
-                if len(acquired) == slots_required:
-                    break
-
+        for slot_index in range(capacity):
+            lock_fd = _open_lock_file(directory_fd, f"{pool_name}-{slot_index}.lock")
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                last_busy_error = exc
+                os.close(lock_fd)
+                continue
+            acquired.append((slot_index, lock_fd))
             if len(acquired) == slots_required:
                 break
+    except BaseException:
+        _release_capacity_slots(acquired)
+        raise
+    return acquired, last_busy_error
 
-            for _, lock_fd in acquired:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                os.close(lock_fd)
-            acquired.clear()
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise timeout_error(timeout_message) from last_busy_error
-            time.sleep(min(_MEDIA_LOCK_POLL_SECONDS, remaining))
 
-        yield tuple(slot_index for slot_index, _ in acquired)
-    finally:
-        for _, lock_fd in acquired:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-        os.close(directory_fd)
+def _release_capacity_slots(acquired: list[tuple[int, int]]) -> None:
+    for _, lock_fd in acquired:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)

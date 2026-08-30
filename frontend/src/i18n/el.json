@@ -449,7 +449,7 @@
   "billingWithdrawalUnavailable": "Η ηλεκτρονική υποβολή δεν είναι διαθέσιμη αυτή τη στιγμή. Επικοινωνήστε με την υποστήριξη για χειροκίνητη παραλαβή και εξέταση του αιτήματος.",
   "creditPurchaseContinue": "Συνέχεια",
   "creditPurchaseCancelled": "Η αγορά ακυρώθηκε — δεν έγινε χρέωση.",
-  "creditPurchaseSuccess": "Προστέθηκαν {count} credits στο υπόλοιπό σου.",
+  "creditPurchaseSuccess": "Η αγορά ολοκληρώθηκε για {count} credits. Νέο διαθέσιμο υπόλοιπο: {balance}.",
   "creditPurchasePending": "Η πληρωμή επιβεβαιώνεται. Τα credits θα εμφανιστούν αυτόματα.",
   "creditPurchasePendingRetry": "Η επιβεβαίωση καθυστερεί. Πάτησε Έλεγχος ξανά· η αγορά δεν θα επαναληφθεί.",
   "creditPurchaseRetry": "Έλεγχος ξανά",

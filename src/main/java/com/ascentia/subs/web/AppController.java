@@ -84,25 +84,43 @@ public class AppController {
         String ip = clientIpResolver.resolve(request);
         rateLimitService.check("static", ip, appProperties.getStaticRateLimit(), appProperties.getStaticRateLimitWindow());
 
-        Path dataDir = appProperties.dataDir().toAbsolutePath().normalize();
         String cleanedPath = filePath == null ? "" : filePath.replaceFirst("^/+", "");
-        DownloadGrantService.Claims grantClaims = null;
-        if (grant != null && !grant.isBlank()) {
-            try {
-                grantClaims = downloadGrantService.validate(grant, cleanedPath);
-            } catch (IllegalArgumentException ignored) {
-                // A valid signed-in owner may still use a stale bookmarked URL.
-            }
+        DownloadGrantService.Claims grantClaims = validateOptionalGrant(grant, cleanedPath);
+        String authorizedUserId = resolveAuthorizedUserId(grantClaims, authentication);
+        String jobId = artifactJobId(cleanedPath);
+        JobStore.Job job = jobStore.getJob(jobId)
+                .filter(candidate -> authorizedUserId.equals(candidate.userId()))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "File not found"));
+        Path resolvedPath = resolveRegularArtifact(cleanedPath, job.id());
+        return buildStaticResponse(resolvedPath, download, filename, grantClaims);
+    }
+
+    private DownloadGrantService.Claims validateOptionalGrant(String grant, String cleanedPath) {
+        if (grant == null || grant.isBlank()) {
+            return null;
         }
-        CurrentUser currentUser = authentication != null && authentication.getPrincipal() instanceof CurrentUser user
-                ? user
-                : null;
-        String authorizedUserId = grantClaims != null
-                ? grantClaims.userId()
-                : currentUser == null ? null : currentUser.id();
-        if (authorizedUserId == null) {
-            throw new ResponseStatusException(UNAUTHORIZED, "Authentication required");
+        try {
+            return downloadGrantService.validate(grant, cleanedPath);
+        } catch (IllegalArgumentException ignored) {
+            // A valid signed-in owner may still use a stale bookmarked URL.
+            return null;
         }
+    }
+
+    private static String resolveAuthorizedUserId(
+            DownloadGrantService.Claims grantClaims,
+            Authentication authentication
+    ) {
+        if (grantClaims != null) {
+            return grantClaims.userId();
+        }
+        if (authentication != null && authentication.getPrincipal() instanceof CurrentUser user) {
+            return user.id();
+        }
+        throw new ResponseStatusException(UNAUTHORIZED, "Authentication required");
+    }
+
+    private static String artifactJobId(String cleanedPath) {
         String artifactPrefix = "artifacts/";
         if (!cleanedPath.startsWith(artifactPrefix)) {
             throw new ResponseStatusException(NOT_FOUND, "File not found");
@@ -112,44 +130,15 @@ public class AppController {
         if (separator <= 0 || separator == artifactPath.length() - 1) {
             throw new ResponseStatusException(NOT_FOUND, "File not found");
         }
-        String jobId = artifactPath.substring(0, separator);
-        JobStore.Job job = jobStore.getJob(jobId)
-                .filter(candidate -> authorizedUserId.equals(candidate.userId()))
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "File not found"));
+        return artifactPath.substring(0, separator);
+    }
 
-        Path artifactsRoot = dataDir.resolve("artifacts").normalize();
-        Path jobRoot = artifactsRoot.resolve(job.id()).normalize();
-        Path resolvedPath = artifactsRoot.resolve(artifactPath).normalize();
-        if (!jobRoot.getParent().equals(artifactsRoot)
-                || !resolvedPath.startsWith(jobRoot)
-                || !Files.isDirectory(jobRoot, LinkOption.NOFOLLOW_LINKS)) {
-            throw new ResponseStatusException(NOT_FOUND, "File not found");
-        }
-        if (Files.isDirectory(resolvedPath, LinkOption.NOFOLLOW_LINKS)) {
-            throw new ResponseStatusException(NOT_FOUND, "Not found");
-        }
-        if (!Files.isRegularFile(resolvedPath, LinkOption.NOFOLLOW_LINKS)) {
-            throw new ResponseStatusException(NOT_FOUND, "File not found");
-        }
-
-        try {
-            Path current = jobRoot;
-            Path relativeFile = jobRoot.relativize(resolvedPath);
-            for (Path component : relativeFile) {
-                current = current.resolve(component);
-                if (Files.isSymbolicLink(current)) {
-                    throw new ResponseStatusException(NOT_FOUND, "File not found");
-                }
-            }
-            Path realJobRoot = jobRoot.toRealPath();
-            Path realFile = resolvedPath.toRealPath();
-            if (!realFile.startsWith(realJobRoot)) {
-                throw new ResponseStatusException(NOT_FOUND, "File not found");
-            }
-        } catch (java.io.IOException exception) {
-            throw new ResponseStatusException(NOT_FOUND, "File not found");
-        }
-
+    private static ResponseEntity<Resource> buildStaticResponse(
+            Path resolvedPath,
+            boolean download,
+            String filename,
+            DownloadGrantService.Claims grantClaims
+    ) {
         Resource resource = new FileSystemResource(resolvedPath);
         MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
         ResponseEntity.BodyBuilder response = ResponseEntity.ok()

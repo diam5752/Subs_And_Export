@@ -26,8 +26,7 @@ def _source_files(path: Path) -> list[Path]:
     return [
         candidate
         for candidate in path.rglob("*")
-        if candidate.is_file()
-        and candidate.suffix.lower() in {".py", ".sh", ".ts", ".tsx", ".java", ".yml", ".md"}
+        if candidate.is_file() and candidate.suffix.lower() in {".py", ".sh", ".ts", ".tsx", ".java", ".yml", ".md"}
     ]
 
 

@@ -8,19 +8,23 @@ from backend.app.services import video_processing
 config.DEFAULT_WIDTH = 1080
 config.DEFAULT_HEIGHT = 1920
 
+
 def test_ass_generation_forces_1080p_playres():
     """
     Verify that ASS generation uses 1080x1920 PlayRes
     even if the output resolution is different (e.g. 720p).
     """
-    with patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass, \
-         patch("backend.app.services.video_processing.Path.exists", return_value=True), \
-         patch("backend.app.services.ffmpeg_utils.probe_media") as mock_probe, \
-         patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract, \
-         patch("backend.app.services.video_processing.GroqTranscriber") as mock_transcriber, \
-         patch("backend.app.services.video_processing.provider_clients.resolve_groq_api_key", return_value="test-groq-key"), \
-         patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"):
-
+    with (
+        patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass,
+        patch("backend.app.services.video_processing.Path.exists", return_value=True),
+        patch("backend.app.services.ffmpeg_utils.probe_media") as mock_probe,
+        patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract,
+        patch("backend.app.services.video_processing.GroqTranscriber") as mock_transcriber,
+        patch(
+            "backend.app.services.video_processing.provider_clients.resolve_groq_api_key", return_value="test-groq-key"
+        ),
+        patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"),
+    ):
         # Setup mocks
         mock_probe.return_value = MagicMock(duration_s=10, audio_codec="aac")
         mock_extract.return_value = Path("/tmp/dummy_audio.wav")
@@ -38,7 +42,7 @@ def test_ass_generation_forces_1080p_playres():
             output_width=720,
             output_height=1280,
             transcribe_provider="groq",
-            check_cancelled=lambda: None
+            check_cancelled=lambda: None,
         )
 
         # Verify call args
@@ -48,8 +52,10 @@ def test_ass_generation_forces_1080p_playres():
         assert kwargs["play_res_x"] == 1080
         assert kwargs["play_res_y"] == 1920
 
+
 def test_generate_video_variant_forces_1080p_playres(tmp_path: Path):
     """Verify export logic also forces 1080p reference."""
+
     def write_mock_export(
         _input_path: Path,
         _ass_path: Path,
@@ -58,14 +64,15 @@ def test_generate_video_variant_forces_1080p_playres(tmp_path: Path):
     ) -> None:
         output_path.write_bytes(b"complete-video")
 
-    with patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass, \
-         patch("backend.app.services.video_processing.Path.exists", return_value=True), \
-         patch("backend.app.services.ffmpeg_utils.probe_media"), \
-         patch(
-             "backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs",
-             side_effect=write_mock_export,
-         ):
-
+    with (
+        patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass,
+        patch("backend.app.services.video_processing.Path.exists", return_value=True),
+        patch("backend.app.services.ffmpeg_utils.probe_media"),
+        patch(
+            "backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs",
+            side_effect=write_mock_export,
+        ),
+    ):
         job_id = "test_job"
         user_id = "user123"
         input_path = tmp_path / "input.mp4"
@@ -94,7 +101,7 @@ def test_generate_video_variant_forces_1080p_playres(tmp_path: Path):
                 resolution="720x1280",
                 job_store=mock_job_store,
                 user_id=user_id,
-                subtitle_settings={"max_subtitle_lines": 2}
+                subtitle_settings={"max_subtitle_lines": 2},
             )
 
             # Verify call args

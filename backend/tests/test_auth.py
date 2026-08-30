@@ -9,11 +9,7 @@ from backend.app.db.models import DbUser
 
 
 def _cookie_header(response, cookie_name: str) -> str:
-    return next(
-        header
-        for header in response.headers.get_list("set-cookie")
-        if header.startswith(f"{cookie_name}=")
-    )
+    return next(header for header in response.headers.get_list("set-cookie") if header.startswith(f"{cookie_name}="))
 
 
 @pytest.fixture

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import math
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -30,7 +32,7 @@ from ...services.charge_plans import (
     preflight_processing_charges,
     reserve_processing_charges,
 )
-from ...services.ffmpeg_utils import probe_media
+from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import Job, JobStore
 from ...services.usage_ledger import ChargePlan, UsageLedgerStore
@@ -231,32 +233,33 @@ def _reserve_reprocess_job(
     return job, charge_plan, new_balance
 
 
-@router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
-def reprocess_job(
+def _require_reprocessable_job(
     job_id: str,
-    request: ReprocessRequest,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user_with_media_lifecycle),
-    job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store),
-    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
-    db: Database = Depends(get_db),
-) -> JobResponse:
+    *,
+    current_user: User,
+    job_store: JobStore,
+) -> Job:
     source_job = job_store.get_job(job_id)
-    if not source_job or source_job.user_id != current_user.id:
+    if source_job is None or source_job.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Job not found")
-
     if source_job.status != "completed":
-        raise HTTPException(status_code=400, detail="Job must be completed to reprocess")
-
-    active_jobs = job_store.count_active_jobs_for_user(current_user.id)
-    if active_jobs >= settings.max_concurrent_jobs:
+        raise HTTPException(
+            status_code=400,
+            detail="Job must be completed to reprocess",
+        )
+    if job_store.count_active_jobs_for_user(current_user.id) >= settings.max_concurrent_jobs:
         raise HTTPException(
             status_code=429,
-            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs}).",
+            detail=(
+                "Too many active jobs. Please wait for your current jobs "
+                f"to finish (max {settings.max_concurrent_jobs})."
+            ),
         )
+    return source_job
 
-    proc_settings = build_processing_settings(
+
+def _processing_settings_from_reprocess(request: ReprocessRequest) -> ProcessingSettings:
+    return build_processing_settings(
         transcribe_tier=request.transcribe_tier,
         transcribe_provider=request.transcribe_provider,
         openai_model=request.openai_model,
@@ -273,57 +276,248 @@ def reprocess_job(
         watermark_enabled=request.watermark_enabled,
     )
 
-    data_dir, uploads_dir, artifacts_root = data_roots()
 
-    # Local file reprocessing
-    source_input: Path | None = None
-    for ext in sorted(ALLOWED_VIDEO_EXTENSIONS):
-        candidate = uploads_dir / f"{job_id}_input{ext}"
+def _find_reprocess_source(
+    *,
+    job_id: str,
+    source_job: Job,
+    data_dir: Path,
+    uploads_dir: Path,
+) -> Path:
+    for extension in sorted(ALLOWED_VIDEO_EXTENSIONS):
+        candidate = uploads_dir / f"{job_id}_input{extension}"
         if candidate.exists():
-            source_input = candidate
-            break
+            return candidate
 
-    if not source_input:
-        candidate_rel = (source_job.result_data or {}).get("video_path")
-        if isinstance(candidate_rel, str) and candidate_rel:
-            candidate = (data_dir / candidate_rel).resolve()
-            data_dir_resolved = data_dir.resolve()
-            if candidate.is_relative_to(data_dir_resolved) and candidate.exists():
-                source_input = candidate
+    candidate_rel = (source_job.result_data or {}).get("video_path")
+    if isinstance(candidate_rel, str) and candidate_rel:
+        candidate = (data_dir / candidate_rel).resolve()
+        if candidate.is_relative_to(data_dir.resolve()) and candidate.exists():
+            return candidate
+    raise HTTPException(
+        status_code=404,
+        detail="Source video not found; upload again to reprocess",
+    )
 
-    if not source_input:
-        raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
 
-    file_ext = source_input.suffix.lower()
-    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+def _validate_reprocess_source(
+    source_input: Path,
+    *,
+    authorized_credits: int,
+) -> tuple[int, MediaProbe]:
+    if source_input.suffix.lower() not in ALLOWED_VIDEO_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid source video extension")
-
     size_bytes = source_input.stat().st_size
     if size_bytes <= 0:
         raise HTTPException(status_code=400, detail="Empty source video")
     if size_bytes > (settings.max_upload_mb * 1024 * 1024):
-        raise HTTPException(status_code=413, detail=f"File too large; limit is {settings.max_upload_mb}MB")
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large; limit is {settings.max_upload_mb}MB",
+        )
     try:
         probe = probe_media(source_input)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail="Could not validate source media file") from exc
-
-    if (
-        probe.duration_s is None
-        or not math.isfinite(probe.duration_s)
-        or probe.duration_s <= 0
-    ):
-        raise HTTPException(status_code=400, detail="Could not determine video duration")
-    if probe.duration_s > settings.max_video_duration_seconds:
         raise HTTPException(
-            status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)"
+            status_code=400,
+            detail="Could not validate source media file",
+        ) from exc
+    duration = probe.duration_s
+    if duration is None or not math.isfinite(duration) or duration <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not determine video duration",
         )
-
+    if duration > settings.max_video_duration_seconds:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)"),
+        )
     assert_processing_quote_authorized(
-        duration_seconds=float(probe.duration_s),
-        authorized_credits=request.authorized_credits,
+        duration_seconds=float(duration),
+        authorized_credits=authorized_credits,
+    )
+    return size_bytes, probe
+
+
+@dataclass(frozen=True)
+class _ReprocessScheduleContext:
+    source_job: Job
+    source_job_id: str
+    new_job_id: str
+    input_path: Path
+    output_path: Path
+    artifact_path: Path
+    artifacts_root: Path
+    proc_settings: ProcessingSettings
+    job_store: JobStore
+    history_store: HistoryStore
+    ledger_store: UsageLedgerStore
+    current_user: User
+    charge_plan: ChargePlan
+    probe: MediaProbe
+    background_tasks: BackgroundTasks
+
+
+def _schedule_reprocess_job(context: _ReprocessScheduleContext) -> None:
+    original_filename = (context.source_job.result_data or {}).get("original_filename")
+    event_filename = (
+        context.source_job.result_data.get("original_filename", "video") if context.source_job.result_data else "video"
+    )
+    try:
+        _record_reprocess_started(
+            history_store=context.history_store,
+            current_user=context.current_user,
+            event_filename=event_filename,
+            new_job_id=context.new_job_id,
+            source_job_id=context.source_job_id,
+            proc_settings=context.proc_settings,
+        )
+        _enqueue_reprocess_worker(
+            background_tasks=context.background_tasks,
+            new_job_id=context.new_job_id,
+            input_path=context.input_path,
+            output_path=context.output_path,
+            artifact_path=context.artifact_path,
+            proc_settings=context.proc_settings,
+            job_store=context.job_store,
+            history_store=context.history_store,
+            current_user=context.current_user,
+            original_filename=original_filename,
+            ledger_store=context.ledger_store,
+            charge_plan=context.charge_plan,
+            probe=context.probe,
+        )
+    except BaseException as exc:
+        _rollback_failed_reprocess_schedule(
+            job_id=context.new_job_id,
+            user_id=context.current_user.id,
+            input_path=context.input_path,
+            artifacts_root=context.artifacts_root,
+            job_store=context.job_store,
+            history_store=context.history_store,
+            ledger_store=context.ledger_store,
+            charge_plan=context.charge_plan,
+            error=exc,
+        )
+        raise
+
+
+def _record_reprocess_started(
+    *,
+    history_store: HistoryStore,
+    current_user: User,
+    event_filename: object,
+    new_job_id: str,
+    source_job_id: str,
+    proc_settings: ProcessingSettings,
+) -> None:
+    record_event_safe(
+        history_store,
+        current_user,
+        "process_started",
+        f"Reprocessing {event_filename}",
+        {
+            "job_id": new_job_id,
+            "source_job_id": source_job_id,
+            "provider": proc_settings.transcribe_provider,
+            "transcribe_tier": proc_settings.transcribe_tier,
+            "source": "local",
+        },
     )
 
+
+def _enqueue_reprocess_worker(
+    *,
+    background_tasks: BackgroundTasks,
+    new_job_id: str,
+    input_path: Path,
+    output_path: Path,
+    artifact_path: Path,
+    proc_settings: ProcessingSettings,
+    job_store: JobStore,
+    history_store: HistoryStore,
+    current_user: User,
+    original_filename: str | None,
+    ledger_store: UsageLedgerStore,
+    charge_plan: ChargePlan,
+    probe: MediaProbe,
+) -> None:
+    background_tasks.add_task(
+        run_video_processing,
+        new_job_id,
+        input_path,
+        output_path,
+        artifact_path,
+        proc_settings,
+        job_store,
+        history_store,
+        current_user,
+        original_filename,
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
+        source_probe=probe,
+    )
+
+
+def _rollback_failed_reprocess_schedule(
+    *,
+    job_id: str,
+    user_id: str,
+    input_path: Path,
+    artifacts_root: Path,
+    job_store: JobStore,
+    history_store: HistoryStore,
+    ledger_store: UsageLedgerStore,
+    charge_plan: ChargePlan,
+    error: BaseException,
+) -> None:
+    refund_charge_best_effort(
+        ledger_store,
+        charge_plan,
+        status="failed",
+        error=sanitize_message(str(error)),
+    )
+    _record_and_delete_failed_reprocess(
+        job_id=job_id,
+        user_id=user_id,
+        input_path=input_path,
+        artifacts_root=artifacts_root,
+        database_job_may_exist=True,
+        job_store=job_store,
+        history_store=history_store,
+    )
+
+
+@router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
+def reprocess_job(
+    job_id: str,
+    request: ReprocessRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user_with_media_lifecycle),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store),
+    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
+    db: Database = Depends(get_db),
+) -> JobResponse:
+    source_job = _require_reprocessable_job(
+        job_id,
+        current_user=current_user,
+        job_store=job_store,
+    )
+    proc_settings = _processing_settings_from_reprocess(request)
+    data_dir, uploads_dir, artifacts_root = data_roots()
+    source_input = _find_reprocess_source(
+        job_id=job_id,
+        source_job=source_job,
+        data_dir=data_dir,
+        uploads_dir=uploads_dir,
+    )
+    size_bytes, probe = _validate_reprocess_source(
+        source_input,
+        authorized_credits=request.authorized_credits,
+    )
+    duration_seconds = float(cast(float, probe.duration_s))
     stt_model = pricing.resolve_requested_transcribe_model(
         tier=proc_settings.transcribe_tier,
         provider=proc_settings.transcribe_provider,
@@ -333,16 +527,15 @@ def reprocess_job(
         ledger_store=ledger_store,
         user_id=current_user.id,
         tier=proc_settings.transcribe_tier,
-        duration_seconds=float(probe.duration_s),
+        duration_seconds=duration_seconds,
         provider=proc_settings.transcribe_provider,
         stt_model=stt_model,
     )
 
     new_job_id = str(uuid.uuid4())
-    input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
+    input_path = uploads_dir / f"{new_job_id}_input{source_input.suffix.lower()}"
     output_path = artifacts_root / new_job_id / "processed.mp4"
     artifact_path = artifacts_root / new_job_id
-
     job, charge_plan, new_balance = _reserve_reprocess_job(
         new_job_id=new_job_id,
         current_user=current_user,
@@ -351,7 +544,7 @@ def reprocess_job(
         data_dir=data_dir,
         artifacts_root=artifacts_root,
         proc_settings=proc_settings,
-        duration_seconds=float(probe.duration_s or 0),
+        duration_seconds=duration_seconds,
         source_size_bytes=size_bytes,
         stt_model=stt_model,
         job_store=job_store,
@@ -359,49 +552,23 @@ def reprocess_job(
         ledger_store=ledger_store,
         db=db,
     )
-    try:
-        # Job already created above
-        record_event_safe(
-            history_store,
-            current_user,
-            "process_started",
-            f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-            {
-                "job_id": new_job_id,
-                "source_job_id": job_id,
-                "provider": proc_settings.transcribe_provider,
-                "transcribe_tier": proc_settings.transcribe_tier,
-                "source": "local",
-            },
-        )
-
-        background_tasks.add_task(
-            run_video_processing,
-            new_job_id,
-            input_path,
-            output_path,
-            artifact_path,
-            proc_settings,
-            job_store,
-            history_store,
-            current_user,
-            (source_job.result_data or {}).get("original_filename"),
-            ledger_store=ledger_store,
-            charge_plan=charge_plan,
-            source_probe=probe,
-        )
-
-    except BaseException as exc:
-        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
-        _record_and_delete_failed_reprocess(
-            job_id=new_job_id,
-            user_id=current_user.id,
+    _schedule_reprocess_job(
+        _ReprocessScheduleContext(
+            source_job=source_job,
+            source_job_id=job_id,
+            new_job_id=new_job_id,
             input_path=input_path,
+            output_path=output_path,
+            artifact_path=artifact_path,
             artifacts_root=artifacts_root,
-            database_job_may_exist=True,
+            proc_settings=proc_settings,
             job_store=job_store,
             history_store=history_store,
+            ledger_store=ledger_store,
+            current_user=current_user,
+            charge_plan=charge_plan,
+            probe=probe,
+            background_tasks=background_tasks,
         )
-        raise
-
+    )
     return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})

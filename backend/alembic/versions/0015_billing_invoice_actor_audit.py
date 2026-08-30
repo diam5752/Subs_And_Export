@@ -132,8 +132,7 @@ def _assert_downgrade_has_no_actor_audit_evidence() -> None:
     )
     if durable_audit_invoice_id is not None:
         raise RuntimeError(
-            "Cannot downgrade billing invoice actor audit while terminal "
-            "or actor-audit financial evidence exists."
+            "Cannot downgrade billing invoice actor audit while terminal or actor-audit financial evidence exists."
         )
 
 
@@ -338,10 +337,7 @@ def upgrade() -> None:
             "recorded_by_user_id",
             sa.String(length=64),
             nullable=True,
-            comment=(
-                "Pseudonymous internal actor ID retained without a user FK; "
-                "never stores an email."
-            ),
+            comment=("Pseudonymous internal actor ID retained without a user FK; never stores an email."),
         ),
     )
     op.add_column(

@@ -392,37 +392,19 @@ def upgrade() -> None:
 def downgrade() -> None:
     _assert_downgrade_safe()
 
+    op.execute("DROP TRIGGER trg_billing_withdrawal_requests_prepare_retention ON public.billing_withdrawal_requests")
+    op.execute("DROP FUNCTION public.gsubs_prepare_withdrawal_request_retention()")
     op.execute(
-        "DROP TRIGGER trg_billing_withdrawal_requests_prepare_retention "
-        "ON public.billing_withdrawal_requests"
+        "DROP TRIGGER trg_billing_contract_confirmations_prepare_retention ON public.billing_contract_confirmations"
     )
-    op.execute(
-        "DROP FUNCTION public.gsubs_prepare_withdrawal_request_retention()"
-    )
-    op.execute(
-        "DROP TRIGGER trg_billing_contract_confirmations_prepare_retention "
-        "ON public.billing_contract_confirmations"
-    )
-    op.execute(
-        "DROP FUNCTION public.gsubs_prepare_contract_confirmation_retention()"
-    )
+    op.execute("DROP FUNCTION public.gsubs_prepare_contract_confirmation_retention()")
 
+    op.execute("DROP TRIGGER trg_billing_withdrawal_requests_reject_truncate ON public.billing_withdrawal_requests")
     op.execute(
-        "DROP TRIGGER trg_billing_withdrawal_requests_reject_truncate "
-        "ON public.billing_withdrawal_requests"
+        "DROP TRIGGER trg_billing_contract_confirmations_reject_truncate ON public.billing_contract_confirmations"
     )
-    op.execute(
-        "DROP TRIGGER trg_billing_contract_confirmations_reject_truncate "
-        "ON public.billing_contract_confirmations"
-    )
-    op.execute(
-        "DROP TRIGGER trg_billing_withdrawal_requests_append_only "
-        "ON public.billing_withdrawal_requests"
-    )
-    op.execute(
-        "DROP TRIGGER trg_billing_contract_confirmations_append_only "
-        "ON public.billing_contract_confirmations"
-    )
+    op.execute("DROP TRIGGER trg_billing_withdrawal_requests_append_only ON public.billing_withdrawal_requests")
+    op.execute("DROP TRIGGER trg_billing_contract_confirmations_append_only ON public.billing_contract_confirmations")
     op.execute("DROP FUNCTION public.gsubs_reject_append_only_billing_mutation()")
 
     op.drop_index(

@@ -1,332 +1,254 @@
-import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { api, JobResponse } from '@/lib/api';
-import { useI18n } from '@/context/I18nContext';
-import { buildSubtitleExportFilename } from '@/lib/exportFilename';
-import { downloadArtifactWithGrant } from '@/lib/artifactDownload';
-import { JobListItem } from './JobListItem';
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import { api, type JobResponse } from "@/lib/api";
+import { useI18n } from "@/context/I18nContext";
+import { buildSubtitleExportFilename } from "@/lib/exportFilename";
+import { downloadArtifactWithGrant } from "@/lib/artifactDownload";
+import {
+  RecentJobsEmpty,
+  RecentJobsHeader,
+  RecentJobsPagination,
+  RecentJobsRows,
+  RecentJobsSelectionControls,
+  type RecentJobsTranslate,
+} from "./RecentJobsListParts";
 
 interface RecentJobsListProps {
-    jobs: JobResponse[];
-    isLoading: boolean;
-    onJobSelect: (job: JobResponse | null) => void;
-    selectedJobId: string | undefined;
-    onRefreshJobs: () => Promise<void>;
-    formatDate: (ts: number | string) => string;
-    buildStaticUrl: (path?: string | null) => string | null;
-    setShowPreview: (show: boolean) => void;
-    // Pagination
-    currentPage: number;
-    totalPages: number;
-    onNextPage: () => void;
-    onPrevPage: () => void;
-    totalJobs: number;
-    pageSize: number;
+  jobs: JobResponse[];
+  isLoading: boolean;
+  onJobSelect: (job: JobResponse | null) => void;
+  selectedJobId: string | undefined;
+  onRefreshJobs: () => Promise<void>;
+  formatDate: (ts: number | string) => string;
+  buildStaticUrl: (path?: string | null) => string | null;
+  setShowPreview: (show: boolean) => void;
+  currentPage: number;
+  totalPages: number;
+  onNextPage: () => void;
+  onPrevPage: () => void;
+  totalJobs: number;
+  pageSize: number;
+}
+
+function useCurrentTimeMs() {
+  const [currentTimeMs, setCurrentTimeMs] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setCurrentTimeMs(Date.now()),
+      30_000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+  return currentTimeMs;
 }
 
 export const RecentJobsList = memo(function RecentJobsList({
-    jobs,
-    isLoading,
-    onJobSelect,
-    selectedJobId,
-    onRefreshJobs,
-    formatDate,
-    buildStaticUrl,
-    setShowPreview,
-    currentPage,
-    totalPages,
-    onNextPage,
-    onPrevPage,
-    totalJobs,
-    pageSize
+  jobs,
+  isLoading,
+  onJobSelect,
+  selectedJobId,
+  onRefreshJobs,
+  formatDate,
+  buildStaticUrl,
+  setShowPreview,
+  currentPage,
+  totalPages,
+  onNextPage,
+  onPrevPage,
+  totalJobs,
+  pageSize,
 }: RecentJobsListProps) {
-    const { t } = useI18n();
-    const [selectionMode, setSelectionMode] = useState(false);
-    const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
-    const [isBatchDeleting, setIsBatchDeleting] = useState(false);
-    const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
-    const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-    const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
-    const [downloadError, setDownloadError] = useState<string | null>(null);
+  const { t } = useI18n();
+  const translate = t as RecentJobsTranslate;
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const batchDeleteBtnRef = useRef<HTMLButtonElement>(null);
+  const confirmBatchBtnRef = useRef<HTMLButtonElement>(null);
+  const prevBatchConfirmingRef = useRef(confirmBatchDelete);
+  const selectedJobIdRef = useRef(selectedJobId);
+  const currentTimeMs = useCurrentTimeMs();
 
-    // Refs for focus management
-    const batchDeleteBtnRef = useRef<HTMLButtonElement>(null);
-    const confirmBatchBtnRef = useRef<HTMLButtonElement>(null);
-    const prevBatchConfirmingRef = useRef(confirmBatchDelete);
+  useEffect(() => {
+    selectedJobIdRef.current = selectedJobId;
+  }, [selectedJobId]);
 
-    // Keep track of selectedJobId in a ref to avoid re-creating handleDeleteJob when it changes
-    const selectedJobIdRef = useRef(selectedJobId);
-    useEffect(() => {
-        selectedJobIdRef.current = selectedJobId;
-    }, [selectedJobId]);
+  useEffect(() => {
+    const entering = confirmBatchDelete && !prevBatchConfirmingRef.current;
+    const exiting = !confirmBatchDelete && prevBatchConfirmingRef.current;
+    if (entering || exiting) {
+      requestAnimationFrame(() => {
+        (entering ? confirmBatchBtnRef : batchDeleteBtnRef).current?.focus();
+      });
+    }
+    prevBatchConfirmingRef.current = confirmBatchDelete;
+  }, [confirmBatchDelete]);
 
-    // Focus management for batch delete confirmation
-    useEffect(() => {
-        // Entering confirmation mode
-        if (confirmBatchDelete && !prevBatchConfirmingRef.current) {
-            requestAnimationFrame(() => {
-                confirmBatchBtnRef.current?.focus();
-            });
+  const handleDeleteJob = useCallback(
+    async (jobId: string) => {
+      setDeletingJobId(jobId);
+      try {
+        await api.deleteJob(jobId);
+        if (selectedJobIdRef.current === jobId) {
+          onJobSelect(null);
+          setShowPreview(false);
         }
+        setConfirmDeleteId(null);
+        await onRefreshJobs();
+      } catch (error) {
+        console.error("Delete failed:", error);
+      } finally {
+        setDeletingJobId(null);
+      }
+    },
+    [onJobSelect, onRefreshJobs, setShowPreview],
+  );
 
-        // Exiting confirmation mode (cancelling)
-        if (!confirmBatchDelete && prevBatchConfirmingRef.current) {
-            requestAnimationFrame(() => {
-                batchDeleteBtnRef.current?.focus();
-            });
-        }
+  const handleToggleSelection = useCallback(
+    (id: string, isSelected: boolean) => {
+      setSelectedJobIds((previous) => {
+        const next = new Set(previous);
+        if (isSelected) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [],
+  );
 
-        prevBatchConfirmingRef.current = confirmBatchDelete;
-    }, [confirmBatchDelete]);
-
-    const handleDeleteJob = useCallback(async (jobId: string) => {
-        setDeletingJobId(jobId);
-        try {
-            await api.deleteJob(jobId);
-            if (selectedJobIdRef.current === jobId) {
-                onJobSelect(null);
-                setShowPreview(false);
-            }
-            setConfirmDeleteId(null);
-            await onRefreshJobs();
-        } catch (err) {
-            console.error('Delete failed:', err);
-        } finally {
-            setDeletingJobId(null);
-        }
-    }, [onJobSelect, setShowPreview, onRefreshJobs]);
-
-    const handleToggleSelection = useCallback((id: string, isSelected: boolean) => {
-        setSelectedJobIds(prev => {
-            const newSet = new Set(prev);
-            if (isSelected) {
-                newSet.delete(id);
-            } else {
-                newSet.add(id);
-            }
-            return newSet;
-        });
-    }, []);
-
-    const handleDownloadJob = useCallback(async (job: JobResponse) => {
-        const artifactPath = job.result_data?.public_url || job.result_data?.video_path;
-        if (!artifactPath) {
-            setDownloadError(t('downloadError') || 'The secure download could not be prepared.');
-            return;
-        }
-
-        const downloadFilename = buildSubtitleExportFilename(
-            job.result_data?.original_filename,
-            'mp4',
+  const handleDownloadJob = useCallback(
+    async (job: JobResponse) => {
+      const artifactPath =
+        job.result_data?.public_url || job.result_data?.video_path;
+      if (!artifactPath) {
+        setDownloadError(
+          t("downloadError") || "The secure download could not be prepared.",
         );
-        setDownloadError(null);
-        setDownloadingJobId(job.id);
-        try {
-            await downloadArtifactWithGrant(
-                job.id,
-                artifactPath,
-                downloadFilename,
-                buildStaticUrl,
-            );
-        } catch (error) {
-            console.error('History download failed:', error);
-            setDownloadError(t('downloadError') || 'The secure download could not be prepared.');
-        } finally {
-            setDownloadingJobId(null);
-        }
-    }, [buildStaticUrl, t]);
+        return;
+      }
+      setDownloadError(null);
+      setDownloadingJobId(job.id);
+      try {
+        await downloadArtifactWithGrant(
+          job.id,
+          artifactPath,
+          buildSubtitleExportFilename(
+            job.result_data?.original_filename,
+            "mp4",
+          ),
+          buildStaticUrl,
+        );
+      } catch (error) {
+        console.error("History download failed:", error);
+        setDownloadError(
+          t("downloadError") || "The secure download could not be prepared.",
+        );
+      } finally {
+        setDownloadingJobId(null);
+      }
+    },
+    [buildStaticUrl, t],
+  );
 
-    return (
-        <div className="recent-jobs-list card mt-6 border-none bg-transparent shadow-none p-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <div>
-                    <h3 className="text-lg font-semibold">{t('historyTitle') || 'History'}</h3>
-                    <p className="text-xs text-[var(--muted)]">{t('historyExpiry') || 'Items expire in 24 hours'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    {isLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
-                    {jobs.length > 0 && (
-                        <button
-                            onClick={() => {
-                                setSelectionMode(!selectionMode);
-                                if (selectionMode) {
-                                    setSelectedJobIds(new Set());
-                                    setConfirmBatchDelete(false);
-                                }
-                            }}
-                            className={`min-h-11 text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
-                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                                : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                }`}
-                        >
-                            {selectionMode ? (t('cancelSelect') || 'Cancel') : (t('selectMode') || 'Select')}
-                        </button>
-                    )}
-                </div>
-            </div>
+  const handleBatchDelete = useCallback(async () => {
+    setIsBatchDeleting(true);
+    try {
+      await api.deleteJobs(Array.from(selectedJobIds));
+      if (selectedJobId && selectedJobIds.has(selectedJobId)) {
+        onJobSelect(null);
+        setShowPreview(false);
+      }
+      setSelectedJobIds(new Set());
+      setConfirmBatchDelete(false);
+      setSelectionMode(false);
+      await onRefreshJobs();
+    } catch (error) {
+      console.error("Batch delete failed:", error);
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  }, [
+    onJobSelect,
+    onRefreshJobs,
+    selectedJobId,
+    selectedJobIds,
+    setShowPreview,
+  ]);
 
-            {/* Selection mode controls */}
-            {selectionMode && jobs.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
-                    <label className="flex min-h-11 items-center gap-2 cursor-pointer text-sm">
-                        <input
-                            type="checkbox"
-                            checked={selectedJobIds.size === jobs.length && jobs.length > 0}
-                            onChange={(e) => {
-                                if (e.target.checked) {
-                                    setSelectedJobIds(new Set(jobs.map(j => j.id)));
-                                } else {
-                                    setSelectedJobIds(new Set());
-                                }
-                            }}
-                            className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)]"
-                        />
-                        {selectedJobIds.size === jobs.length
-                            ? (t('deselectAll') || 'Deselect All')
-                            : (t('selectAll') || 'Select All')}
-                    </label>
-                    <span className="text-xs text-[var(--muted)]">
-                        {selectedJobIds.size} {t('selected') || 'selected'}
-                    </span>
-                    <div className="flex-1" />
-                    {confirmBatchDelete ? (
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-[var(--danger)]">
-                                {t('deleteSelectedConfirm') || `Delete ${selectedJobIds.size} items?`}
-                            </span>
-                            <button
-                                ref={confirmBatchBtnRef}
-                                onClick={async () => {
-                                    setIsBatchDeleting(true);
-                                    try {
-                                        await api.deleteJobs(Array.from(selectedJobIds));
-                                        // If the currently selected job was deleted, clear selection
-                                        if (selectedJobId && selectedJobIds.has(selectedJobId)) {
-                                            onJobSelect(null);
-                                            setShowPreview(false);
-                                        }
-                                        setSelectedJobIds(new Set());
-                                        setConfirmBatchDelete(false);
-                                        setSelectionMode(false);
-                                        await onRefreshJobs();
-                                    } catch (err) {
-                                        console.error('Batch delete failed:', err);
-                                    } finally {
-                                        setIsBatchDeleting(false);
-                                    }
-                                }}
-                                disabled={isBatchDeleting}
-                                className="min-h-11 min-w-[60px] rounded bg-[var(--danger)] px-3 py-1.5 text-xs text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
-                            >
-                                {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
-                            </button>
-                            <button
-                                onClick={() => setConfirmBatchDelete(false)}
-                                className="min-h-11 rounded border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-white/5"
-                            >
-                                {t('cancel') || 'Cancel'}
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            ref={batchDeleteBtnRef}
-                            onClick={() => setConfirmBatchDelete(true)}
-                            disabled={selectedJobIds.size === 0}
-                            className="min-h-11 rounded border border-[var(--danger)] px-3 py-1.5 text-xs text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            🗑️ {t('deleteSelected') || 'Delete Selected'} ({selectedJobIds.size})
-                        </button>
-                    )}
-                </div>
-            )}
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode((enabled) => {
+      if (enabled) {
+        setSelectedJobIds(new Set());
+        setConfirmBatchDelete(false);
+      }
+      return !enabled;
+    });
+  }, []);
 
-            {jobs.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/30 text-center animate-fade-in">
-                    <div className="mb-3 p-3 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] opacity-70">
-                        <svg aria-hidden="true" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <h4 className="text-sm font-semibold text-[var(--foreground)] mb-1">
-                        {t('noHistory') || 'No history yet.'}
-                    </h4>
-                    <p className="text-xs text-[var(--muted)] max-w-[200px]">
-                        {t('noRunsYet') || 'Your processed videos will appear here.'}
-                    </p>
-                </div>
-            )}
-            <div className="space-y-2">
-                {downloadError && (
-                    <p className="rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]" role="alert">
-                        {downloadError}
-                    </p>
-                )}
-                {jobs.map((job) => {
-                    const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
-                    const timestamp = (job.updated_at || job.created_at) * 1000;
-                    const expiryTimestamp = job.expires_at
-                        ? job.expires_at * 1000
-                        : timestamp + (24 * 60 * 60 * 1000);
-                    const isExpired = Boolean(job.result_data?.files_missing)
-                        || Date.now() >= expiryTimestamp;
-                    const isSelected = selectedJobIds.has(job.id);
-
-                    return (
-                        <JobListItem
-                            key={job.id}
-                            job={job}
-                            selectionMode={selectionMode}
-                            isSelected={isSelected}
-                            isExpired={isExpired}
-                            publicUrl={publicUrl}
-                            timestamp={timestamp}
-                            formatDate={formatDate}
-                            onToggleSelection={handleToggleSelection}
-                            onJobSelect={onJobSelect}
-                            setShowPreview={setShowPreview}
-                            isConfirmingDelete={confirmDeleteId === job.id}
-                            isDeleting={deletingJobId === job.id}
-                            isDownloading={downloadingJobId === job.id}
-                            setConfirmDeleteId={setConfirmDeleteId}
-                            onDeleteConfirmed={handleDeleteJob}
-                            onDownload={handleDownloadJob}
-                            t={t as (
-                                key: string,
-                                params?: Record<string, string | number>,
-                            ) => string}
-                        />
-                    );
-                })}
-            </div>
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-[var(--border)]">
-                    <button
-                        onClick={onPrevPage}
-                        disabled={currentPage <= 1}
-                        className="min-h-11 rounded-lg border border-[var(--border)] px-4 py-2 text-sm transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        ← {t('previousPage') || 'Previous'}
-                    </button>
-                    <span className="text-sm text-[var(--muted)]">
-                        {(() => {
-                            const start = (currentPage - 1) * pageSize + 1;
-                            const end = Math.min(currentPage * pageSize, totalJobs);
-                            return t('paginationShowing')
-                                ? t('paginationShowing').replace('{start}', String(start)).replace('{end}', String(end)).replace('{total}', String(totalJobs))
-                                : `Showing ${start}-${end} of ${totalJobs}`;
-                        })()}
-                    </span>
-                    <button
-                        onClick={onNextPage}
-                        disabled={currentPage >= totalPages}
-                        className="min-h-11 rounded-lg border border-[var(--border)] px-4 py-2 text-sm transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {t('nextPage') || 'Next'} →
-                    </button>
-                </div>
-            )}
-        </div>
-    );
+  return (
+    <div className="recent-jobs-list card mt-6 border-none bg-transparent shadow-none p-0">
+      <RecentJobsHeader
+        isLoading={isLoading}
+        hasJobs={jobs.length > 0}
+        selectionMode={selectionMode}
+        onToggleSelectionMode={toggleSelectionMode}
+        t={translate}
+      />
+      {selectionMode && jobs.length > 0 && (
+        <RecentJobsSelectionControls
+          jobs={jobs}
+          selectedJobIds={selectedJobIds}
+          confirmBatchDelete={confirmBatchDelete}
+          isBatchDeleting={isBatchDeleting}
+          batchDeleteBtnRef={batchDeleteBtnRef}
+          confirmBatchBtnRef={confirmBatchBtnRef}
+          onSelectionChange={setSelectedJobIds}
+          onRequestDelete={() => setConfirmBatchDelete(true)}
+          onCancelDelete={() => setConfirmBatchDelete(false)}
+          onConfirmDelete={handleBatchDelete}
+          t={translate}
+        />
+      )}
+      {jobs.length === 0 && <RecentJobsEmpty t={translate} />}
+      {downloadError && (
+        <p
+          className="rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]"
+          role="alert"
+        >
+          {downloadError}
+        </p>
+      )}
+      <RecentJobsRows
+        jobs={jobs}
+        selectionMode={selectionMode}
+        selectedJobIds={selectedJobIds}
+        confirmDeleteId={confirmDeleteId}
+        deletingJobId={deletingJobId}
+        downloadingJobId={downloadingJobId}
+        currentTimeMs={currentTimeMs}
+        formatDate={formatDate}
+        buildStaticUrl={buildStaticUrl}
+        onToggleSelection={handleToggleSelection}
+        onJobSelect={onJobSelect}
+        setShowPreview={setShowPreview}
+        setConfirmDeleteId={setConfirmDeleteId}
+        onDeleteConfirmed={handleDeleteJob}
+        onDownload={handleDownloadJob}
+        t={translate}
+      />
+      <RecentJobsPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalJobs={totalJobs}
+        pageSize={pageSize}
+        onNextPage={onNextPage}
+        onPrevPage={onPrevPage}
+        t={translate}
+      />
+    </div>
+  );
 });

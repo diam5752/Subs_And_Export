@@ -12,6 +12,7 @@ def test_sanitize_ass_text_removes_newlines():
     assert "Hello Dialogue:" in sanitized
     assert "Injected!" in sanitized
 
+
 def test_create_styled_subtitle_file_resists_injection(tmp_path):
     """Verify that injected content does not appear as a new line in the generated file."""
     # We use a payload that fits on one line but contains a newline injection
@@ -23,12 +24,7 @@ def test_create_styled_subtitle_file_resists_injection(tmp_path):
     srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nDummy", encoding="utf-8")
 
     # We generate the ASS file
-    ass_path = subtitle_renderer.create_styled_subtitle_file(
-        srt_path,
-        cues=[cue],
-        output_dir=tmp_path,
-        max_lines=2
-    )
+    ass_path = subtitle_renderer.create_styled_subtitle_file(srt_path, cues=[cue], output_dir=tmp_path, max_lines=2)
 
     content = ass_path.read_text(encoding="utf-8")
 
@@ -38,8 +34,7 @@ def test_create_styled_subtitle_file_resists_injection(tmp_path):
 
     lines = content.splitlines()
     injected_lines = [
-        line for line in lines
-        if line.strip() == "Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Hacked"
+        line for line in lines if line.strip() == "Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Hacked"
     ]
 
     assert not injected_lines, "Found injected Dialogue line in ASS file!"
@@ -47,6 +42,7 @@ def test_create_styled_subtitle_file_resists_injection(tmp_path):
     # Verify the content is there but sanitized
     assert "Hello Dialogue:" in content
     assert "Hacked" in content
+
 
 def test_sanitize_ass_text_removes_tags():
     """Verify that ASS override tags are neutralized."""

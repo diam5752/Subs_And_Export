@@ -75,12 +75,7 @@ class ProviderBudgetStore:
             raise ValueError(
                 "Provider budget estimate must be finite and positive",
             )
-        if (
-            not math.isfinite(daily_limit)
-            or not math.isfinite(monthly_limit)
-            or daily_limit <= 0
-            or monthly_limit <= 0
-        ):
+        if not math.isfinite(daily_limit) or not math.isfinite(monthly_limit) or daily_limit <= 0 or monthly_limit <= 0:
             raise ProviderBudgetExceededError("External provider budgets are closed")
 
         current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -93,10 +88,7 @@ class ProviderBudgetStore:
                     ),
                 ).all(),
             )
-            used_by_key = {
-                window.key: float(window.reserved_usd) + float(window.spent_usd)
-                for window in windows
-            }
+            used_by_key = {window.key: float(window.reserved_usd) + float(window.spent_usd) for window in windows}
 
         daily_used = used_by_key.get(daily_key, 0.0)
         if daily_used + estimate > daily_limit:
@@ -130,12 +122,7 @@ class ProviderBudgetStore:
             raise ValueError(
                 "Provider budget estimate must be finite and positive",
             )
-        if (
-            not math.isfinite(daily_limit)
-            or not math.isfinite(monthly_limit)
-            or daily_limit <= 0
-            or monthly_limit <= 0
-        ):
+        if not math.isfinite(daily_limit) or not math.isfinite(monthly_limit) or daily_limit <= 0 or monthly_limit <= 0:
             raise ProviderBudgetExceededError("External provider budgets are closed")
 
         current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -145,8 +132,7 @@ class ProviderBudgetStore:
         existing = session.scalar(
             select(DbProviderBudgetReservation)
             .where(
-                DbProviderBudgetReservation.idempotency_key
-                == idempotency_key,
+                DbProviderBudgetReservation.idempotency_key == idempotency_key,
             )
             .with_for_update()
             .limit(1)
@@ -197,21 +183,11 @@ class ProviderBudgetStore:
         if daily is None or monthly is None:
             raise RuntimeError("Provider budget windows could not be locked")
 
-        if (
-            float(daily.reserved_usd)
-            + float(daily.spent_usd)
-            + estimate
-            > daily_limit
-        ):
+        if float(daily.reserved_usd) + float(daily.spent_usd) + estimate > daily_limit:
             raise ProviderBudgetExceededError(
                 "Daily external provider budget exceeded",
             )
-        if (
-            float(monthly.reserved_usd)
-            + float(monthly.spent_usd)
-            + estimate
-            > monthly_limit
-        ):
+        if float(monthly.reserved_usd) + float(monthly.spent_usd) + estimate > monthly_limit:
             raise ProviderBudgetExceededError(
                 "Monthly external provider budget exceeded",
             )
@@ -298,10 +274,7 @@ class ProviderBudgetStore:
         now_ts = int(time.time())
         reservation = session.scalar(
             select(DbProviderBudgetReservation)
-            .where(
-                DbProviderBudgetReservation.idempotency_key
-                == idempotency_key
-            )
+            .where(DbProviderBudgetReservation.idempotency_key == idempotency_key)
             .with_for_update()
             .limit(1)
         )
@@ -334,9 +307,7 @@ class ProviderBudgetStore:
             window.updated_at = now_ts
 
         reservation.actual_usd = float(actual_usd or 0.0)
-        reservation.status = (
-            "finalized" if actual_usd is not None else "released"
-        )
+        reservation.status = "finalized" if actual_usd is not None else "released"
         reservation.updated_at = now_ts
 
     @staticmethod

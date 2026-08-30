@@ -71,7 +71,6 @@ class StandardTranscriber(Transcriber):
         if callable(progress_callback):
             progress_callback(85.0)
 
-
         cues: list[Cue] = []
         timed_text: list[TimeRange] = []
 

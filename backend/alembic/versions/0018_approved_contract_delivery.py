@@ -30,11 +30,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         _CONSTRAINT_NAME,
         "billing_contract_confirmations",
-        (
-            "delivery_channel = 'account_vault' "
-            f"AND delivery_status IN ('{_PENDING_STATUS}', "
-            f"'{_APPROVED_STATUS}')"
-        ),
+        (f"delivery_channel = 'account_vault' AND delivery_status IN ('{_PENDING_STATUS}', '{_APPROVED_STATUS}')"),
     )
 
 
@@ -72,8 +68,7 @@ def downgrade() -> None:
     )
     if incompatible_evidence_exists:
         raise RuntimeError(
-            "Cannot downgrade approved contract-confirmation delivery "
-            "while approved durable evidence exists."
+            "Cannot downgrade approved contract-confirmation delivery while approved durable evidence exists."
         )
     op.drop_constraint(
         _CONSTRAINT_NAME,
@@ -83,8 +78,5 @@ def downgrade() -> None:
     op.create_check_constraint(
         _CONSTRAINT_NAME,
         "billing_contract_confirmations",
-        (
-            "delivery_channel = 'account_vault' "
-            f"AND delivery_status = '{_PENDING_STATUS}'"
-        ),
+        (f"delivery_channel = 'account_vault' AND delivery_status = '{_PENDING_STATUS}'"),
     )

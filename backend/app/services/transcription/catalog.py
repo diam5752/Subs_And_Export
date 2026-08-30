@@ -163,10 +163,6 @@ def find_transcription_engine(
 ) -> TranscriptionEngine | None:
     normalized_model = model.strip().lower()
     return next(
-        (
-            engine
-            for engine in engines
-            if engine.provider == provider and engine.model.lower() == normalized_model
-        ),
+        (engine for engine in engines if engine.provider == provider and engine.model.lower() == normalized_model),
         None,
     )
