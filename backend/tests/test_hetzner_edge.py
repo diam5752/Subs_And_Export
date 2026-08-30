@@ -287,6 +287,20 @@ def test_edge_caps_the_only_streaming_video_upload_route() -> None:
     assert "reverse_proxy backend:8080" in stream_handler
 
 
+def test_edge_caps_memory_only_mobile_audio_before_generic_proxy() -> None:
+    caddyfile = deployment_text("Caddyfile")
+    verifier = deployment_text("verify-production.sh")
+
+    matcher = "@mobile_transcription path /videos/mobile-transcriptions"
+    assert caddyfile.count(matcher) == 1
+    assert caddyfile.index(matcher) < caddyfile.index("@backend path")
+    handler = caddyfile.split(matcher, 1)[1].split("@feedback", 1)[0]
+    assert "request_body" in handler
+    assert "max_size 16MB" in handler
+    assert handler.count("reverse_proxy backend:8080") == 1
+    assert "Mobile transcription request-body cap must be exactly 16MB" in verifier
+
+
 def test_edge_caps_feedback_before_the_generic_backend_proxy() -> None:
     caddyfile = deployment_text("Caddyfile")
     verifier = deployment_text("verify-production.sh")

@@ -18,5 +18,7 @@ These flows reflect the product behavior explicitly approved during the guest-fi
 - The account settings modal remains usable and readable across supported viewports.
 - History views show prior jobs and status cards without layout regressions.
 - Mock mode never calls a paid external provider and remains the default until live mode and non-zero safety budgets are explicitly enabled.
+- On iOS, selecting a Photos video, receiving subtitles, correcting cues and exporting a decodable MP4 never sends or persists the source or exported video on the server; the API rejects any body containing a video stream, and only bounded temporary AAC audio reaches transcription.
+- The iOS privacy copy distinguishes temporary audio transfer from replay-safe subtitle retention: cues remain live for at most 24 hours and may remain only in encrypted backups for up to 14 days.
 
 Do not remove or redefine these flows without a new explicit product decision.

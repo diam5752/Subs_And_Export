@@ -37,6 +37,7 @@ _MEDIA_PROCESS_NICE = 10
 class MediaProbe:
     duration_s: float | None
     audio_codec: str | None
+    has_video: bool = False
 
     @property
     def audio_is_aac(self) -> bool:
@@ -53,47 +54,102 @@ class FFmpegRenderError(subprocess.CalledProcessError):
         return "Video rendering failed."
 
 
-def probe_media(input_path: Path) -> MediaProbe:
-    probe_cmd = [
+def _probe_media_command(source: str, *, inspect_all_streams: bool = False) -> list[str]:
+    command = [
         "ffprobe",
         "-v",
         "error",
-        "-select_streams",
-        "a:0",
-        "-show_entries",
-        "format=duration:stream=codec_name",
-        "-of",
-        "json",
-        str(input_path),
     ]
+    if not inspect_all_streams:
+        command.extend(["-select_streams", "a:0"])
+    stream_entries = "codec_name,codec_type" if inspect_all_streams else "codec_name"
+    command.extend(
+        [
+            "-show_entries",
+            f"format=duration:stream={stream_entries}",
+            "-of",
+            "json",
+            source,
+        ],
+    )
+    return command
+
+
+def _probe_duration(probe_payload: dict[object, object]) -> float | None:
+    try:
+        format_payload = probe_payload.get("format")
+        duration_raw = format_payload.get("duration") if isinstance(format_payload, dict) else None
+        if duration_raw is not None:
+            return float(duration_raw)
+    except (AttributeError, TypeError, ValueError):
+        pass
+    return None
+
+
+def _probe_streams(probe_payload: dict[object, object]) -> list[dict[object, object]]:
+    streams = probe_payload.get("streams") or []
+    if not isinstance(streams, list):
+        return []
+    return [stream for stream in streams if isinstance(stream, dict)]
+
+
+def _probe_codec_name(stream: dict[object, object] | None) -> str | None:
+    codec_name = stream.get("codec_name") if stream is not None else None
+    if isinstance(codec_name, str) and codec_name.strip():
+        return codec_name.strip().lower()
+    return None
+
+
+def _probe_audio_codec(probe_payload: dict[object, object]) -> str | None:
+    streams = _probe_streams(probe_payload)
+    audio_stream = next(
+        (stream for stream in streams if stream.get("codec_type") == "audio"),
+        None,
+    )
+    # Preserve compatibility with older/mock payloads that omitted codec_type.
+    return _probe_codec_name(audio_stream or (streams[0] if streams else None))
+
+
+def _probe_has_video(probe_payload: dict[object, object]) -> bool:
+    return any(stream.get("codec_type") == "video" for stream in _probe_streams(probe_payload))
+
+
+def _media_probe_from_payload(probe_payload: object) -> MediaProbe:
+    if not isinstance(probe_payload, dict):
+        return MediaProbe(duration_s=None, audio_codec=None)
+    return MediaProbe(
+        duration_s=_probe_duration(probe_payload),
+        audio_codec=_probe_audio_codec(probe_payload),
+        has_video=_probe_has_video(probe_payload),
+    )
+
+
+def probe_media(input_path: Path) -> MediaProbe:
     result = subprocess.run(
-        probe_cmd,
+        _probe_media_command(str(input_path)),
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         timeout=30.0,  # Security: Prevent infinite hang if ffprobe stalls
     )
-    probe_payload = json.loads(result.stdout or "{}")
+    return _media_probe_from_payload(json.loads(result.stdout or "{}"))
 
-    duration_s: float | None = None
-    try:
-        duration_raw = (probe_payload.get("format") or {}).get("duration")
-        if duration_raw is not None:
-            duration_s = float(duration_raw)
-    except (TypeError, ValueError):
-        duration_s = None
 
-    audio_codec: str | None = None
-    streams = probe_payload.get("streams") or []
-    if isinstance(streams, list) and streams:
-        first_stream = streams[0]
-        if isinstance(first_stream, dict):
-            codec_name = first_stream.get("codec_name")
-            if isinstance(codec_name, str) and codec_name.strip():
-                audio_codec = codec_name.strip().lower()
-
-    return MediaProbe(duration_s=duration_s, audio_codec=audio_codec)
+def probe_media_bytes(media_bytes: bytes) -> MediaProbe:
+    """Probe bounded media held in memory without creating a server-side file."""
+    if not media_bytes:
+        raise ValueError("Audio body is empty")
+    result = subprocess.run(
+        _probe_media_command("pipe:0", inspect_all_streams=True),
+        input=media_bytes,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30.0,
+    )
+    payload = json.loads(result.stdout.decode("utf-8") or "{}")
+    return _media_probe_from_payload(payload)
 
 
 def input_audio_is_aac(input_path: Path) -> bool:

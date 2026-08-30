@@ -41,6 +41,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=False)
 
 _PROCESS_STREAM_PATH = "/videos/process-stream"
+_MOBILE_TRANSCRIPTION_PATH = "/videos/mobile-transcriptions"
 _MAX_UPLOAD_METADATA_HEADER_CHARS = 12_000
 _CANONICAL_VIDEO_CREDITS = frozenset(quote.credits for quote in VIDEO_CREDIT_BRACKETS)
 
@@ -165,7 +166,10 @@ async def get_optional_current_user(
 
 def _is_media_creation_request(request: Request) -> bool:
     path = request.url.path.rstrip("/")
-    return path == _PROCESS_STREAM_PATH or path.endswith("/reprocess")
+    return path in {
+        _PROCESS_STREAM_PATH,
+        _MOBILE_TRANSCRIPTION_PATH,
+    } or path.endswith("/reprocess")
 
 
 def _process_stream_authorization(request: Request) -> tuple[int, bool]:

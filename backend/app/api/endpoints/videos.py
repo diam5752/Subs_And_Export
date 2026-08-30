@@ -98,12 +98,14 @@ logger = logging.getLogger(__name__)
 from .engine_routes import router as engine_router
 from .export_routes import router as export_router
 from .job_routes import router as job_router
+from .mobile_transcriptions import router as mobile_transcriptions_router
 from .reprocess_routes import router as reprocess_router
 
 router.include_router(job_router)
 router.include_router(engine_router)
 router.include_router(export_router)
 router.include_router(reprocess_router)
+router.include_router(mobile_transcriptions_router)
 
 
 def _parse_content_length(request: Request) -> int | None:

@@ -28,10 +28,35 @@ The default mock services still exercise the real product boundaries:
 | Surface | Responsibility | Persistent state |
 | --- | --- | --- |
 | Next.js PWA | Authentication UI, upload, timeline edit, styling, preview, installable shell | browser token and selected job only |
+| iOS app | Photos selection, local preview/editing, local AAC extraction and local MP4 subtitle burn-in | Keychain session plus temporary device-local media |
 | FastAPI | Auth, jobs, capability discovery, orchestration, exports | PostgreSQL plus artifact volume |
 | FFmpeg/libass | Probe, normalize, crop, subtitle burn-in and final encode | generated artifacts |
 | Usage ledger | Idempotent points reservations and provider-cost audit | PostgreSQL |
 | Java 25 surface | Contract-compatible migration path | test-only for now |
+
+## iOS local-media boundary
+
+The native iOS flow deliberately does not reuse the web video-upload endpoint.
+`PhotosPicker` provides a device-local movie, AVFoundation extracts a bounded AAC
+audio track, and `POST /videos/mobile-transcriptions` returns word-timed cue JSON.
+The client then previews, edits and burns those cues into a new MP4 with
+AVFoundation/Core Image on the phone.
+
+The route accepts at most 16 MiB of AAC audio, probes every stream from memory with
+`ffprobe pipe:0`, rejects any container carrying a video stream, and never creates
+an upload or artifact file. A bounded cross-process pool controls untrusted audio
+probing, and new requests run an owner-wallet preflight before their body is read.
+The production engine is selected by the server and is Scribe v2; a client field
+cannot activate or replace the paid provider. The normal purchased-credit,
+provider-budget, dispatch-claim, refund and replay-safe result guards remain in
+force. Development mock mode returns deterministic cues at zero provider cost.
+
+This is "no video upload", not "no network media". Scribe v2 still requires the
+extracted audio to cross the network temporarily. The provider transcript is
+erasure-journaled and deleted before GSUBS accepts the result. The small replay-safe
+cue result is removed with the existing 24-hour job retention pass.
+It may remain only in already-created encrypted backups until the documented
+14-day backup-retention window expires.
 
 ## Privacy-bounded operational observability
 
