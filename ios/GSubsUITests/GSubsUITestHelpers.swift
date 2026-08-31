@@ -33,6 +33,20 @@ extension GSubsUITests {
         app.buttons["Τέλος"].tap()
     }
 
+    func dismissPasswordSavePromptIfPresent(timeout: TimeInterval) {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let candidates = [
+            app.buttons["Not Now"],
+            app.buttons["Όχι τώρα"],
+            springboard.buttons["Not Now"],
+            springboard.buttons["Όχι τώρα"],
+        ]
+        guard let dismiss = firstExisting(candidates, timeout: timeout) else { return }
+        XCTAssertTrue(waitForHittable(dismiss, timeout: 2), dismiss.debugDescription)
+        dismiss.tap()
+        XCTAssertTrue(dismiss.waitForNonExistence(timeout: 2), dismiss.debugDescription)
+    }
+
     func assertPaidCreditsBalance(
         _ balance: Int,
         timeout: TimeInterval = 2,

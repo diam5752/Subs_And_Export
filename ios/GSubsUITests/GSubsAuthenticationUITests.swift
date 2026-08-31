@@ -20,10 +20,12 @@ extension GSubsUITests {
         submit.tap()
 
         assertPaidCreditsBalance(100, timeout: 4)
+        dismissPasswordSavePromptIfPresent(timeout: 3)
         app.buttons["account-menu"].tap()
         app.buttons["Απόρρητο"].tap()
         XCTAssertTrue(app.navigationBars["Απόρρητο"].waitForExistence(timeout: 2))
         app.buttons["Τέλος"].tap()
+        dismissPasswordSavePromptIfPresent(timeout: 2)
         app.buttons["account-menu"].tap()
         app.buttons["Αποσύνδεση"].tap()
         XCTAssertTrue(app.buttons["auth-submit"].waitForExistence(timeout: 3))

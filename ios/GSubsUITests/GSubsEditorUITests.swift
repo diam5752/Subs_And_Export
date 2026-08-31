@@ -285,15 +285,22 @@ extension GSubsUITests {
         attachScreenshot(named: "Landscape editor with keyboard")
         XCTAssertTrue(dismissKeyboardIfPresent())
         XCTAssertTrue(waitForHittable(app.buttons["close-video"], timeout: 2))
-        XCTAssertTrue(waitForHittable(app.buttons["account-menu"], timeout: 2))
+        let accountMenu = app.buttons["account-menu"]
+        XCTAssertTrue(accountMenu.waitForExistence(timeout: 2), accountMenu.debugDescription)
+        XCTAssertTrue(waitForStableFrame(accountMenu, timeout: 3), accountMenu.debugDescription)
+        accountMenu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["Απόρρητο"].waitForExistence(timeout: 2))
     }
 
     func testLandscapeExportShowsSaveAndShareActions() {
         launch("--gsubs-ui-test-slow-export")
         XCUIDevice.shared.orientation = .landscapeLeft
 
-        let export = app.buttons["primary-action"]
-        XCTAssertTrue(waitForEnabledAndHittable(export, timeout: 3))
+        let export = app.descendants(matching: .any)["primary-action"]
+        XCTAssertTrue(
+            waitForEnabledAndHittable(export, timeout: 3),
+            export.debugDescription
+        )
         export.tap()
         XCTAssertTrue(app.staticTexts["Έτοιμο"].waitForExistence(timeout: 12))
         XCTAssertTrue(waitForHittable(app.buttons["save-to-photos"], timeout: 2))
