@@ -264,6 +264,9 @@ def test_ios_workflow_pins_tools_and_runs_format_size_test_and_release_gates() -
     assert "DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer" in workflow
     assert 'test "$(xcodebuild -version | sed -n \'1p\')" = "Xcode 26.6"' in workflow
     assert 'test "$(xcodegen --version)" = "Version: 2.45.4"' in workflow
+    assert "releases/download/2.45.4/xcodegen.zip" in workflow
+    assert "090ec29491aad50aec10631bf6e62253fed733c50f3aab0f5ffc86bc170bdbef" in workflow
+    assert "brew install xcodegen" not in workflow
     assert "swift-format lint" in workflow
     assert "--configuration ios/.swift-format" in workflow
     assert "--strict" in workflow

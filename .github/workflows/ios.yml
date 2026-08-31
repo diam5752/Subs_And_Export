@@ -39,7 +39,14 @@ jobs:
           test "$(xcrun swift-format --version)" = "6.3.0"
       - name: Install pinned XcodeGen
         run: |
-          brew install xcodegen
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/xcodegen.zip" \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.45.4/xcodegen.zip
+          echo "090ec29491aad50aec10631bf6e62253fed733c50f3aab0f5ffc86bc170bdbef  $RUNNER_TEMP/xcodegen.zip" \
+            | shasum -a 256 --check
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen-release"
+          echo "$RUNNER_TEMP/xcodegen-release/xcodegen/bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/xcodegen-release/xcodegen/bin:$PATH"
           test "$(xcodegen --version)" = "Version: 2.45.4"
       - name: Enforce canonical Swift format
         run: >-
