@@ -32,6 +32,8 @@ type SubtitleOverlayPresentationProps = {
   textStyle: React.CSSProperties;
   overlayRef: TransformGestureResult[0];
   transformHandlers: TransformGestureResult[1];
+  hasCustomPosition: boolean;
+  sourceCueIndex: number;
 };
 
 function SingleWordSubtitle({
@@ -183,6 +185,8 @@ function ActiveSubtitleOverlay({
   textStyle,
   overlayRef,
   transformHandlers,
+  hasCustomPosition,
+  sourceCueIndex,
 }: Omit<SubtitleOverlayPresentationProps, "videoWidth" | "videoHeight"> & {
   layout: ActiveSubtitleLayout & { activeCue: TranscriptionCue };
 }) {
@@ -201,6 +205,8 @@ function ActiveSubtitleOverlay({
       textStyle={textStyle}
       inlineTrigger={inlineTrigger}
       transformControls={transformControls}
+      hasCustomPosition={hasCustomPosition}
+      sourceCueIndex={sourceCueIndex}
       overlayRef={overlayRef}
       handlers={transformHandlers}
     >
@@ -220,6 +226,8 @@ export function SubtitleOverlayPresentation({
   textStyle,
   overlayRef,
   transformHandlers,
+  hasCustomPosition,
+  sourceCueIndex,
 }: SubtitleOverlayPresentationProps) {
   if (!layout.activeCue) return null;
   if (inlineEditor?.isEditing) {
@@ -250,6 +258,8 @@ export function SubtitleOverlayPresentation({
       textStyle={textStyle}
       overlayRef={overlayRef}
       transformHandlers={transformHandlers}
+      hasCustomPosition={hasCustomPosition}
+      sourceCueIndex={sourceCueIndex}
     />
   );
 }

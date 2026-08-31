@@ -1,7 +1,7 @@
 import React, { useMemo, memo } from "react";
 import { TranscriptionCue } from "../lib/api";
 import {
-  findCueAtTime,
+  findCueIndexAtTime,
   getSubtitlePositionStyle,
   layoutCueLines,
 } from "../lib/subtitleUtils";
@@ -13,9 +13,15 @@ import type {
 } from "./SubtitleOverlayTypes";
 import { useSubtitleTransformGestures } from "./useSubtitleTransformGestures";
 
-export type { SubtitleTransformControls } from "./SubtitleOverlayTypes";
+export type {
+  SubtitlePositionScope,
+  SubtitleTransformControls,
+} from "./SubtitleOverlayTypes";
 
-export type Cue = TranscriptionCue;
+export type Cue = TranscriptionCue & {
+  /** Index in the persisted transcript when this preview cue was resegmented. */
+  sourceCueIndex?: number;
+};
 
 interface SubtitleOverlayProps {
   currentTime: number;
@@ -49,10 +55,11 @@ function useActiveSubtitleLayout(
   maxLines: number,
   fontSize: number,
 ) {
-  const activeCue = useMemo(
-    () => findCueAtTime(cues, currentTime),
+  const activeCueIndex = useMemo(
+    () => findCueIndexAtTime(cues, currentTime),
     [currentTime, cues],
   );
+  const activeCue = activeCueIndex >= 0 ? cues[activeCueIndex] : undefined;
   const lines = useMemo(
     () => (activeCue ? layoutCueLines(activeCue, maxLines, fontSize) : []),
     [activeCue, fontSize, maxLines],
@@ -74,7 +81,44 @@ function useActiveSubtitleLayout(
       ),
     [currentTime, words],
   );
-  return { activeCue, lines, words, lineOffsets, activeWordIndex };
+  return {
+    activeCue,
+    activeCueIndex,
+    lines,
+    words,
+    lineOffsets,
+    activeWordIndex,
+  };
+}
+
+function useOverlayPresentationState(
+  activeCue: Cue | undefined,
+  activeCueIndex: number,
+  settings: SubtitleOverlaySettings,
+  videoWidth: number,
+) {
+  const textStyle = useMemo(
+    () =>
+      subtitleTextStyle(videoWidth, settings.fontSize, settings.shadowStrength),
+    [settings.fontSize, settings.shadowStrength, videoWidth],
+  );
+  const sourceCueIndex = activeCue?.sourceCueIndex ?? activeCueIndex;
+  const hasCustomPosition =
+    activeCue?.position !== undefined && activeCue.position !== null;
+  const position = hasCustomPosition
+    ? (activeCue?.position ?? settings.position)
+    : settings.position;
+  const positionStyle = useMemo(
+    () => getSubtitlePositionStyle(position),
+    [position],
+  );
+  return {
+    hasCustomPosition,
+    position,
+    positionStyle,
+    sourceCueIndex,
+    textStyle,
+  };
 }
 
 function SubtitleOverlayContent({
@@ -93,19 +137,17 @@ function SubtitleOverlayContent({
     settings.maxLines,
     settings.fontSize,
   );
-  const textStyle = useMemo(
-    () =>
-      subtitleTextStyle(videoWidth, settings.fontSize, settings.shadowStrength),
-    [settings.fontSize, settings.shadowStrength, videoWidth],
-  );
-  const positionStyle = useMemo(
-    () => getSubtitlePositionStyle(settings.position),
-    [settings.position],
+  const presentation = useOverlayPresentationState(
+    layout.activeCue,
+    layout.activeCueIndex,
+    settings,
+    videoWidth,
   );
 
   const [overlayRef, transformHandlers] = useSubtitleTransformGestures({
     hasActiveCue: Boolean(layout.activeCue),
-    position: settings.position,
+    position: presentation.position,
+    sourceCueIndex: presentation.sourceCueIndex,
     fontSize: settings.fontSize,
     videoWidth,
     videoHeight,
@@ -115,15 +157,17 @@ function SubtitleOverlayContent({
   return (
     <SubtitleOverlayPresentation
       layout={layout}
-      settings={settings}
+      settings={{ ...settings, position: presentation.position }}
       videoWidth={videoWidth}
       videoHeight={videoHeight}
       inlineEditor={inlineEditor}
       transformControls={transformControls}
-      positionStyle={positionStyle}
-      textStyle={textStyle}
+      positionStyle={presentation.positionStyle}
+      textStyle={presentation.textStyle}
       overlayRef={overlayRef}
       transformHandlers={transformHandlers}
+      hasCustomPosition={presentation.hasCustomPosition}
+      sourceCueIndex={presentation.sourceCueIndex}
     />
   );
 }

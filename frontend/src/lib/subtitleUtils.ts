@@ -1,4 +1,6 @@
-import { TranscriptionCue as Cue, TranscriptionWordTiming } from "./api";
+import type { TranscriptionCue, TranscriptionWordTiming } from "./api";
+
+type Cue = TranscriptionCue & { sourceCueIndex?: number };
 export {
   SUBTITLE_POSITION_MAX,
   SUBTITLE_POSITION_MIN,
@@ -642,17 +644,28 @@ export function resegmentCues(
   fontSizePercent: number,
 ): Cue[] {
   if (!originalCues || originalCues.length === 0) return [];
-  if (maxLines === 0) return originalCues; // Handled by SubtitleOverlay specially ("One Word" mode)
+  if (maxLines === 0) {
+    return originalCues.map((cue, sourceCueIndex) => ({
+      ...cue,
+      sourceCueIndex,
+    }));
+  } // Handled by SubtitleOverlay specially ("One Word" mode)
 
   const measurer = createTextMeasurer(fontSizePercent);
   const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
 
-  return originalCues.flatMap((cue) => {
+  return originalCues.flatMap((cue, sourceCueIndex) => {
     // 1. Get words for this SPECIFIC cue (real or interpolated)
     const cueWords = prepareCueWords(cue);
 
     if (cueWords.length === 0) {
-      return [{ ...cue, text: normalizeSubtitleText(cue.text) }];
+      return [
+        {
+          ...cue,
+          text: normalizeSubtitleText(cue.text),
+          sourceCueIndex,
+        },
+      ];
     }
 
     // 2. Chunk ONLY this cue's words
@@ -677,6 +690,8 @@ export function resegmentCues(
           end: endTime,
           text: chunkWords.map((w) => w.text).join(" "),
           words: chunkWords,
+          position: cue.position,
+          sourceCueIndex,
         };
       });
   });

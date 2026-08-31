@@ -4,29 +4,33 @@ import React, {
   useMemo,
   useState,
   useEffect,
-  useLayoutEffect,
   useRef,
   useCallback,
 } from "react";
 import { API_BASE, JobResponse, api } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
 import { Cue } from "@/components/SubtitleOverlay";
-import { resegmentCues, updateCueText } from "@/lib/subtitleUtils";
+import { updateCueText } from "@/lib/subtitleUtils";
 import { PreviewPlayerHandle } from "@/components/PreviewPlayer";
-import type { TranscribeMode, TranscribeProvider } from "./processTypes";
 import type {
   ProcessContextType,
   ProcessingOptions,
   VideoInfo,
 } from "./ProcessContextTypes";
 export type { ProcessingOptions } from "./ProcessContextTypes";
-import { resolveConfiguredTranscription } from "@/lib/transcription";
 import { buildSubtitleExportFilename } from "@/lib/exportFilename";
 import { downloadArtifactWithGrant } from "@/lib/artifactDownload";
 import { exportFormatBucket, reportProductAction } from "@/lib/observability";
 import { videoQualityForResolution } from "./processSettings";
 import { useCueResource } from "./useCueResource";
+import { persistedCues, useCuePositioning } from "./useCuePositioning";
 import { useSubtitlePreferences } from "./useSubtitlePreferences";
+import {
+  getTranscriptionRoute,
+  useCalculatedStep,
+  useProcessedCues,
+  useSyncJobRefs,
+} from "./processContextHooks";
 
 const ProcessContext = createContext<ProcessContextType | undefined>(undefined);
 
@@ -142,13 +146,7 @@ export function ProcessProvider({
   // Public configuration selects only the requested UI route. The backend
   // independently enforces feature flags, provider scope, credentials, and budgets.
   // Missing or invalid configuration always fails closed to the mock engine.
-  const configuredTranscription = resolveConfiguredTranscription(
-    process.env.NEXT_PUBLIC_TRANSCRIBE_PROVIDER,
-    process.env.NEXT_PUBLIC_TRANSCRIBE_MODE,
-  );
-  const transcribeMode: TranscribeMode = configuredTranscription.mode;
-  const transcribeProvider: TranscribeProvider =
-    configuredTranscription.provider;
+  const [transcribeMode, transcribeProvider] = getTranscriptionRoute();
 
   const {
     subtitlePosition,
@@ -172,14 +170,13 @@ export function ProcessProvider({
 
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
-  const transcriptionSource =
-    selectedJob?.result_data?.transcription_url ?? null;
+  const transcriptSource = selectedJob?.result_data?.transcription_url ?? null;
   const {
     cues,
     error: transcriptLoadError,
     setCues,
     setCueResource,
-  } = useCueResource(transcriptionSource);
+  } = useCueResource(transcriptSource);
 
   const [overrideStep, setOverrideStepState] = useState<number | null>(null);
   const [exportingResolutions, setExportingResolutions] = useState<
@@ -197,17 +194,13 @@ export function ProcessProvider({
   >(null);
   const [editingCueDraft, setEditingCueDraft] = useState<string>("");
   const [isSavingTranscript, setIsSavingTranscript] = useState(false);
+  const isSavingTranscriptRef = useRef(false);
   const [transcriptSaveError, setTranscriptSaveError] = useState<string | null>(
     null,
   );
   const selectedJobId = selectedJob?.id ?? null;
   const selectedJobIdRef = useRef(selectedJobId);
-  useLayoutEffect(() => {
-    selectedJobIdRef.current = selectedJobId;
-    return () => {
-      selectedJobIdRef.current = null;
-    };
-  }, [selectedJobId]);
+  useSyncJobRefs(selectedJobId, selectedJobIdRef, isSavingTranscriptRef);
   const [transientJobId, setTransientJobId] = useState(selectedJobId);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -216,17 +209,13 @@ export function ProcessProvider({
   const playerRef = useRef<PreviewPlayerHandle>(null);
 
   // Derived State
-  const processedCues = useMemo(() => {
-    return resegmentCues(cues, maxSubtitleLines, subtitleSize);
-  }, [cues, maxSubtitleLines, subtitleSize]);
+  const processedCues = useProcessedCues(cues, maxSubtitleLines, subtitleSize);
 
-  const calculatedStep = useMemo(() => {
-    if (selectedJob?.status === "completed") {
-      return 3;
-    }
-    if (selectedFile || selectedJob || isProcessing) return 2;
-    return 1;
-  }, [isProcessing, selectedFile, selectedJob]);
+  const calculatedStep = useCalculatedStep(
+    selectedJob,
+    selectedFile,
+    isProcessing,
+  );
 
   const setOverrideStep = useCallback(
     (step: number | null) => {
@@ -360,7 +349,7 @@ export function ProcessProvider({
 
   const handleExport = useCallback(
     async (resolution: string) => {
-      if (!selectedJob) return;
+      if (!selectedJob || isSavingTranscriptRef.current) return;
       const exportJobId = selectedJob.id;
       const format = exportFormatBucket(resolution);
 
@@ -503,9 +492,13 @@ export function ProcessProvider({
     }
 
     const editingJobId = selectedJob.id;
+    isSavingTranscriptRef.current = true;
     setIsSavingTranscript(true);
     try {
-      await api.updateJobTranscription(editingJobId, updatedCues);
+      await api.updateJobTranscription(
+        editingJobId,
+        persistedCues(updatedCues),
+      );
       if (selectedJobIdRef.current !== editingJobId) return;
       void onRefreshJobs?.();
       setEditingCueIndex(null);
@@ -525,10 +518,25 @@ export function ProcessProvider({
       );
     } finally {
       if (selectedJobIdRef.current === editingJobId) {
+        isSavingTranscriptRef.current = false;
         setIsSavingTranscript(false);
       }
     }
   }, [onRefreshJobs, selectedJob, setCues, t]);
+
+  const cuePositioning = useCuePositioning({
+    cues,
+    setCues,
+    subtitlePosition,
+    setSubtitlePosition,
+    selectedJobId,
+    selectedJobIdRef,
+    isSavingTranscriptRef,
+    setIsSavingTranscript,
+    setTranscriptSaveError,
+    onRefreshJobs,
+    saveErrorMessage: t("transcriptSaveError") || "Unable to save transcript",
+  });
 
   const handleUpdateDraft = useCallback((text: string) => {
     setEditingCueDraft(text);
@@ -536,7 +544,7 @@ export function ProcessProvider({
 
   useEffect(() => {
     let cancelled = false;
-    const transcriptionUrl = transcriptionSource;
+    const transcriptionUrl = transcriptSource;
 
     if (!transcriptionUrl) {
       return;
@@ -575,7 +583,7 @@ export function ProcessProvider({
     return () => {
       cancelled = true;
     };
-  }, [setCueResource, t, transcriptionSource]);
+  }, [setCueResource, t, transcriptSource]);
 
   const value = {
     selectedFile,
@@ -643,6 +651,7 @@ export function ProcessProvider({
     saveEditingCue,
     updateCueText,
     handleUpdateDraft,
+    ...cuePositioning,
     SUBTITLE_COLORS,
   };
 

@@ -123,6 +123,47 @@ def test_create_styled_subtitle_file_accepts_cues_without_transcript(tmp_path: P
     assert "Άμεση διόρθωση" in ass_path.read_text(encoding="utf-8")
 
 
+def test_create_styled_subtitle_file_uses_per_cue_position_with_global_fallback(
+    tmp_path: Path,
+) -> None:
+    ass_path = subtitle_renderer.create_styled_subtitle_file(
+        cues=[
+            Cue(start=0.0, end=1.0, text="FIRST", position=80),
+            Cue(start=1.0, end=2.0, text="SECOND"),
+        ],
+        subtitle_position=20,
+        output_dir=tmp_path,
+    )
+
+    dialogue_lines = [
+        line for line in ass_path.read_text(encoding="utf-8").splitlines() if line.startswith("Dialogue:")
+    ]
+    first_line = next(line for line in dialogue_lines if "FIRST" in line)
+    second_line = next(line for line in dialogue_lines if "SECOND" in line)
+    expected_first = subtitle_renderer.position_ass_dialogue_events(
+        [subtitle_renderer.format_ass_dialogue(0.0, 1.0, "FIRST")],
+        subtitle_position=80,
+        font_size=subtitle_renderer.settings_utils.font_size_for_ass_rendering(62),
+        play_res_x=1080,
+        play_res_y=1920,
+    )[0]
+    expected_second = subtitle_renderer.position_ass_dialogue_events(
+        [subtitle_renderer.format_ass_dialogue(1.0, 2.0, "SECOND")],
+        subtitle_position=20,
+        font_size=subtitle_renderer.settings_utils.font_size_for_ass_rendering(62),
+        play_res_x=1080,
+        play_res_y=1920,
+    )[0]
+
+    first_position = re.search(r"\\pos\([^}]+\)", expected_first)
+    second_position = re.search(r"\\pos\([^}]+\)", expected_second)
+    assert first_position is not None
+    assert second_position is not None
+    assert first_position.group() in first_line
+    assert second_position.group() in second_line
+    assert first_position.group() != second_position.group()
+
+
 def test_create_styled_subtitle_file_requires_a_source():
     with pytest.raises(ValueError, match="transcript_path or cues"):
         subtitle_renderer.create_styled_subtitle_file()
@@ -246,13 +287,14 @@ def test_wrap_lines_empty():
 def test_split_long_cues_logic():
     # Long cue that needs splitting
     long_text = "This is a very long text that definitely needs to be split into smaller pieces"
-    cues = [Cue(0.0, 10.0, long_text)]
+    cues = [Cue(0.0, 10.0, long_text, position=74)]
 
     # Mock max chars to force split
     split_cues = subtitle_renderer.split_long_cues(cues, max_chars=20)
     assert len(split_cues) > 1
     assert split_cues[0].start == 0.0
     assert split_cues[-1].end == 10.0
+    assert all(cue.position == 74 for cue in split_cues)
 
 
 def test_transcribe_with_openai_success(monkeypatch, tmp_path):

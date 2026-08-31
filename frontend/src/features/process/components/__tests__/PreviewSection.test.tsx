@@ -40,7 +40,7 @@ jest.mock("@/components/PreviewPlayer", () => ({
         onBeginEdit: (index: number) => void;
       };
       subtitleTransformControls?: {
-        onPositionChange: (position: number) => void;
+        onPositionChange: (cueIndex: number, position: number) => void;
         onSizeChange: (size: number) => void;
       };
     },
@@ -72,7 +72,7 @@ jest.mock("@/components/PreviewPlayer", () => ({
         <button
           type="button"
           data-testid="position-on-video"
-          onClick={() => subtitleTransformControls?.onPositionChange(42)}
+          onClick={() => subtitleTransformControls?.onPositionChange(0, 42)}
         >
           position-on-video
         </button>
@@ -149,6 +149,10 @@ function buildContext() {
     cues: [{ start: 0, end: 1, text: "hello" }],
     subtitlePosition: 20,
     setSubtitlePosition: jest.fn(),
+    changeCuePosition: jest.fn(),
+    commitCuePosition: jest.fn(async () => {}),
+    cancelCuePosition: jest.fn(),
+    resetCuePosition: jest.fn(async () => {}),
     subtitleColor: "#FFFF00",
     subtitleSize: 100,
     setSubtitleSize: jest.fn(),
@@ -221,8 +225,25 @@ describe("PreviewSection", () => {
 
     fireEvent.click(screen.getByTestId("position-on-video"));
     fireEvent.click(screen.getByTestId("resize-on-video"));
-    expect(contextValue.setSubtitlePosition).toHaveBeenCalledWith(42);
+    expect(contextValue.changeCuePosition).toHaveBeenCalledWith(0, 42, "cue");
+    expect(contextValue.setSubtitlePosition).not.toHaveBeenCalled();
     expect(contextValue.setSubtitleSize).toHaveBeenCalledWith(115);
+
+    const positionScope = screen.getByRole("switch", {
+      name: "subtitlePositionScopeLabel",
+    });
+    expect(screen.getByTestId("editor-phone")).toContainElement(positionScope);
+    expect(positionScope).toBeChecked();
+    expect(screen.getByText("subtitleDragHandleLabel")).toBeInTheDocument();
+    fireEvent.click(positionScope);
+    expect(positionScope).not.toBeChecked();
+    expect(screen.getByText("subtitleDragAllHandleLabel")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("position-on-video"));
+    expect(contextValue.changeCuePosition).toHaveBeenLastCalledWith(
+      0,
+      42,
+      "all",
+    );
 
     // REGRESSION: persistent transport controls covered the video and
     // subtitles on narrow mobile screens. Playback is gesture-first now.

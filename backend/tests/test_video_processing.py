@@ -1,3 +1,4 @@
+import json
 import shutil
 import types
 from collections.abc import Iterator
@@ -45,6 +46,34 @@ def test_ass_font_calibration_matches_browser_visual_weight() -> None:
     assert settings_utils.font_size_for_ass_rendering(31) == 35
     assert settings_utils.font_size_for_ass_rendering(62) == 69
     assert settings_utils.font_size_for_ass_rendering(93) == 104
+
+
+def test_load_persisted_cues_preserves_optional_positions(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcription.json"
+    transcript.write_text(
+        json.dumps(
+            [
+                {"start": 0, "end": 1, "text": "custom", "position": 78},
+                {"start": 1, "end": 2, "text": "shared"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    cues = video_processing._load_persisted_cues(transcript)
+
+    assert cues is not None
+    assert [cue.position for cue in cues] == [78, None]
+
+
+def test_load_persisted_cues_rejects_invalid_position(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcription.json"
+    transcript.write_text(
+        json.dumps([{"start": 0, "end": 1, "text": "bad", "position": 100}]),
+        encoding="utf-8",
+    )
+
+    assert video_processing._load_persisted_cues(transcript) is None
 
 
 def test_process_video_pipeline_runs_pipeline(monkeypatch, tmp_path: Path):

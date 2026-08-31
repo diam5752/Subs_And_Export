@@ -274,11 +274,10 @@ export const PreviewPlayer = memo(
         SubtitleTransformControls | undefined
       >(() => {
         if (!subtitleTransformControls) return undefined;
-        return {
-          ...subtitleTransformControls,
-          onInteractionStart: pauseForSubtitleInteraction,
-        };
-      }, [pauseForSubtitleInteraction, subtitleTransformControls]);
+        // Positioning is a live canvas interaction. Playback continues and the
+        // gesture remains pinned to the cue that was active at pointer-down.
+        return subtitleTransformControls;
+      }, [subtitleTransformControls]);
 
       // Handle time update from video
       const handleTimeUpdate = () => {

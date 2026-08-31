@@ -101,6 +101,7 @@ def test_completed_job_edit_is_preserved_in_owned_srt_export(monkeypatch, tmp_pa
                     "start": 0.0,
                     "end": 1.0,
                     "text": "γειά κόσμε",
+                    "position": 72,
                     "words": [
                         {"start": 0.0, "end": 0.5, "text": "γειά"},
                         {"start": 0.5, "end": 1.0, "text": "κόσμε"},
@@ -119,6 +120,7 @@ def test_completed_job_edit_is_preserved_in_owned_srt_export(monkeypatch, tmp_pa
                 "start": 0.0,
                 "end": 1.0,
                 "text": "ΓΕΙΑ ΚΟΣΜΕ",
+                "position": 72,
                 "words": [
                     {"start": 0.0, "end": 0.5, "text": "ΓΕΙΑ"},
                     {"start": 0.5, "end": 1.0, "text": "ΚΟΣΜΕ"},
@@ -129,6 +131,13 @@ def test_completed_job_edit_is_preserved_in_owned_srt_export(monkeypatch, tmp_pa
         job_detail = client.get(f"/videos/jobs/{job_id}", headers=headers)
         assert job_detail.status_code == 200, job_detail.text
         assert job_detail.json()["result_data"]["transcription_edited"] is True
+
+        invalid_position = client.put(
+            f"/videos/jobs/{job_id}/transcription",
+            headers=headers,
+            json={"cues": [{"start": 0.0, "end": 1.0, "text": "bad", "position": 96}]},
+        )
+        assert invalid_position.status_code == 422
 
         # REGRESSION: the editor, exporter, and private static route must all
         # use the latest persisted transcript instead of the original SRT.

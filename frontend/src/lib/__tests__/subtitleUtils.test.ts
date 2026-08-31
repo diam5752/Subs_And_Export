@@ -48,7 +48,39 @@ describe("resegmentCues", () => {
   });
 
   it("should return original cues if maxLines is 0 (One Word Mode)", () => {
-    expect(resegmentCues(mockCues, 0, 100)).toEqual(mockCues);
+    expect(resegmentCues(mockCues, 0, 100)).toEqual(
+      mockCues.map((cue, sourceCueIndex) => ({ ...cue, sourceCueIndex })),
+    );
+  });
+
+  it("preserves a cue-local position and source index across splitting", () => {
+    const result = resegmentCues(
+      [
+        {
+          start: 0,
+          end: 4,
+          text: "one two three four five six seven eight",
+          position: 74,
+          words: [
+            { start: 0, end: 0.5, text: "one" },
+            { start: 0.5, end: 1, text: "two" },
+            { start: 1, end: 1.5, text: "three" },
+            { start: 1.5, end: 2, text: "four" },
+            { start: 2, end: 2.5, text: "five" },
+            { start: 2.5, end: 3, text: "six" },
+            { start: 3, end: 3.5, text: "seven" },
+            { start: 3.5, end: 4, text: "eight" },
+          ],
+        },
+      ],
+      1,
+      150,
+    );
+
+    expect(result.length).toBeGreaterThan(1);
+    expect(
+      result.every((cue) => cue.position === 74 && cue.sourceCueIndex === 0),
+    ).toBe(true);
   });
 
   it("should regroup words into new cues based on maxLines", () => {

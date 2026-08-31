@@ -20,3 +20,6 @@ class Cue:
     end: float
     text: str
     words: list[WordTiming] | None = None
+    # Optional cue-local override. When absent, rendering uses the job-wide
+    # subtitle position so older transcripts keep their existing behaviour.
+    position: int | None = None

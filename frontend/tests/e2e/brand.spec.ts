@@ -111,7 +111,14 @@ test("the editor keeps advanced output toggles out of the style workspace", asyn
   await page.goto("/");
   await page.getByTestId("completed-editor").waitFor({ timeout: 30_000 });
   await page.getByRole("tab", { name: el.tabStyles }).click();
-  await expect(page.getByRole("switch")).toHaveCount(0);
+  await expect(
+    page.getByTestId("editor-phone").getByRole("switch", {
+      name: el.subtitlePositionScopeLabel,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("editor-style-panel").getByRole("switch"),
+  ).toHaveCount(0);
   await expect(
     page.getByText("Λειτουργία Karaoke", { exact: true }),
   ).toHaveCount(0);

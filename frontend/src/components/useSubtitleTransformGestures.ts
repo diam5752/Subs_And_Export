@@ -14,6 +14,7 @@ type PointerPoint = { x: number; y: number };
 
 type SinglePointerGesture = {
   mode: "position" | "size";
+  sourceCueIndex: number;
   pointerId: number;
   startX: number;
   startY: number;
@@ -154,6 +155,7 @@ function moveSinglePointerGesture(
   if (gesture.mode === "position") {
     const positionDelta = -(deltaY / Math.max(1, videoHeight)) * 100;
     controls.onPositionChange(
+      gesture.sourceCueIndex,
       clampAndRound(
         gesture.startPosition + positionDelta,
         SUBTITLE_POSITION_MIN,
@@ -193,10 +195,18 @@ function finishSinglePointerGesture(
   gesture: SinglePointerGesture,
   cancelled: boolean,
   refs: GestureRefs,
+  controls?: SubtitleTransformControls,
 ): void {
   if (gesture.pointerId !== event.pointerId) return;
   refs.gesture.current = null;
   releasePointer(refs.overlay.current, event.pointerId);
+  if (gesture.mode === "position" && gesture.moved) {
+    if (cancelled) {
+      controls?.onPositionCancel?.(gesture.sourceCueIndex);
+    } else {
+      controls?.onPositionCommit?.(gesture.sourceCueIndex);
+    }
+  }
   if (cancelled || !gesture.moved) refs.suppressClick.current = false;
 }
 
@@ -217,6 +227,7 @@ function nextKeyboardValue(
 export function useSubtitleTransformGestures({
   hasActiveCue,
   position,
+  sourceCueIndex,
   fontSize,
   videoWidth,
   videoHeight,
@@ -225,6 +236,7 @@ export function useSubtitleTransformGestures({
 }: {
   hasActiveCue: boolean;
   position: number;
+  sourceCueIndex: number;
   fontSize: number;
   videoWidth: number;
   videoHeight: number;
@@ -235,6 +247,7 @@ export function useSubtitleTransformGestures({
   const gestureRef = useRef<TransformGesture | null>(null);
   const activeTouchPointsRef = useRef<Map<number, PointerPoint>>(new Map());
   const suppressClickRef = useRef(false);
+  const transformControlsRef = useRef(transformControls);
   const refs: GestureRefs = useMemo(
     () => ({
       overlay: overlayRef,
@@ -245,9 +258,16 @@ export function useSubtitleTransformGestures({
     [],
   );
 
+  useEffect(() => {
+    transformControlsRef.current = transformControls;
+  }, [transformControls]);
+
   const resetTransformGesture = useCallback(() => {
     const pointerIds = new Set(activeTouchPointsRef.current.keys());
     const gesture = gestureRef.current;
+    if (gesture?.mode === "position" && gesture.moved) {
+      transformControlsRef.current?.onPositionCancel?.(gesture.sourceCueIndex);
+    }
     if (gesture?.mode === "pinch") {
       gesture.pointerIds.forEach((pointerId) => pointerIds.add(pointerId));
     } else if (gesture) {
@@ -283,6 +303,7 @@ export function useSubtitleTransformGestures({
       suppressClickRef.current = false;
       gestureRef.current = {
         mode,
+        sourceCueIndex,
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
@@ -293,7 +314,7 @@ export function useSubtitleTransformGestures({
       transformControls.onInteractionStart?.();
       if (mode === "size") capturePointer(overlayRef.current, event.pointerId);
     },
-    [fontSize, position, refs, transformControls],
+    [fontSize, position, refs, sourceCueIndex, transformControls],
   );
 
   const handlePositionPointerDown = useCallback(
@@ -363,9 +384,15 @@ export function useSubtitleTransformGestures({
         finishPinchGesture(event, gesture, cancelled, refs);
         return;
       }
-      finishSinglePointerGesture(event, gesture, cancelled, refs);
+      finishSinglePointerGesture(
+        event,
+        gesture,
+        cancelled,
+        refs,
+        transformControls,
+      );
     },
-    [refs],
+    [refs, transformControls],
   );
 
   const handleLostPointerCapture = useCallback(
@@ -409,14 +436,16 @@ export function useSubtitleTransformGestures({
       event.stopPropagation();
       transformControls.onInteractionStart?.();
       transformControls.onPositionChange(
+        sourceCueIndex,
         clampAndRound(
           nextPosition,
           SUBTITLE_POSITION_MIN,
           SUBTITLE_POSITION_MAX,
         ),
       );
+      transformControls.onPositionCommit?.(sourceCueIndex);
     },
-    [position, transformControls],
+    [position, sourceCueIndex, transformControls],
   );
 
   const handleSizeKeyDown = useCallback(

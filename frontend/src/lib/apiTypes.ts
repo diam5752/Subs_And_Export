@@ -444,4 +444,5 @@ export interface TranscriptionCue {
   end: number;
   text: string;
   words?: TranscriptionWordTiming[] | null;
+  position?: number | null;
 }

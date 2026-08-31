@@ -95,6 +95,16 @@ async function readEditorMetrics(page: Page) {
         .length,
       preview: bounds('[data-testid="editor-preview-panel"]'),
       phone: bounds('[data-testid="editor-phone"]'),
+      positionScope: bounds(".subtitle-position-scope-toggle"),
+      positionScopeInsidePhone: Boolean(
+        document
+          .querySelector<HTMLElement>('[data-testid="editor-phone"]')
+          ?.contains(
+            document.querySelector<HTMLElement>(
+              ".subtitle-position-scope-toggle",
+            ) ?? null,
+          ),
+      ),
       sidebar: bounds('[data-testid="editor-sidebar"]'),
       tabsSticky: bounds(".editor-tabs-sticky"),
       transcriptList: bounds(".editor-transcript-list"),
@@ -192,6 +202,22 @@ function expectBaseEditorMetrics(
     metrics.phone.width,
     `${viewport.width}px phone width`,
   ).toBeLessThanOrEqual(280);
+  expect(
+    metrics.positionScopeInsidePhone,
+    `${viewport.width}px scope toggle placement`,
+  ).toBe(true);
+  expect(
+    metrics.positionScope.height,
+    `${viewport.width}px scope toggle touch target`,
+  ).toBeGreaterThanOrEqual(44);
+  expect(
+    metrics.positionScope.x,
+    `${viewport.width}px scope toggle left containment`,
+  ).toBeGreaterThanOrEqual(metrics.phone.x - 1);
+  expect(
+    metrics.positionScope.right,
+    `${viewport.width}px scope toggle right containment`,
+  ).toBeLessThanOrEqual(metrics.phone.right + 1);
   expect(
     metrics.transcriptList.y,
     `${viewport.width}px transcript below sticky tabs`,

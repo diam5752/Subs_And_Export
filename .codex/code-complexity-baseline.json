@@ -469,13 +469,13 @@
         114
       ],
       "frontend/src/features/process/CueItem.tsx::(anonymous)": [
-        79
+        71
       ],
       "frontend/src/features/process/ProcessContext.tsx::(anonymous)": [
         54
       ],
       "frontend/src/features/process/ProcessContext.tsx::ProcessProvider": [
-        165
+        163
       ],
       "frontend/src/features/process/components/PreviewSection.tsx::PreviewSection": [
         62

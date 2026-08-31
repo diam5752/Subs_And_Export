@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -100,6 +100,7 @@ class TranscriptionCuePayload(TypedDict):
     end: float
     text: str
     words: list[TranscriptionWordPayload] | None
+    position: NotRequired[int]
 
 
 def ensure_job_integrity(job: Job) -> Job:
@@ -253,6 +254,7 @@ class TranscriptionCueRequest(BaseModel):
     end: float
     text: str = Field(..., max_length=2000)
     words: list[TranscriptionWordRequest] | None = Field(None, max_length=100)
+    position: int | None = Field(None, ge=5, le=95)
 
 
 class UpdateTranscriptionRequest(BaseModel):
@@ -263,32 +265,39 @@ def _normalize_transcription_text(text: str) -> str:
     return " ".join(normalize_text(text).split())
 
 
+def _normalize_transcription_words(
+    words: list[TranscriptionWordRequest] | None,
+) -> list[TranscriptionWordPayload] | None:
+    if words is None:
+        return None
+    payload: list[TranscriptionWordPayload] = []
+    for word in words:
+        normalized_word = _normalize_transcription_text(word.text)
+        if normalized_word:
+            payload.append({"start": word.start, "end": word.end, "text": normalized_word})
+    return payload
+
+
+def _normalize_transcription_cue(cue: TranscriptionCueRequest) -> TranscriptionCuePayload:
+    words_payload = _normalize_transcription_words(cue.words)
+    normalized_text = _normalize_transcription_text(cue.text)
+    if words_payload:
+        normalized_text = " ".join(word["text"] for word in words_payload)
+    payload: TranscriptionCuePayload = {
+        "start": cue.start,
+        "end": cue.end,
+        "text": normalized_text,
+        "words": words_payload,
+    }
+    if cue.position is not None:
+        payload["position"] = cue.position
+    return payload
+
+
 def _normalize_transcription_payload(
     cues: list[TranscriptionCueRequest],
 ) -> list[TranscriptionCuePayload]:
-    payload: list[TranscriptionCuePayload] = []
-    for cue in cues:
-        words_payload: list[TranscriptionWordPayload] | None = None
-        if cue.words is not None:
-            words_payload = []
-            for word in cue.words:
-                normalized_word = _normalize_transcription_text(word.text)
-                if normalized_word:
-                    words_payload.append({"start": word.start, "end": word.end, "text": normalized_word})
-
-        normalized_text = _normalize_transcription_text(cue.text)
-        if words_payload:
-            normalized_text = " ".join(word["text"] for word in words_payload)
-
-        payload.append(
-            {
-                "start": cue.start,
-                "end": cue.end,
-                "text": normalized_text,
-                "words": words_payload,
-            }
-        )
-    return payload
+    return [_normalize_transcription_cue(cue) for cue in cues]
 
 
 @router.put("/jobs/{job_id}/transcription", dependencies=[Depends(limiter_content)])

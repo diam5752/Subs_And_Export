@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type {
   InlineSubtitleEditorConfig,
   SubtitleTransformConfig,
 } from "@/components/PreviewPlayer";
+import type { SubtitlePositionScope } from "@/components/SubtitleOverlay";
 import { useI18n } from "@/context/I18nContext";
 import { useProcessContext } from "../ProcessContext";
 
@@ -59,18 +60,103 @@ export function usePreviewSubtitleEditor(): InlineSubtitleEditorConfig {
   );
 }
 
-export function usePreviewSubtitleTransforms(): SubtitleTransformConfig {
+export interface LiveSubtitlePositioning {
+  scope: SubtitlePositionScope;
+  disabled: boolean;
+  onScopeChange: (scope: SubtitlePositionScope) => void;
+  transformControls?: SubtitleTransformConfig;
+}
+
+type Translate = ReturnType<typeof useI18n>["t"];
+
+interface SubtitlePositionActions {
+  change: (
+    sourceCueIndex: number,
+    position: number,
+    scope: SubtitlePositionScope,
+  ) => void;
+  commit: (
+    sourceCueIndex: number,
+    scope: SubtitlePositionScope,
+  ) => Promise<void>;
+  cancel: (sourceCueIndex: number, scope: SubtitlePositionScope) => void;
+  reset: (sourceCueIndex: number) => Promise<void>;
+  resize: (size: number) => void;
+}
+
+function buildSubtitleTransformControls(
+  scope: SubtitlePositionScope,
+  t: Translate,
+  actions: SubtitlePositionActions,
+): SubtitleTransformConfig {
+  return {
+    labels: {
+      move: t(
+        scope === "cue"
+          ? "subtitleDragHandleLabel"
+          : "subtitleDragAllHandleLabel",
+      ),
+      resize: t("subtitleResizeHandleLabel"),
+      customPosition: t("subtitleCustomPosition"),
+      sharedPosition: t("subtitleSharedPosition"),
+      resetPosition: t("subtitleResetPosition"),
+    },
+    onPositionChange: (sourceCueIndex, position) => {
+      actions.change(sourceCueIndex, position, scope);
+    },
+    onPositionCommit: (sourceCueIndex) => {
+      void actions.commit(sourceCueIndex, scope);
+    },
+    onPositionCancel: (sourceCueIndex) => {
+      actions.cancel(sourceCueIndex, scope);
+    },
+    onPositionReset:
+      scope === "cue"
+        ? (sourceCueIndex: number) => {
+            void actions.reset(sourceCueIndex);
+          }
+        : undefined,
+    onSizeChange: actions.resize,
+  };
+}
+
+export function useLiveSubtitlePositioning(): LiveSubtitlePositioning {
   const { t } = useI18n();
-  const process = useProcessContext();
-  return useMemo(
-    () => ({
-      labels: {
-        move: t("subtitleDragHandleLabel"),
-        resize: t("subtitleResizeHandleLabel"),
-      },
-      onPositionChange: process.setSubtitlePosition,
-      onSizeChange: process.setSubtitleSize,
-    }),
-    [process.setSubtitlePosition, process.setSubtitleSize, t],
+  const {
+    cancelCuePosition,
+    changeCuePosition,
+    commitCuePosition,
+    isSavingTranscript,
+    resetCuePosition,
+    setSubtitleSize,
+  } = useProcessContext();
+  const [scope, setScope] = useState<SubtitlePositionScope>("cue");
+  const transformControls = useMemo<SubtitleTransformConfig | undefined>(
+    () =>
+      isSavingTranscript
+        ? undefined
+        : buildSubtitleTransformControls(scope, t, {
+            change: changeCuePosition,
+            commit: commitCuePosition,
+            cancel: cancelCuePosition,
+            reset: resetCuePosition,
+            resize: setSubtitleSize,
+          }),
+    [
+      cancelCuePosition,
+      changeCuePosition,
+      commitCuePosition,
+      isSavingTranscript,
+      resetCuePosition,
+      setSubtitleSize,
+      scope,
+      t,
+    ],
   );
+  return {
+    scope,
+    disabled: isSavingTranscript,
+    onScopeChange: setScope,
+    transformControls,
+  };
 }

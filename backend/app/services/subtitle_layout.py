@@ -353,13 +353,20 @@ def _expand_timed_words(words: Sequence[WordTiming]) -> List[WordTiming]:
     return expanded
 
 
-def _timed_chunk_to_cue(chunk_words: Sequence[WordTiming], *, cue_end: float, is_last: bool) -> Cue:
+def _timed_chunk_to_cue(
+    chunk_words: Sequence[WordTiming],
+    *,
+    cue_end: float,
+    is_last: bool,
+    position: int | None,
+) -> Cue:
     chunk_end = max(chunk_words[-1].end, cue_end) if is_last else chunk_words[-1].end
     return Cue(
         start=chunk_words[0].start,
         end=chunk_end,
         text=" ".join(word.text for word in chunk_words),
         words=list(chunk_words),
+        position=position,
     )
 
 
@@ -368,7 +375,12 @@ def _split_timed_cue(cue: Cue, *, max_chars: int, max_lines: int) -> List[Cue]:
     all_words = _expand_timed_words(cue.words)
     word_chunks = chunk_items(all_words, lambda word: word.text, max_chars, max_lines)
     return [
-        _timed_chunk_to_cue(chunk, cue_end=cue.end, is_last=index == len(word_chunks) - 1)
+        _timed_chunk_to_cue(
+            chunk,
+            cue_end=cue.end,
+            is_last=index == len(word_chunks) - 1,
+            position=cue.position,
+        )
         for index, chunk in enumerate(word_chunks)
     ]
 
@@ -402,7 +414,15 @@ def _split_untimed_cue(cue: Cue, *, max_chars: int, max_lines: int) -> List[Cue]
             total_chars=total_chars,
             is_last=index == len(text_chunks) - 1,
         )
-        split_cues.append(Cue(start=current_start, end=chunk_end, text=chunk_text, words=None))
+        split_cues.append(
+            Cue(
+                start=current_start,
+                end=chunk_end,
+                text=chunk_text,
+                words=None,
+                position=cue.position,
+            )
+        )
         current_start = chunk_end
     return split_cues
 
