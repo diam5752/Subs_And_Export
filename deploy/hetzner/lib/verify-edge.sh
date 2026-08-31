@@ -83,7 +83,7 @@ verify_edge_and_endpoint_contracts() {
     }
   done
 
-  if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c '
+  if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   import sys
 
   source = sys.stdin.read()
@@ -101,7 +101,7 @@ verify_edge_and_endpoint_contracts() {
       raise SystemExit("Stable gateway must remain data-blind.")
   if source.count("name app-edge") != 2:
       raise SystemExit("Stable gateway must expose only the two reviewed app-edge ports.")
-  '; then
+  """), "<gsubs-production-verifier>", "exec"))'; then
     echo "Running stable gateway contract is unsafe." >&2
     exit 1
   fi
@@ -111,7 +111,7 @@ verify_edge_and_endpoint_contracts() {
   # deploy verification. The structural check below is performed against the
   # read-only file mounted in the running edge, while the subsequent HTTP probes
   # use method/path combinations proven to terminate at the local 404 handler.
-  if ! docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c '
+  if ! docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   from __future__ import annotations
 
   from collections import Counter
@@ -282,12 +282,12 @@ verify_edge_and_endpoint_contracts() {
       raise SystemExit("Provider relay must end in one default-deny response.")
   if any(secret in relay for secret in ("ELEVENLABS_API_KEY", "STRIPE_RESTRICTED_KEY", "GOOGLE_CLIENT_SECRET")):
       raise SystemExit("Provider credentials must not be embedded in the edge relay.")
-  '; then
+  """), "<gsubs-production-verifier>", "exec"))'; then
     echo "Running provider relay contract is unsafe." >&2
     exit 1
   fi
 
-  relay_deny_http=$(docker exec "$backend_id" python -c '
+  relay_deny_http=$(docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   import urllib.error
   import urllib.request
 
@@ -317,7 +317,7 @@ verify_edge_and_endpoint_contracts() {
       else:
           statuses.append(str(response.status))
   print(",".join(statuses))
-  ')
+  """), "<gsubs-production-verifier>", "exec"))')
   [ "$relay_deny_http" = "404,404,404,404,404,404,404" ] || {
     echo "Provider relay local default-deny checks failed: $relay_deny_http" >&2
     exit 1
@@ -346,7 +346,7 @@ verify_edge_and_endpoint_contracts() {
     echo "curl or wget is required for loopback verification." >&2
     exit 1
   fi
-  printf '%s' "$health_json" | docker exec -i "$backend_id" python -c '
+  printf '%s' "$health_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   import json
   import sys
 
@@ -355,8 +355,8 @@ verify_edge_and_endpoint_contracts() {
       raise SystemExit("Production health endpoint must report status=ok")
   if health.get("app_env") != "production":
       raise SystemExit("Production health endpoint must report app_env=production")
-  '
-  printf '%s' "$catalog_json" | docker exec -i "$backend_id" python -c '
+  """), "<gsubs-production-verifier>", "exec"))'
+  printf '%s' "$catalog_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   import json
   import sys
 
@@ -367,15 +367,15 @@ verify_edge_and_endpoint_contracts() {
       raise SystemExit("Production billing catalog must expose the approved consumer contract")
   if not isinstance(catalog.get("consumer_contract"), dict):
       raise SystemExit("Production billing catalog must publish the approved consumer contract")
-  '
-  printf '%s' "$feedback_canary_json" | docker exec -i "$backend_id" python -c '
+  """), "<gsubs-production-verifier>", "exec"))'
+  printf '%s' "$feedback_canary_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   import json
   import sys
 
   payload = json.load(sys.stdin)
   if payload != {"status": "received", "id": None}:
       raise SystemExit("Production feedback honeypot canary must succeed without persistence")
-  '
+  """), "<gsubs-production-verifier>", "exec"))'
 
   if [ "$candidate_mode" -eq 0 ]; then
     if [ ! -f "$STATE_FILE" ] || [ -L "$STATE_FILE" ] ||
