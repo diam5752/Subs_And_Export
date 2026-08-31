@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -149,10 +150,111 @@ def test_github_and_make_use_the_same_isolated_local_ci_entrypoint() -> None:
     assert "mypy backend/app .codex/scripts/run_isolated_quality_gate.py" in (quality_contract)
     assert '"check:complexity"' in quality_contract
     assert "check_code_complexity.py" in quality_contract
-    assert "shellcheck .codex/scripts/*.sh deploy/hetzner/*.sh" in quality_contract
+    assert "find .codex/scripts deploy/hetzner -type f -name '*.sh' -exec shellcheck {} +" in (quality_contract)
     assert "check_coverage_thresholds.py .coverage.json --lines 90 --branches 80" in quality_contract
     assert "check-complexity:" in make_contract
     assert "`make ci` is the canonical local and GitHub entrypoint" in readme
+
+
+def test_format_and_structural_quality_policies_have_no_legacy_exemptions() -> None:
+    contract = json.loads((REPOSITORY_ROOT / ".codex" / "quality-gates.json").read_text(encoding="utf-8"))
+    policy = contract["policy"]
+
+    assert policy["formatting"] == {
+        "type": "hard_gate",
+        "python": {"tool": "ruff==0.16.5", "command": "ruff format"},
+        "frontend_web": {"tool": "prettier==3.9.6", "command": "prettier"},
+    }
+    assert policy["cognitive_complexity"]["max_per_function"] == 15
+    assert policy["cognitive_complexity"]["legacy_exemptions"] == 0
+    assert policy["duplicate_code"]["duplicated_lines_pct_max"] == 3
+    assert policy["duplicate_code"]["minimum_clone_lines"] == 10
+    assert policy["duplicate_code"]["minimum_clone_tokens"] == 100
+    assert policy["duplicate_code"]["legacy_exemptions"] == 0
+    assert policy["file_length"] == {
+        "type": "hard_gate",
+        "physical_lines_max": 700,
+        "scope": "tracked_and_untracked_nonignored_hand_written_code",
+        "legacy_exemptions": 0,
+    }
+    assert policy["inline_quality_suppressions"] == {
+        "type": "hard_gate",
+        "allowed": 0,
+        "covers": [
+            "Ruff formatter off or skip markers",
+            "Prettier ignore markers",
+            "PMD NOPMD markers",
+            "PMD SuppressWarnings annotations",
+            "jscpd ignore markers",
+        ],
+    }
+
+
+def test_canonical_tools_and_structural_checks_are_wired_into_fast_ci() -> None:
+    contract = json.loads((REPOSITORY_ROOT / ".codex" / "quality-gates.json").read_text(encoding="utf-8"))
+    make_contract = (REPOSITORY_ROOT / ".codex" / "quality.mk").read_text(encoding="utf-8")
+    pyproject = (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    frontend_package = json.loads((REPOSITORY_ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
+    pom = (REPOSITORY_ROOT / "pom.xml").read_text(encoding="utf-8")
+    pmd_ruleset = (REPOSITORY_ROOT / ".codex" / "pmd-cognitive-ruleset.xml").read_text(encoding="utf-8")
+    commands = contract["commands"]
+
+    assert commands["check:format"]["status"] == "enabled"
+    assert (
+        "git ls-files -z --cached --others --exclude-standard '*.py' '*.pyi'"
+        in commands["check:cognitive:python"]["shell"]
+    )
+    assert commands["check:cognitive"]["steps"] == [
+        "check:cognitive:python",
+        "check:cognitive:frontend",
+        "check:cognitive:java",
+    ]
+    assert commands["check:duplicates"]["status"] == "enabled"
+    assert commands["check:file-length"]["status"] == "enabled"
+    assert commands["check:quality-suppressions"] == {
+        "kind": "shell",
+        "shell": "python3 .codex/scripts/check_quality_suppressions.py",
+        "status": "enabled",
+    }
+    for gate in (
+        "check:format",
+        "check:file-length",
+        "check:quality-suppressions",
+        "check:cognitive",
+        "check:duplicates",
+    ):
+        assert gate in commands["check:fast"]["steps"]
+
+    for target in (
+        "format:",
+        "check-format:",
+        "check-cognitive:",
+        "check-duplicates:",
+        "check-file-length:",
+        "check-quality-suppressions:",
+    ):
+        assert target in make_contract
+    assert '"ruff==0.16.5"' in pyproject
+    assert '"complexipy==7.0.1"' in pyproject
+    assert "check_quality_suppressions.py" in commands["check:static"]["shell"]
+    assert frontend_package["devDependencies"]["prettier"] == "3.9.6"
+    assert frontend_package["devDependencies"]["jscpd"] == "5.1.0"
+    assert frontend_package["devDependencies"]["eslint-plugin-sonarjs"] == "4.2.0"
+    assert frontend_package["devDependencies"]["@typescript-eslint/parser"] == "8.65.0"
+    assert frontend_package["scripts"]["format:check"] == "prettier --check ."
+    assert frontend_package["scripts"]["analyze:duplicates"].endswith(" ..")
+    assert "sonarjs/cognitive-complexity" in (REPOSITORY_ROOT / "frontend" / "eslint.cognitive.config.mjs").read_text(
+        encoding="utf-8"
+    )
+    assert "noInlineConfig: true" in (REPOSITORY_ROOT / "frontend" / "eslint.cognitive.config.mjs").read_text(
+        encoding="utf-8"
+    )
+    assert "<maven.pmd.version>3.28.0</maven.pmd.version>" in pom
+    assert "<pmd.version>7.27.0</pmd.version>" in pom
+    for pmd_module in ("pmd-core", "pmd-java", "pmd-javascript", "pmd-jsp"):
+        assert f"<artifactId>{pmd_module}</artifactId>" in pom
+    assert pom.count("<version>${pmd.version}</version>") == 4
+    assert '<property name="reportLevel" value="16" />' in pmd_ruleset
 
 
 def test_coverage_gate_enforces_lines_and_branches_independently(
@@ -162,8 +264,7 @@ def test_coverage_gate_enforces_lines_and_branches_independently(
     gate = load_coverage_gate()
     report = tmp_path / "coverage.json"
     report.write_text(
-        '{"totals":{"covered_lines":91,"num_statements":100,'
-        '"covered_branches":81,"num_branches":100}}',
+        '{"totals":{"covered_lines":91,"num_statements":100,"covered_branches":81,"num_branches":100}}',
         encoding="utf-8",
     )
 
@@ -188,7 +289,7 @@ def test_coverage_gate_fails_when_one_metric_drops_below_its_floor(
         '{"totals":{'
         f'"covered_lines":{covered_lines},"num_statements":100,'
         f'"covered_branches":{covered_branches},"num_branches":100'
-        '}}',
+        "}}",
         encoding="utf-8",
     )
 
@@ -205,8 +306,7 @@ def test_coverage_gate_rejects_reports_without_branch_data(
     gate = load_coverage_gate()
     report = tmp_path / "coverage.json"
     report.write_text(
-        '{"totals":{"covered_lines":91,"num_statements":100,'
-        '"covered_branches":0,"num_branches":0}}',
+        '{"totals":{"covered_lines":91,"num_statements":100,"covered_branches":0,"num_branches":0}}',
         encoding="utf-8",
     )
 
@@ -234,9 +334,7 @@ def test_supply_chain_and_container_workflows_cover_release_inputs() -> None:
     supply_chain = (workflow_directory / "supply-chain.yml").read_text(encoding="utf-8")
     containers = (workflow_directory / "container-images.yml").read_text(encoding="utf-8")
     dependabot = (REPOSITORY_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
-    wrapper = (REPOSITORY_ROOT / ".mvn" / "wrapper" / "maven-wrapper.properties").read_text(
-        encoding="utf-8"
-    )
+    wrapper = (REPOSITORY_ROOT / ".mvn" / "wrapper" / "maven-wrapper.properties").read_text(encoding="utf-8")
 
     for language in ("javascript-typescript", "python", "java-kotlin"):
         assert language in codeql
@@ -249,17 +347,12 @@ def test_supply_chain_and_container_workflows_cover_release_inputs() -> None:
     assert "severity: HIGH,CRITICAL" in containers
     for ecosystem in ("github-actions", "npm", "pip", "maven", "docker"):
         assert f"package-ecosystem: {ecosystem}" in dependabot
-    assert (
-        "distributionSha256Sum=55fadd669532a3205d5db95f490bf13971d8b0843526f407f29db0e61f074ab3"
-        in wrapper
-    )
+    assert "distributionSha256Sum=55fadd669532a3205d5db95f490bf13971d8b0843526f407f29db0e61f074ab3" in wrapper
 
 
 def test_runtime_images_apply_security_updates_and_drop_unused_package_managers() -> None:
     backend_dockerfile = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    frontend_dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(
-        encoding="utf-8"
-    )
+    frontend_dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
 
     assert "apt-get update && apt-get upgrade -y" in backend_dockerfile
     assert "apk upgrade --no-cache" in frontend_dockerfile
@@ -274,12 +367,8 @@ def test_java_crypto_provider_stays_on_the_reviewed_security_floor() -> None:
 
 
 def test_shell_gate_keeps_backup_validation_effectful_and_audits_dependencies() -> None:
-    verify_backup = (REPOSITORY_ROOT / "deploy" / "hetzner" / "verify-backup.sh").read_text(
-        encoding="utf-8"
-    )
-    security_gate = (REPOSITORY_ROOT / ".codex" / "scripts" / "run_security_gate.sh").read_text(
-        encoding="utf-8"
-    )
+    verify_backup = (REPOSITORY_ROOT / "deploy" / "hetzner" / "verify-backup.sh").read_text(encoding="utf-8")
+    security_gate = (REPOSITORY_ROOT / ".codex" / "scripts" / "run_security_gate.sh").read_text(encoding="utf-8")
 
     assert 'read_independent_mount_options "$INDEPENDENT_DIR" >/dev/null' in verify_backup
     assert "independent_mount_options=" not in verify_backup

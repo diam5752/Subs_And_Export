@@ -8,9 +8,11 @@ from backend.app.services import jobs
 def test_export_video_validation_sentinel(client: TestClient, monkeypatch, tmp_path):
     # Setup DB
     from backend.app.core.database import Database
+
     db = Database()
     job_store = jobs.JobStore(db)
     from backend.app.core.auth import UserStore
+
     user_store = UserStore(db=db)
 
     # Register user
@@ -33,6 +35,7 @@ def test_export_video_validation_sentinel(client: TestClient, monkeypatch, tmp_p
     # Setup file system mocks
     # Mock project_root in settings so _data_roots uses tmp_path
     from backend.app.core.config import settings
+
     monkeypatch.setattr(settings, "project_root", tmp_path)
 
     # Create input file so export doesn't 404 on file
@@ -52,10 +55,7 @@ def test_export_video_validation_sentinel(client: TestClient, monkeypatch, tmp_p
     response = client.post(
         f"/videos/jobs/{job_id}/export",
         headers=headers,
-        json={
-            "resolution": "1080x1920",
-            "subtitle_color": "INVALID_COLOR"
-        }
+        json={"resolution": "1080x1920", "subtitle_color": "INVALID_COLOR"},
     )
 
     # We expect 422 Unprocessable Entity due to validation failure

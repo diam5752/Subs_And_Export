@@ -21,9 +21,7 @@ DEFAULT_ADMIN_URL = "postgresql://gsp:gsp@127.0.0.1:5432/postgres"
 def normalized_admin_url(environment: Mapping[str, str] | None = None) -> str:
     values = os.environ if environment is None else environment
     value = (
-        values.get("GSP_TEST_ADMIN_DATABASE_URL")
-        or values.get("GSP_JAVA_TEST_ADMIN_DATABASE_URL")
-        or DEFAULT_ADMIN_URL
+        values.get("GSP_TEST_ADMIN_DATABASE_URL") or values.get("GSP_JAVA_TEST_ADMIN_DATABASE_URL") or DEFAULT_ADMIN_URL
     ).strip()
     return value.replace("postgresql+psycopg://", "postgresql://", 1)
 
@@ -31,9 +29,7 @@ def normalized_admin_url(environment: Mapping[str, str] | None = None) -> str:
 def temporary_database_url(admin_url: str, database_name: str) -> str:
     parsed = urlparse(admin_url)
     if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
-        raise ValueError(
-            "GSP_TEST_ADMIN_DATABASE_URL must be a PostgreSQL URL with a host"
-        )
+        raise ValueError("GSP_TEST_ADMIN_DATABASE_URL must be a PostgreSQL URL with a host")
 
     host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
     port = parsed.port or 5432
@@ -42,9 +38,7 @@ def temporary_database_url(admin_url: str, database_name: str) -> str:
         username = quote(unquote(parsed.username), safe="")
         password = quote(unquote(parsed.password or ""), safe="")
         credentials = f"{username}:{password}@"
-    return (
-        f"postgresql+psycopg://{credentials}{host}:{port}/{database_name}"
-    )
+    return f"postgresql+psycopg://{credentials}{host}:{port}/{database_name}"
 
 
 def drop_database(
@@ -55,9 +49,7 @@ def drop_database(
         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s",
         (database_name,),
     )
-    connection.execute(
-        sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database_name))
-    )
+    connection.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database_name)))
 
 
 def quality_command(arguments: Sequence[str]) -> str:
@@ -86,18 +78,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         host = parsed.hostname or "unknown"
         port = parsed.port or 5432
         print(
-            (
-                "BLOCKED local CI: PostgreSQL is unavailable at "
-                f"{host}:{port}: {exception.__class__.__name__}"
-            ),
+            (f"BLOCKED local CI: PostgreSQL is unavailable at {host}:{port}: {exception.__class__.__name__}"),
             file=sys.stderr,
         )
         return 2
 
     with connection:
-        connection.execute(
-            sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name))
-        )
+        connection.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
         environment = os.environ.copy()
         environment["GSP_DATABASE_URL"] = temporary_database_url(
             admin_url,

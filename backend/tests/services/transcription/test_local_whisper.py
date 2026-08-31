@@ -25,7 +25,9 @@ def test_local_whisper_transcriber_uses_large_v3_turbo_alias(tmp_path):
     faster_whisper_module = SimpleNamespace(WhisperModel=MagicMock(return_value=model_instance))
 
     with (
-        patch("backend.app.services.transcription.local_whisper._load_faster_whisper", return_value=faster_whisper_module),
+        patch(
+            "backend.app.services.transcription.local_whisper._load_faster_whisper", return_value=faster_whisper_module
+        ),
         patch("backend.app.services.transcription.local_whisper.os.cpu_count", return_value=16),
     ):
         transcriber = LocalWhisperTranscriber(device="cpu", compute_type="auto", beam_size=7)
@@ -75,7 +77,9 @@ def test_local_whisper_transcriber_checks_cancellation_while_iterating_segments(
         if checks["count"] >= 3:
             raise RuntimeError("cancelled")
 
-    with patch("backend.app.services.transcription.local_whisper._load_faster_whisper", return_value=faster_whisper_module):
+    with patch(
+        "backend.app.services.transcription.local_whisper._load_faster_whisper", return_value=faster_whisper_module
+    ):
         transcriber = LocalWhisperTranscriber(device="cpu", compute_type="auto")
 
         try:

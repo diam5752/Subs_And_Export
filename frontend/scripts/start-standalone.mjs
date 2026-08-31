@@ -1,14 +1,10 @@
-import {
-  cpSync,
-  existsSync,
-  rmSync,
-} from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { cpSync, existsSync, rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 
-const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const standaloneRoot = resolve(frontendRoot, '.next', 'standalone');
-const standaloneServer = resolve(standaloneRoot, 'server.js');
+const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const standaloneRoot = resolve(frontendRoot, ".next", "standalone");
+const standaloneServer = resolve(standaloneRoot, "server.js");
 
 function copyRuntimeDirectory(source, destination) {
   if (!existsSync(source)) {
@@ -19,19 +15,21 @@ function copyRuntimeDirectory(source, destination) {
 }
 
 if (!existsSync(standaloneServer)) {
-  throw new Error('Standalone Next.js server is missing; run `npm run build` first.');
+  throw new Error(
+    "Standalone Next.js server is missing; run `npm run build` first.",
+  );
 }
 
 // Next's standalone trace intentionally excludes public and generated static
 // assets. Mirror the production Docker image layout before starting the E2E
 // server so the browser suite exercises the supported deployment artifact.
 copyRuntimeDirectory(
-  resolve(frontendRoot, 'public'),
-  resolve(standaloneRoot, 'public'),
+  resolve(frontendRoot, "public"),
+  resolve(standaloneRoot, "public"),
 );
 copyRuntimeDirectory(
-  resolve(frontendRoot, '.next', 'static'),
-  resolve(standaloneRoot, '.next', 'static'),
+  resolve(frontendRoot, ".next", "static"),
+  resolve(standaloneRoot, ".next", "static"),
 );
 
 await import(pathToFileURL(standaloneServer).href);

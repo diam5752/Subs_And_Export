@@ -233,9 +233,7 @@ class JobStore:
         """Return content-free operational job counts for a bounded window."""
         with self.db.session() as session:
             rows = session.execute(
-                select(DbJob.status, func.count())
-                .where(DbJob.updated_at >= since)
-                .group_by(DbJob.status)
+                select(DbJob.status, func.count()).where(DbJob.updated_at >= since).group_by(DbJob.status)
             ).all()
         return {str(job_status): int(count) for job_status, count in rows}
 
@@ -335,9 +333,7 @@ class JobStore:
         with self.db.session() as session:
             rows = list(
                 session.scalars(
-                    select(DbJob)
-                    .where(DbJob.status.in_(statuses))
-                    .order_by(DbJob.created_at.asc(), DbJob.id.asc()),
+                    select(DbJob).where(DbJob.status.in_(statuses)).order_by(DbJob.created_at.asc(), DbJob.id.asc()),
                 ).all(),
             )
         return [

@@ -90,11 +90,14 @@ def test_login_promotion_is_idempotent_and_cloud_spendable() -> None:
         assert wallet is not None
         assert wallet.balance == 30
         assert wallet.paid_balance == 30
-        assert session.scalar(
-            select(func.count())
-            .select_from(DbCreditPromotionClaim)
-            .where(DbCreditPromotionClaim.campaign_id == campaign_id)
-        ) == 1
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(DbCreditPromotionClaim)
+                .where(DbCreditPromotionClaim.campaign_id == campaign_id)
+            )
+            == 1
+        )
         transaction = session.scalar(
             select(DbPointTransaction).where(
                 DbPointTransaction.user_id == user_id,
@@ -147,12 +150,15 @@ def test_login_promotion_caps_twenty_simultaneous_unique_claims() -> None:
             ).all()
         )
         assert [claim.slot_number for claim in claims] == list(range(1, 21))
-        assert session.scalar(
-            select(func.sum(DbPointTransaction.delta)).where(
-                DbPointTransaction.reason == "beta_login_credit",
-                DbPointTransaction.meta["campaign_id"].as_string() == campaign_id,
+        assert (
+            session.scalar(
+                select(func.sum(DbPointTransaction.delta)).where(
+                    DbPointTransaction.reason == "beta_login_credit",
+                    DbPointTransaction.meta["campaign_id"].as_string() == campaign_id,
+                )
             )
-        ) == 600
+            == 600
+        )
 
 
 def test_campaign_is_exhausted_after_the_twentieth_slot() -> None:
@@ -256,15 +262,21 @@ def test_deleted_account_does_not_reopen_an_awarded_campaign_slot() -> None:
         campaign = session.get(DbCreditPromotionCampaign, campaign_id)
         assert campaign is not None
         assert campaign.claimed_count == 2
-        assert session.get(
-            DbCreditPromotionClaim,
-            (campaign_id, first_user_id),
-        ) is None
-        assert session.scalar(
-            select(func.count())
-            .select_from(DbCreditPromotionClaim)
-            .where(DbCreditPromotionClaim.campaign_id == campaign_id)
-        ) == 1
+        assert (
+            session.get(
+                DbCreditPromotionClaim,
+                (campaign_id, first_user_id),
+            )
+            is None
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(DbCreditPromotionClaim)
+                .where(DbCreditPromotionClaim.campaign_id == campaign_id)
+            )
+            == 1
+        )
 
 
 def test_login_promotion_rolls_back_counter_and_claim_when_crediting_fails() -> None:
@@ -294,11 +306,14 @@ def test_login_promotion_rolls_back_counter_and_claim_when_crediting_fails() -> 
         assert campaign.claimed_count == 0
         assert wallet.balance == 0
         assert wallet.paid_balance == 0
-        assert session.scalar(
-            select(func.count())
-            .select_from(DbCreditPromotionClaim)
-            .where(DbCreditPromotionClaim.campaign_id == campaign_id)
-        ) == 0
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(DbCreditPromotionClaim)
+                .where(DbCreditPromotionClaim.campaign_id == campaign_id)
+            )
+            == 0
+        )
 
 
 def test_login_promotion_rejects_an_orphaned_idempotency_entry() -> None:

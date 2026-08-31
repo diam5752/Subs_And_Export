@@ -1,22 +1,22 @@
-import type { MetadataRoute } from 'next';
+import type { MetadataRoute } from "next";
 
-const PRODUCTION_ORIGIN = 'https://gsubs.gr';
+const PRODUCTION_ORIGIN = "https://gsubs.gr";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: `${PRODUCTION_ORIGIN}/`,
-      changeFrequency: 'weekly',
+      changeFrequency: "weekly",
       priority: 1,
     },
     {
       url: `${PRODUCTION_ORIGIN}/terms`,
-      changeFrequency: 'yearly',
+      changeFrequency: "yearly",
       priority: 0.3,
     },
     {
       url: `${PRODUCTION_ORIGIN}/privacy`,
-      changeFrequency: 'yearly',
+      changeFrequency: "yearly",
       priority: 0.3,
     },
   ];

@@ -22,9 +22,7 @@ from ..deps import (
 )
 
 router = APIRouter()
-RouteBucket = Literal[
-    "studio", "auth", "account", "billing", "feedback", "observability", "legal", "other"
-]
+RouteBucket = Literal["studio", "auth", "account", "billing", "feedback", "observability", "legal", "other"]
 ViewportBucket = Literal["compact", "regular", "wide"]
 ExportFormat = Literal["720p", "1080p", "4k", "srt", "vtt", "txt", "other"]
 

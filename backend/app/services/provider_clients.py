@@ -61,9 +61,7 @@ def load_openai_compatible_client(
     try:
         from openai import OpenAI
     except ImportError as exc:
-        raise RuntimeError(
-            "OpenAI SDK is not installed. Please run 'pip install openai'."
-        ) from exc
+        raise RuntimeError("OpenAI SDK is not installed. Please run 'pip install openai'.") from exc
 
     return OpenAI(
         api_key=api_key,

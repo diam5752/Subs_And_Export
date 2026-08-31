@@ -23,7 +23,7 @@ class TestStandardWhisperHelpers:
         assert normalize_text("Héllo Wörld") == "HELLO WORLD"
         assert normalize_text("UPPERCASE") == "UPPERCASE"
         assert normalize_text("") == ""
-        assert normalize_text("άλογο") == "ΑΛΟΓΟ" # Greek check
+        assert normalize_text("άλογο") == "ΑΛΟΓΟ"  # Greek check
 
     def test_format_timestamp(self):
         # 0s
@@ -61,12 +61,12 @@ class TestStandardTranscriber:
         # t0, t1 are in centiseconds
         seg1 = MagicMock()
         seg1.t0 = 0
-        seg1.t1 = 150 # 1.5s
+        seg1.t1 = 150  # 1.5s
         seg1.text = " Hello World "
 
         seg2 = MagicMock()
         seg2.t0 = 150
-        seg2.t1 = 300 # 3.0s
+        seg2.t1 = 300  # 3.0s
         seg2.text = " Test Segment "
 
         return [seg1, seg2]
@@ -114,7 +114,7 @@ class TestStandardTranscriber:
             assert cues[1].end == 3.0
 
             # Verify Callback
-            assert callback.call_count >= 3 # 5.0, 15.0, 85.0, 100.0?
+            assert callback.call_count >= 3  # 5.0, 15.0, 85.0, 100.0?
             callback.assert_any_call(100.0)
             assert check_cancelled.call_count == 3
 
@@ -148,14 +148,14 @@ class TestStandardTranscriber:
 
             # Force import failure by patching sys.modules with a Key that raises error on access? No.
             # Standard way:
-            with patch.dict(sys.modules, {'pywhispercpp': None, 'pywhispercpp.model': None}):
-                 # When a module is None in sys.modules, import raises ModuleNotFoundError (subclass of ImportError)
-                 transcriber = StandardTranscriber()
+            with patch.dict(sys.modules, {"pywhispercpp": None, "pywhispercpp.model": None}):
+                # When a module is None in sys.modules, import raises ModuleNotFoundError (subclass of ImportError)
+                transcriber = StandardTranscriber()
 
-                 with pytest.raises(RuntimeError) as excinfo:
-                     transcriber.transcribe(Path("dummy.mp3"), tmp_path)
+                with pytest.raises(RuntimeError) as excinfo:
+                    transcriber.transcribe(Path("dummy.mp3"), tmp_path)
 
-                 assert "pywhispercpp not installed" in str(excinfo.value)
+                assert "pywhispercpp not installed" in str(excinfo.value)
 
     def test_transcribe_params(self, tmp_path, mock_segment):
         mock_model_instance = MagicMock()
@@ -166,12 +166,7 @@ class TestStandardTranscriber:
         audio_path = tmp_path / "audio.mp3"
         audio_path.touch()
 
-        transcriber.transcribe(
-            audio_path,
-            output_dir=tmp_path,
-            language="fr",
-            model="tiny"
-        )
+        transcriber.transcribe(audio_path, output_dir=tmp_path, language="fr", model="tiny")
 
         mock_pywhispercpp.Model.assert_called_with("tiny", print_realtime=False, print_progress=False)
         mock_model_instance.transcribe.assert_called_with(str(audio_path), language="fr", n_threads=ANY)

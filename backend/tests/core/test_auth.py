@@ -1,4 +1,3 @@
-
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -16,6 +15,7 @@ def test_verify_password_scrypt_error():
 
     # Missing parts
     assert not auth._verify_password("password", "scrypt$incomplete")
+
 
 def test_get_secret_fallback(monkeypatch, tmp_path):
     """Test secret resolution priority."""
@@ -40,6 +40,7 @@ def test_get_secret_fallback(monkeypatch, tmp_path):
     # Also ensure default path doesn't exist or doesn't have it (safe assumption usually)
     # But clean approach: Mock logic or ensure env is clean.
     assert auth._get_secret("NONEXISTENT_SECRET") is None
+
 
 def test_google_client_id_missing(monkeypatch):
     """Google Identity Services stays fail-closed without a public client ID."""
@@ -107,9 +108,7 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
     assert profile["sub"] == "google-subject"
     # REGRESSION: Google profile pictures were discarded after token
     # verification, so the authenticated header could only show an initial.
-    assert profile["avatar_url"] == (
-        "https://lh3.googleusercontent.com/a/google-avatar=s96-c"
-    )
+    assert profile["avatar_url"] == ("https://lh3.googleusercontent.com/a/google-avatar=s96-c")
     assert observed["token"] == "signed-id-token"
     assert observed["audience"] == "google-client"
     # REGRESSION: the production backend is intentionally isolated from direct

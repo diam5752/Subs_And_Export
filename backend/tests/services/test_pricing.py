@@ -134,6 +134,7 @@ class TestCreditsCalculation:
         # 3 minutes at 20 credits/min = 60
         assert credits == 60
 
+
 class TestCostEstimation:
     """Test cost estimation functions."""
 
@@ -160,12 +161,15 @@ class TestCostEstimation:
             provider="groq",
             model="whisper-large-v3",
         ) == pytest.approx(0.111)
-        assert pricing.stt_provider_cost_usd(
-            tier="standard",
-            duration_seconds=3600,
-            provider="local",
-            model="large-v3-turbo",
-        ) == 0.0
+        assert (
+            pricing.stt_provider_cost_usd(
+                tier="standard",
+                duration_seconds=3600,
+                provider="local",
+                model="large-v3-turbo",
+            )
+            == 0.0
+        )
         assert pricing.stt_provider_cost_usd(
             tier="pro",
             duration_seconds=3600,

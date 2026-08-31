@@ -8,7 +8,6 @@ import math
 import os
 import platform
 import re
-import select
 import signal
 import subprocess
 import time
@@ -20,6 +19,8 @@ from typing import Callable
 
 from backend.app.core.config import settings
 from backend.app.core.media_capacity import lock_media_render, render_slot_weight
+from backend.app.services.media_process_monitor import monitor_media_process
+from backend.app.services.media_process_monitor import select as select
 
 logger = logging.getLogger(__name__)
 
@@ -127,10 +128,7 @@ def build_filtergraph(
     height = target_height or settings.default_height
     # Constrain both axes. Width-only scaling makes extra-tall phone videos
     # taller than the requested canvas, so the following pad filter fails.
-    scale = (
-        f"scale={width}:{height}:force_original_aspect_ratio=decrease:"
-        "force_divisible_by=2"
-    )
+    scale = f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2"
     pad = f"pad={width}:{height}:({width}-iw)/2:({height}-ih)/2"
     graph = ",".join([scale, pad, "format=yuv420p"])
 
@@ -155,11 +153,7 @@ def resolve_ffmpeg_thread_count(requested_threads: int | None = None) -> int:
     available_threads = max(1, os.cpu_count() or 1)
     if requested_threads is None:
         return min(available_threads, _FFMPEG_MAX_THREADS)
-    if (
-        isinstance(requested_threads, bool)
-        or not isinstance(requested_threads, int)
-        or requested_threads <= 0
-    ):
+    if isinstance(requested_threads, bool) or not isinstance(requested_threads, int) or requested_threads <= 0:
         raise ValueError("FFmpeg thread count must be a positive integer")
     return min(
         requested_threads,
@@ -203,11 +197,7 @@ def terminate_process_tree(process: subprocess.Popen[str]) -> None:
 def lower_media_process_priority(process: subprocess.Popen[str]) -> None:
     """Let interactive web/database work preempt an idle-time encoder."""
     process_id = getattr(process, "pid", None)
-    if (
-        process_id is None
-        or not hasattr(os, "setpriority")
-        or not hasattr(os, "PRIO_PROCESS")
-    ):
+    if process_id is None or not hasattr(os, "setpriority") or not hasattr(os, "PRIO_PROCESS"):
         return
     try:
         os.setpriority(os.PRIO_PROCESS, process_id, _MEDIA_PROCESS_NICE)
@@ -226,6 +216,152 @@ def _wait_after_termination(process: subprocess.Popen[str]) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+
+
+def _base_render_command(*, input_path: Path, filtergraph: str, threads: int) -> list[str]:
+    return [
+        "ffmpeg",
+        "-y",
+        "-nostdin",
+        "-nostats",
+        "-progress",
+        "pipe:2",
+        "-filter_threads",
+        str(threads),
+        "-filter_complex_threads",
+        str(threads),
+        "-threads",
+        str(threads),
+        "-i",
+        str(input_path),
+        "-vf",
+        filtergraph,
+    ]
+
+
+def _video_encoder_arguments(
+    *,
+    threads: int,
+    video_crf: int,
+    video_preset: str,
+    use_hw_accel: bool,
+) -> list[str]:
+    if use_hw_accel and platform.system() == "Darwin":
+        quality = max(40, min(90, int(100 - (video_crf * 2))))
+        return ["-c:v", "h264_videotoolbox", "-q:v", str(quality)]
+    return [
+        "-c:v",
+        "libx264",
+        "-preset",
+        video_preset,
+        "-crf",
+        str(video_crf),
+        "-threads",
+        str(threads),
+        "-tune",
+        "film",
+    ]
+
+
+def _audio_encoder_arguments(*, audio_copy: bool, audio_bitrate: str) -> list[str]:
+    if audio_copy:
+        return ["-c:a", "copy"]
+    return ["-c:a", "aac", "-b:a", audio_bitrate]
+
+
+def _build_render_command(
+    *,
+    input_path: Path,
+    output_path: Path,
+    filtergraph: str,
+    threads: int,
+    video_crf: int,
+    video_preset: str,
+    audio_bitrate: str,
+    audio_copy: bool,
+    use_hw_accel: bool,
+) -> list[str]:
+    return [
+        *_base_render_command(input_path=input_path, filtergraph=filtergraph, threads=threads),
+        *_video_encoder_arguments(
+            threads=threads,
+            video_crf=video_crf,
+            video_preset=video_preset,
+            use_hw_accel=use_hw_accel,
+        ),
+        *_audio_encoder_arguments(audio_copy=audio_copy, audio_bitrate=audio_bitrate),
+        "-movflags",
+        "+faststart",
+        str(output_path),
+    ]
+
+
+def _validate_held_render_slots(
+    held_render_slots: tuple[int, ...] | None,
+    *,
+    slots_required: int,
+) -> None:
+    if held_render_slots is None:
+        return
+    if len(held_render_slots) < slots_required:
+        raise ValueError("Held render capacity does not satisfy this render")
+    if len(set(held_render_slots)) != len(held_render_slots):
+        raise ValueError("Held render capacity does not satisfy this render")
+    for slot_index in held_render_slots:
+        if (
+            isinstance(slot_index, bool)
+            or not isinstance(slot_index, int)
+            or slot_index < 0
+            or slot_index >= settings.media_render_slots
+        ):
+            raise ValueError("Held render capacity does not satisfy this render")
+
+
+def _run_render_process(
+    *,
+    command: list[str],
+    resolved_timeout: float,
+    check_cancelled: Callable[[], None] | None,
+    progress_callback: Callable[[float], None] | None,
+    total_duration: float | None,
+) -> str:
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        bufsize=1,
+        start_new_session=True,
+    )
+    lower_media_process_priority(process)
+    stderr_lines: deque[str] = deque(maxlen=200)
+    try:
+        monitor_media_process(
+            process,
+            deadline=time.monotonic() + resolved_timeout,
+            timeout_message=(f"FFmpeg process exceeded timeout of {resolved_timeout:.1f}s"),
+            progress_pattern=TIME_PATTERN,
+            check_cancelled=check_cancelled,
+            progress_callback=progress_callback,
+            total_duration=total_duration,
+            capture_line=stderr_lines.append,
+        )
+        process.wait()
+        if process.returncode != 0:
+            logger.error(
+                "FFmpeg render failed with exit code %s",
+                process.returncode,
+            )
+            raise FFmpegRenderError(
+                process.returncode,
+                command,
+                "".join(stderr_lines),
+            )
+        return "".join(stderr_lines)
+    except Exception:
+        terminate_process_tree(process)
+        _wait_after_termination(process)
+        raise
 
 
 def run_ffmpeg_with_subs(
@@ -258,9 +394,7 @@ def run_ffmpeg_with_subs(
         capacity=settings.media_render_slots,
     )
     requested_threads = (
-        thread_count
-        if thread_count is not None
-        else settings.media_render_threads_per_slot * slots_required
+        thread_count if thread_count is not None else settings.media_render_threads_per_slot * slots_required
     )
     threads = resolve_ffmpeg_thread_count(requested_threads)
     filtergraph = build_filtergraph(
@@ -269,69 +403,21 @@ def run_ffmpeg_with_subs(
         target_height=output_height,
         watermark_enabled=watermark_enabled,
     )
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-nostdin",
-        "-nostats",
-        "-progress",
-        "pipe:2",
-        "-filter_threads",
-        str(threads),
-        "-filter_complex_threads",
-        str(threads),
-        # Input-scoped codec option: cap software decoder pools too.
-        "-threads",
-        str(threads),
-        "-i",
-        str(input_path),
-        "-vf",
-        filtergraph,
-    ]
-
-    is_mac = platform.system() == "Darwin"
-    if use_hw_accel and is_mac:
-        q_val = int(100 - (video_crf * 2))
-        q_val = max(40, min(90, q_val))  # Clamp to reasonable range
-        cmd += [
-            "-c:v",
-            "h264_videotoolbox",
-            "-q:v",
-            str(q_val),
-        ]
-    else:
-        cmd += [
-            "-c:v",
-            "libx264",
-            "-preset",
-            video_preset,
-            "-crf",
-            str(video_crf),
-            # Output-scoped codec option: cap software encoder pools.
-            "-threads",
-            str(threads),
-            "-tune",
-            "film",
-        ]
-
-    if audio_copy:
-        cmd += ["-c:a", "copy"]
-    else:
-        cmd += ["-c:a", "aac", "-b:a", audio_bitrate]
-    cmd += ["-movflags", "+faststart", str(output_path)]
-
-    if held_render_slots is not None and (
-        len(held_render_slots) < slots_required
-        or len(set(held_render_slots)) != len(held_render_slots)
-        or any(
-            isinstance(slot_index, bool)
-            or not isinstance(slot_index, int)
-            or slot_index < 0
-            or slot_index >= settings.media_render_slots
-            for slot_index in held_render_slots
-        )
-    ):
-        raise ValueError("Held render capacity does not satisfy this render")
+    command = _build_render_command(
+        input_path=input_path,
+        output_path=output_path,
+        filtergraph=filtergraph,
+        threads=threads,
+        video_crf=video_crf,
+        video_preset=video_preset,
+        audio_bitrate=audio_bitrate,
+        audio_copy=audio_copy,
+        use_hw_accel=use_hw_accel,
+    )
+    _validate_held_render_slots(
+        held_render_slots,
+        slots_required=slots_required,
+    )
     render_capacity = (
         nullcontext(held_render_slots)
         if held_render_slots is not None
@@ -345,88 +431,10 @@ def run_ffmpeg_with_subs(
     # threads. Export callers can hold the same lease around their atomic disk
     # reservation.
     with render_capacity:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            bufsize=1,  # Line buffered
-            start_new_session=True,
+        return _run_render_process(
+            command=command,
+            resolved_timeout=resolved_timeout,
+            check_cancelled=check_cancelled,
+            progress_callback=progress_callback,
+            total_duration=total_duration,
         )
-        lower_media_process_priority(process)
-
-        # Memory optimization: Use deque to keep only last 200 lines
-        stderr_lines: deque[str] = deque(maxlen=200)
-        deadline = time.monotonic() + resolved_timeout
-
-        try:
-            last_cancel_check = 0.0
-            while True:
-                now = time.monotonic()
-                if now >= deadline:
-                    raise TimeoutError(
-                        f"FFmpeg process exceeded timeout of {resolved_timeout:.1f}s",
-                    )
-
-                # Periodic cancellation check
-                if check_cancelled and now - last_cancel_check > 0.5:
-                    check_cancelled()
-                    last_cancel_check = now
-
-                if process.stderr:
-                    reads, _, _ = select.select(
-                        [process.stderr],
-                        [],
-                        [],
-                        min(0.1, max(0.0, deadline - now)),
-                    )
-                    if reads:
-                        line = process.stderr.readline()
-                        if line:
-                            stderr_lines.append(line)
-                            if progress_callback and total_duration and total_duration > 0:
-                                match = TIME_PATTERN.search(line)
-                                if match:
-                                    h, m, s = match.groups()
-                                    current_seconds = (
-                                        int(h) * 3600
-                                        + int(m) * 60
-                                        + float(s)
-                                    )
-                                    progress = min(
-                                        100.0,
-                                        (current_seconds / total_duration) * 100.0,
-                                    )
-                                    progress_callback(progress)
-                else:
-                    time.sleep(min(0.1, max(0.0, deadline - now)))
-
-                if process.poll() is not None:
-                    break
-
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(
-                    f"FFmpeg process exceeded timeout of {resolved_timeout:.1f}s",
-                )
-            # poll() above already proved termination; this is immediate and
-            # simply finalizes the subprocess object / return code.
-            process.wait()
-            if process.returncode != 0:
-                logger.error(
-                    "FFmpeg render failed with exit code %s",
-                    process.returncode,
-                )
-                raise FFmpegRenderError(
-                    process.returncode,
-                    cmd,
-                    "".join(stderr_lines),
-                )
-            return "".join(stderr_lines)
-
-        except Exception:
-            # Ensure the complete isolated process group is killed on timeout,
-            # cancellation, malformed input or any other failure.
-            terminate_process_tree(process)
-            _wait_after_termination(process)
-            raise

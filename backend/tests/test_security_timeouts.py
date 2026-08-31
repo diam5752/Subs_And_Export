@@ -35,6 +35,7 @@ def test_groq_transcribe_timeout(monkeypatch, tmp_path):
     class MockClient:
         def __init__(self, *args, **kwargs):
             pass
+
         class audio:
             transcriptions = MockTranscriptions()
 

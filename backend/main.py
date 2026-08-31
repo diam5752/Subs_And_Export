@@ -10,6 +10,7 @@ logger = setup_logging()
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -214,6 +215,7 @@ app.add_middleware(
     ],
 )
 
+
 class PrivateMediaAwareGZipMiddleware:
     """Compress text/JSON without recompressing private media files."""
 
@@ -237,9 +239,7 @@ class PrivateMediaAwareGZipMiddleware:
 # MP4/MOV files are already compressed and must retain exact byte ranges.
 app.add_middleware(PrivateMediaAwareGZipMiddleware, minimum_size=1000)
 
-default_trusted_hosts = (
-    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"] if settings.is_dev else []
-)
+default_trusted_hosts = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"] if settings.is_dev else []
 trusted_hosts = _env_list("GSP_TRUSTED_HOSTS", default_trusted_hosts)
 if not settings.is_dev and not trusted_hosts:
     raise RuntimeError("GSP_TRUSTED_HOSTS must be set in production")
@@ -396,17 +396,65 @@ def _owned_artifact_parts(file_path: str, user_id: str, db: Database) -> list[st
     if "\\" in file_path:
         raise HTTPException(status_code=404, detail="File not found")
     parts = file_path.split("/")
-    if (
-        len(parts) < 3
-        or parts[0] != "artifacts"
-        or any(not part or part in {".", ".."} for part in parts)
-    ):
+    if len(parts) < 3 or parts[0] != "artifacts" or any(not part or part in {".", ".."} for part in parts):
         raise HTTPException(status_code=404, detail="File not found")
 
     job = JobStore(db).get_job(parts[1])
     if job is None or job.user_id != user_id:
         raise HTTPException(status_code=404, detail="File not found")
     return parts
+
+
+VIDEO_DOWNLOAD_SUFFIXES = frozenset({".mp4", ".mov", ".avi", ".webm", ".mkv"})
+
+
+def _resolved_owned_artifact_path(artifact_parts: list[str]) -> Path:
+    full_path = DATA_DIR.joinpath(*artifact_parts)
+    # Constrain the resolved file to this exact owned job. A global DATA_DIR
+    # check alone would allow a symlink to another user's artifact tree.
+    owned_artifact_root = (DATA_DIR / "artifacts").resolve() / artifact_parts[1]
+    try:
+        if owned_artifact_root.is_symlink():
+            raise ValueError("symlinked job root")
+        full_path.resolve().relative_to(owned_artifact_root.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="File not found")
+    return full_path
+
+
+def _private_media_response(
+    *,
+    full_path: Path,
+    job_id: str,
+    authorization: MediaAuthorization,
+    download: bool,
+    filename: str | None,
+) -> PrivateMediaFileResponse:
+    force_download = (
+        authorization.download_grant is not None or download or full_path.suffix.lower() in VIDEO_DOWNLOAD_SUFFIXES
+    )
+    if force_download:
+        requested_filename = (
+            authorization.download_grant.filename if authorization.download_grant is not None else filename
+        )
+        response = PrivateMediaFileResponse(
+            full_path,
+            job_id=job_id,
+            transfer_kind="download",
+            filename=sanitize_download_filename(requested_filename, full_path.name),
+            content_disposition_type="attachment",
+        )
+    else:
+        response = PrivateMediaFileResponse(
+            full_path,
+            job_id=job_id,
+            transfer_kind="preview",
+        )
+    response.headers["Cache-Control"] = "private, no-store"
+    if authorization.download_grant is not None:
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
 
 
 @app.get("/static/{file_path:path}")
@@ -423,53 +471,16 @@ async def serve_static(
     authorization = _authorize_media_request(request, file_path)
     db: Database = request.app.state.db
     artifact_parts = _owned_artifact_parts(file_path, authorization.user_id, db)
-    full_path = DATA_DIR.joinpath(*artifact_parts)
-
-    # Constrain the resolved file to this exact owned job. A global DATA_DIR
-    # check alone would allow a symlink to another user's artifact tree.
-    artifacts_root = (DATA_DIR / "artifacts").resolve()
-    owned_artifact_root = artifacts_root / artifact_parts[1]
-    try:
-        if owned_artifact_root.is_symlink():
-            raise ValueError("symlinked job root")
-        full_path.resolve().relative_to(owned_artifact_root.resolve())
-    except ValueError:
-        raise HTTPException(status_code=404, detail="File not found")
+    full_path = _resolved_owned_artifact_path(artifact_parts)
 
     if full_path.is_file():
-        # Force download for video files or when download=true
-        force_download = authorization.download_grant is not None or download or full_path.suffix.lower() in {
-            ".mp4",
-            ".mov",
-            ".avi",
-            ".webm",
-            ".mkv",
-        }
-        if force_download:
-            requested_filename = (
-                authorization.download_grant.filename
-                if authorization.download_grant is not None
-                else filename
-            )
-            download_name = sanitize_download_filename(requested_filename, full_path.name)
-            response = PrivateMediaFileResponse(
-                full_path,
-                job_id=artifact_parts[1],
-                transfer_kind="download",
-                filename=download_name,
-                content_disposition_type="attachment",
-            )
-        else:
-            response = PrivateMediaFileResponse(
-                full_path,
-                job_id=artifact_parts[1],
-                transfer_kind="preview",
-            )
-        response.headers["Cache-Control"] = "private, no-store"
-        if authorization.download_grant is not None:
-            response.headers["Referrer-Policy"] = "no-referrer"
-            response.headers["X-Robots-Tag"] = "noindex, nofollow"
-        return response
+        return _private_media_response(
+            full_path=full_path,
+            job_id=artifact_parts[1],
+            authorization=authorization,
+            download=download,
+            filename=filename,
+        )
 
     if full_path.is_dir():
         # Security: Disable directory listing to prevent information disclosure

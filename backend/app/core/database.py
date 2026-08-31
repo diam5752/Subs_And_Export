@@ -29,9 +29,7 @@ class Database:
     def __init__(self, url: str | None = None) -> None:
         resolved_url = url or settings.database_url
         if not resolved_url:
-            raise RuntimeError(
-                "GSP_DATABASE_URL is required."
-            )
+            raise RuntimeError("GSP_DATABASE_URL is required.")
 
         if not resolved_url.startswith("postgresql"):
             raise RuntimeError(
@@ -40,7 +38,10 @@ class Database:
             )
 
         self.settings = DatabaseSettings(url=resolved_url)
-        logger.info("💾 Database: Initializing PostgreSQL connection", extra={"data": {"url_prefix": resolved_url.split("://")[0]}})
+        logger.info(
+            "💾 Database: Initializing PostgreSQL connection",
+            extra={"data": {"url_prefix": resolved_url.split("://")[0]}},
+        )
 
         self._engine = create_engine(resolved_url, pool_pre_ping=True)
         self._sessionmaker = sessionmaker(

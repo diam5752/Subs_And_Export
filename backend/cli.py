@@ -60,8 +60,7 @@ def reconcile_erasures() -> None:
         failure_message="Erasure reconciliation command failed.",
     )
     typer.echo(
-        "Erasure reconciliation complete: "
-        f"events={report.replayed_events} pruned={report.pruned_events}",
+        f"Erasure reconciliation complete: events={report.replayed_events} pruned={report.pruned_events}",
     )
 
 
@@ -88,11 +87,7 @@ def _configured_feedback_store(db: Database) -> FeedbackStore:
 
 
 def _configured_feedback_notifier() -> SmtpFeedbackNotifier:
-    password = (
-        settings.feedback_smtp_password.get_secret_value()
-        if settings.feedback_smtp_password is not None
-        else ""
-    )
+    password = settings.feedback_smtp_password.get_secret_value() if settings.feedback_smtp_password is not None else ""
     return SmtpFeedbackNotifier(
         host=settings.feedback_smtp_host,
         port=settings.feedback_smtp_port,

@@ -27,6 +27,7 @@ from .database import Database
 
 logger = logging.getLogger(__name__)
 
+
 class GoogleAuthError(ValueError):
     """A public-safe Google authentication failure."""
 

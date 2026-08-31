@@ -109,9 +109,9 @@ def test_retirement_removes_unused_rows_and_preserves_audit_references() -> None
         retired = _run_alembic(database_url, "upgrade", "head")
         assert retired.returncode == 0, retired.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0027_restore_beta_promo_cap",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0027_restore_beta_promo_cap",
+            )
             assert connection.execute(
                 """
                 SELECT id, active

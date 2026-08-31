@@ -24,6 +24,19 @@ def _parse_ip(value: str) -> str | None:
         return None
 
 
+def _client_ip_from_proxy_headers(request: Request) -> str | None:
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        parts = [part.strip() for part in x_forwarded_for.split(",") if part.strip()]
+        if parts:
+            candidate = _parse_ip(parts[-1])
+            if candidate:
+                return candidate
+
+    x_real_ip = request.headers.get("x-real-ip")
+    return _parse_ip(x_real_ip) if x_real_ip else None
+
+
 def get_client_ip(request: Request) -> str:
     """
     Best-effort client IP extraction safe for proxy environments.
@@ -35,19 +48,9 @@ def get_client_ip(request: Request) -> str:
     if request.client and request.client.host:
         return request.client.host
 
-    x_forwarded_for = request.headers.get("x-forwarded-for")
-    if x_forwarded_for:
-        parts = [part.strip() for part in x_forwarded_for.split(",") if part.strip()]
-        if parts:
-            candidate = _parse_ip(parts[-1])
-            if candidate:
-                return candidate
-
-    x_real_ip = request.headers.get("x-real-ip")
-    if x_real_ip:
-        candidate = _parse_ip(x_real_ip)
-        if candidate:
-            return candidate
+    forwarded_ip = _client_ip_from_proxy_headers(request)
+    if forwarded_ip:
+        return forwarded_ip
 
     if request.client and request.client.host:
         return request.client.host
@@ -94,6 +97,7 @@ class RateLimiter(_InMemoryLimiter):
         ip = get_client_ip(request)
         self.check(ip)
 
+
 class AuthenticatedRateLimiter(_InMemoryLimiter):
     """Rate limiter that uses User ID instead of IP."""
 
@@ -114,6 +118,7 @@ class _DbLimiter:
         """Lazy database connection."""
         if self._db is None:
             from .database import Database
+
             self._db = Database()
         return self._db
 
@@ -179,6 +184,7 @@ class DbRateLimiter(_DbLimiter):
         """FastAPI dependency for IP-based rate limiting."""
         ip = get_client_ip(request)
         self.check(ip)
+
 
 class DbAuthenticatedRateLimiter(_DbLimiter):
     """DB-backed rate limiter using User ID."""

@@ -19,7 +19,7 @@ def test_transcription_request_cues_limit():
     limit = 5000
     valid_cues = [
         TranscriptionCueRequest(start=0.0, end=1.0, text=f"cue {i}")
-        for i in range(10) # Minimal valid
+        for i in range(10)  # Minimal valid
     ]
     req = UpdateTranscriptionRequest(cues=valid_cues)
     assert len(req.cues) == 10
@@ -32,16 +32,14 @@ def test_transcription_request_cues_limit():
     # To keep test fast, we might want to assume the field definition is correct,
     # but here we want to verify the model enforces it.
 
-    over_limit_cues = [
-        TranscriptionCueRequest(start=0.0, end=1.0, text="cue")
-        for _ in range(5001)
-    ]
+    over_limit_cues = [TranscriptionCueRequest(start=0.0, end=1.0, text="cue") for _ in range(5001)]
 
     with pytest.raises(ValidationError) as excinfo:
         UpdateTranscriptionRequest(cues=over_limit_cues)
 
     # Pydantic error message for max_length
     assert "at most 5000 items" in str(excinfo.value) or "max_length" in str(excinfo.value)
+
 
 def test_transcription_cue_words_limit():
     """
@@ -50,22 +48,15 @@ def test_transcription_cue_words_limit():
     limit = 100
 
     # 1. Valid
-    valid_words = [
-        TranscriptionWordRequest(start=0.0, end=0.1, text="word")
-        for _ in range(limit)
-    ]
-    cue = TranscriptionCueRequest(
-        start=0.0, end=1.0, text="text", words=valid_words
-    )
+    valid_words = [TranscriptionWordRequest(start=0.0, end=0.1, text="word") for _ in range(limit)]
+    cue = TranscriptionCueRequest(start=0.0, end=1.0, text="text", words=valid_words)
     assert len(cue.words) == limit
 
     # 2. Invalid
     invalid_words = valid_words + [TranscriptionWordRequest(start=0.0, end=0.1, text="overflow")]
 
     with pytest.raises(ValidationError) as excinfo:
-        TranscriptionCueRequest(
-            start=0.0, end=1.0, text="text", words=invalid_words
-        )
+        TranscriptionCueRequest(start=0.0, end=1.0, text="text", words=invalid_words)
 
     assert "at most 100 items" in str(excinfo.value) or "max_length" in str(excinfo.value)
 

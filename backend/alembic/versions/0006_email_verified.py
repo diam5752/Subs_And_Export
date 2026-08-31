@@ -5,27 +5,23 @@ Revises: 0005_rate_limits
 Create Date: 2024-12-20
 
 """
+
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '0006_email_verified'
-down_revision = '0005_rate_limits'
+revision = "0006_email_verified"
+down_revision = "0005_rate_limits"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
     # Add email_verified column with default False
-    op.add_column(
-        'users',
-        sa.Column('email_verified', sa.Boolean(), nullable=False, server_default='false')
-    )
+    op.add_column("users", sa.Column("email_verified", sa.Boolean(), nullable=False, server_default="false"))
     # Google OAuth users are automatically verified
-    op.execute(
-        "UPDATE users SET email_verified = true WHERE provider = 'google'"
-    )
+    op.execute("UPDATE users SET email_verified = true WHERE provider = 'google'")
 
 
 def downgrade() -> None:
-    op.drop_column('users', 'email_verified')
+    op.drop_column("users", "email_verified")

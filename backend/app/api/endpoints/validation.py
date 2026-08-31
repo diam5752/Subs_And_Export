@@ -89,10 +89,7 @@ def validate_subtitle_position(value: int) -> int:
     if value < SUBTITLE_POSITION_MIN or value > SUBTITLE_POSITION_MAX:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "subtitle_position out of range "
-                f"({SUBTITLE_POSITION_MIN}-{SUBTITLE_POSITION_MAX})"
-            ),
+            detail=(f"subtitle_position out of range ({SUBTITLE_POSITION_MIN}-{SUBTITLE_POSITION_MAX})"),
         )
     return value
 

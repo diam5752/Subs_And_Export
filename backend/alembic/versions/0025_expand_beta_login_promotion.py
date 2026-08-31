@@ -19,12 +19,8 @@ BETA_CAMPAIGN_ID = "beta_first_20_logins_v1"
 ORIGINAL_MAX_CLAIMS = 20
 EXPANDED_MAX_CLAIMS = 50
 CREDIT_AMOUNT = 30
-CAMPAIGN_CONTRACT_ERROR = (
-    "The Beta login promotion does not match the reviewed 20-by-30 contract."
-)
-UNSAFE_DOWNGRADE_ERROR = (
-    "Cannot reduce the Beta login promotion after more than 20 campaign slots were awarded."
-)
+CAMPAIGN_CONTRACT_ERROR = "The Beta login promotion does not match the reviewed 20-by-30 contract."
+UNSAFE_DOWNGRADE_ERROR = "Cannot reduce the Beta login promotion after more than 20 campaign slots were awarded."
 
 
 def upgrade() -> None:

@@ -73,9 +73,7 @@ def test_backend_and_frontend_share_one_approved_publication_identity() -> None:
     assert backend_identity_path.read_bytes() == (frontend_identity_path.read_bytes())
     identity = json.loads(backend_identity_path.read_text(encoding="utf-8"))
     assert identity == {
-        "approval_identity_sha256": (
-            "652048585a9bc1a3fa6bf6c88768230b1c30052eddff4f07b9190d89a0771f9e"
-        ),
+        "approval_identity_sha256": ("652048585a9bc1a3fa6bf6c88768230b1c30052eddff4f07b9190d89a0771f9e"),
         "public_terms_route": "/terms",
         "schema_version": 1,
         "status": "approved",

@@ -42,9 +42,7 @@ optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=
 
 _PROCESS_STREAM_PATH = "/videos/process-stream"
 _MAX_UPLOAD_METADATA_HEADER_CHARS = 12_000
-_CANONICAL_VIDEO_CREDITS = frozenset(
-    quote.credits for quote in VIDEO_CREDIT_BRACKETS
-)
+_CANONICAL_VIDEO_CREDITS = frozenset(quote.credits for quote in VIDEO_CREDIT_BRACKETS)
 
 
 def get_db(request: Request) -> Generator[Database, None, None]:
@@ -109,11 +107,7 @@ def get_feedback_store(db: Database = Depends(get_db)) -> FeedbackStore:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Feedback is temporarily unavailable.",
         ) from exc
-    hash_secret = (
-        settings.feedback_hash_secret.get_secret_value()
-        if settings.feedback_hash_secret is not None
-        else ""
-    )
+    hash_secret = settings.feedback_hash_secret.get_secret_value() if settings.feedback_hash_secret is not None else ""
     return FeedbackStore(db=db, hash_secret=hash_secret)
 
 
@@ -205,12 +199,8 @@ def _process_stream_authorization(request: Request) -> tuple[int, bool]:
         raise HTTPException(status_code=400, detail="Invalid upload metadata") from exc
 
     normalized_provider = provider.strip().lower()
-    require_paid = (
-        not settings.mock_external_services
-        and (
-            not settings.is_dev
-            or normalized_provider not in {"local", "mock"}
-        )
+    require_paid = not settings.mock_external_services and (
+        not settings.is_dev or normalized_provider not in {"local", "mock"}
     )
     return authorized_credits, require_paid
 
@@ -238,10 +228,7 @@ def _assert_global_media_capacity(db: Database) -> None:
     if len(active_jobs) >= settings.max_active_media_jobs:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=(
-                "Media processing is currently at capacity. "
-                "Please retry after the active job finishes."
-            ),
+            detail=("Media processing is currently at capacity. Please retry after the active job finishes."),
         )
 
 
@@ -291,10 +278,7 @@ def get_current_user_with_media_lifecycle(
                 )
 
             if media_creation:
-                if (
-                    request.url.path.rstrip("/") == _PROCESS_STREAM_PATH
-                    and not settings.mock_external_services
-                ):
+                if request.url.path.rstrip("/") == _PROCESS_STREAM_PATH and not settings.mock_external_services:
                     _preflight_process_stream_balance(
                         request=request,
                         user_id=current_user.id,

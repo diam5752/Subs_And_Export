@@ -2,9 +2,13 @@ PYTHON ?= python3
 QUALITY_RUNNER = $(PYTHON) .codex/scripts/quality_runner.py
 ISOLATED_QUALITY_RUNNER = $(PYTHON) .codex/scripts/run_isolated_quality_gate.py
 
-.PHONY: ci check-contract check-fast check-static check-complexity check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
+.PHONY: ci format check-contract check-fast check-format check-static check-complexity check-cognitive check-duplicates check-file-length check-quality-suppressions check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
 
 ci: check-all
+
+format:
+	ruff format .
+	cd frontend && npm run format
 
 check-contract:
 	$(QUALITY_RUNNER) check:contract
@@ -12,11 +16,26 @@ check-contract:
 check-fast:
 	$(QUALITY_RUNNER) check:fast
 
+check-format:
+	$(QUALITY_RUNNER) check:format
+
 check-static:
 	$(QUALITY_RUNNER) check:static
 
 check-complexity:
 	$(QUALITY_RUNNER) check:complexity
+
+check-cognitive:
+	$(QUALITY_RUNNER) check:cognitive
+
+check-duplicates:
+	$(QUALITY_RUNNER) check:duplicates
+
+check-file-length:
+	$(QUALITY_RUNNER) check:file-length
+
+check-quality-suppressions:
+	$(QUALITY_RUNNER) check:quality-suppressions
 
 check-unit:
 	$(QUALITY_RUNNER) check:unit

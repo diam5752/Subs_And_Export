@@ -99,9 +99,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
         )
         assert clean_downgrade.returncode == 0, clean_downgrade.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT to_regclass('public.credit_promotion_campaigns')"
-            ).fetchone() == (None,)
+            assert connection.execute("SELECT to_regclass('public.credit_promotion_campaigns')").fetchone() == (None,)
 
         reupgraded = _run_alembic(database_url, "upgrade", "head")
         assert reupgraded.returncode == 0, reupgraded.stderr
@@ -122,14 +120,11 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
             "0022_cancelling_job_status",
         )
         assert refused.returncode != 0
-        assert (
-            "Cannot downgrade the Beta login promotion after any campaign "
-            "slot was awarded."
-        ) in refused.stderr
+        assert ("Cannot downgrade the Beta login promotion after any campaign slot was awarded.") in refused.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0027_restore_beta_promo_cap",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0027_restore_beta_promo_cap",
+            )
             assert connection.execute(
                 """
                 SELECT claimed_count
@@ -190,9 +185,9 @@ def test_beta_login_promotion_restores_twenty_and_refuses_unsafe_existing_claims
         assert refused.returncode != 0
         assert "after a slot above 20 was awarded" in refused.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0026_retire_text_models",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0026_retire_text_models",
+            )
             assert connection.execute(
                 """
                 SELECT max_claims, claimed_count

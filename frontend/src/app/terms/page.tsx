@@ -1,5 +1,5 @@
-import { LegalPage } from '@/components/LegalPage';
+import { LegalPage } from "@/components/LegalPage";
 
 export default function TermsOfService() {
-    return <LegalPage kind="terms" />;
+  return <LegalPage kind="terms" />;
 }

@@ -5,9 +5,12 @@ from backend.app.services.provider_clients import (
     load_openai_compatible_client,
     resolve_openai_api_key,
 )
-from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.subtitle_types import Cue
 from backend.app.services.transcription.base import Transcriber
-from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
+from backend.app.services.transcription.cloud_response import (
+    call_callback,
+    write_cloud_transcript,
+)
 
 
 class OpenAITranscriber(Transcriber):
@@ -40,9 +43,7 @@ class OpenAITranscriber(Transcriber):
         progress_callback = kwargs.get("progress_callback")
         check_cancelled = kwargs.get("check_cancelled")
 
-        # Check cancellation before starting
-        if callable(check_cancelled):
-            check_cancelled()
+        call_callback(check_cancelled)
 
         # Resolve API Key
         api_key = self.api_key or resolve_openai_api_key()
@@ -51,12 +52,8 @@ class OpenAITranscriber(Transcriber):
 
         client = load_openai_compatible_client(api_key)
 
-        if callable(progress_callback):
-            progress_callback(10.0)
-
-        # Check cancellation before API call
-        if callable(check_cancelled):
-            check_cancelled()
+        call_callback(progress_callback, 10.0)
+        call_callback(check_cancelled)
 
         try:
             with open(audio_path, "rb") as audio_file:
@@ -72,39 +69,12 @@ class OpenAITranscriber(Transcriber):
         except Exception as exc:
             raise RuntimeError(f"OpenAI transcription failed: {exc}") from exc
 
-        # Check cancellation after API call
-        if callable(check_cancelled):
-            check_cancelled()
-
-        if callable(progress_callback):
-            progress_callback(90.0)
-
-        # Convert OpenAI verbose_json response to our Cue/WordTiming format
-        cues: list[Cue] = []
-        timed_text: list[TimeRange] = []
-
-        # OpenAI returns segments
-        if hasattr(transcript, "segments"):
-            for seg in transcript.segments:
-                seg_text = seg.text or ""
-                seg_start = seg.start
-                seg_end = seg.end
-
-                current_words: list[WordTiming] = []
-
-                all_words = getattr(transcript, "words", [])
-                if all_words:
-                    seg_words_data = [w for w in all_words if w.start >= seg_start and w.start < seg_end]
-                    current_words = [WordTiming(start=w.start, end=w.end, text=normalize_text(w.word)) for w in seg_words_data]
-
-                processed_text = normalize_text(seg_text)
-                cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
-                timed_text.append((seg_start, seg_end, seg_text))
-
-        if callable(progress_callback):
-            progress_callback(100.0)
-
-        srt_path = output_dir / f"{audio_path.stem}.srt"
-        write_srt_from_segments(timed_text, srt_path)
-
-        return srt_path, cues
+        call_callback(check_cancelled)
+        call_callback(progress_callback, 90.0)
+        result = write_cloud_transcript(
+            audio_path=audio_path,
+            output_dir=output_dir,
+            transcript=transcript,
+        )
+        call_callback(progress_callback, 100.0)
+        return result

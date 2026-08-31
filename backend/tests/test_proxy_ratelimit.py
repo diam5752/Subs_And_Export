@@ -33,7 +33,7 @@ def test_proxy_ip_differentiation(client):
         res = client.post(
             "/auth/register",
             json={"email": f"a{i}_{uuid.uuid4().hex}@ex.com", "password": pwd, "name": "a"},
-            headers=headers_a
+            headers=headers_a,
         )
         assert res.status_code == 200, f"User A request {i} failed: {res.text}"
 
@@ -41,7 +41,7 @@ def test_proxy_ip_differentiation(client):
     res_a_blocked = client.post(
         "/auth/register",
         json={"email": f"a_blocked_{uuid.uuid4().hex}@ex.com", "password": pwd, "name": "a"},
-        headers=headers_a
+        headers=headers_a,
     )
     assert res_a_blocked.status_code == 429, "User A should be rate limited"
 
@@ -50,7 +50,7 @@ def test_proxy_ip_differentiation(client):
     res_b = client.post(
         "/auth/register",
         json={"email": f"b_{uuid.uuid4().hex}@ex.com", "password": pwd, "name": "b"},
-        headers=headers_b
+        headers=headers_b,
     )
 
     # If middleware is missing, this will be 429 (shared quota with User A).

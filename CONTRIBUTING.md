@@ -52,8 +52,9 @@ make ci
 
 `make ci` is the source of truth. It runs backend and frontend tests, Java 25
 checks, real local FFmpeg export tests, browser E2E, linting, type checks, dependency
-audits, architecture-cycle checks and the complexity ratchet. CI also enforces
-backend line coverage of at least 90% and branch coverage of at least 80%.
+audits, architecture-cycle checks, canonical formatting, cognitive and cyclomatic
+complexity, duplicate analysis and the 700-line file cap. CI also enforces backend
+line coverage of at least 90% and branch coverage of at least 80%.
 
 ## Coding standards
 
@@ -61,6 +62,16 @@ backend line coverage of at least 90% and branch coverage of at least 80%.
   derived state in `useEffect`.
 - Python requires type hints, `ruff`, strict `mypy` and `pathlib.Path` for paths.
 - Java changes use the checked-in Maven wrapper and JDK 25.
+- Run `make format`; Ruff format is canonical for Python and Prettier is canonical
+  for supported frontend/web files.
+- Every tracked or new non-ignored hand-written code file, including legacy code, tests, migrations
+  and deployment sources, must contain at most 700 physical lines.
+- Inline Ruff-format, Prettier, PMD and jscpd suppression markers are forbidden; refactor the code
+  instead of bypassing the structural gates.
+- Every Python, TypeScript/JavaScript and Java function must have cognitive
+  complexity at most 15, and repository duplicated lines must remain at or below
+  3%. Duplicate blocks use the industry-standard floor of 100 successive tokens
+  across at least 10 lines. Neither gate has legacy exemptions.
 - New functions must have cyclomatic complexity at most 10 and at most 50 active
   lines. Existing hotspots may improve but may not regress.
 - Do not add live provider calls to tests. Paid-provider paths must fail closed and

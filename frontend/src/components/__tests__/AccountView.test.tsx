@@ -1,222 +1,263 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { AccountView } from '../AccountView';
-import { I18nProvider } from '@/context/I18nContext';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { AccountView } from "../AccountView";
+import { I18nProvider } from "@/context/I18nContext";
 
 // Mock Next.js router
 const mockPush = jest.fn();
-jest.mock('next/navigation', () => ({
-    useRouter: () => ({ push: mockPush }),
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
 }));
 
 // Mock API
-jest.mock('@/lib/api', () => ({
-    api: {
-        deleteAccount: jest.fn(),
-        exportData: jest.fn(),
-    },
+jest.mock("@/lib/api", () => ({
+  api: {
+    deleteAccount: jest.fn(),
+    exportData: jest.fn(),
+  },
 }));
 
-import { api } from '@/lib/api';
+import { api } from "@/lib/api";
 
 const mockUser = {
-    id: '123',
-    name: 'Test User',
-    email: 'test@example.com',
-    provider: 'local',
+  id: "123",
+  name: "Test User",
+  email: "test@example.com",
+  provider: "local",
 };
 
 const renderAccountView = (
-    props: Partial<React.ComponentProps<typeof AccountView>> = {},
-    locale: 'el' | 'en' = 'en',
+  props: Partial<React.ComponentProps<typeof AccountView>> = {},
+  locale: "el" | "en" = "en",
 ) => {
-    return render(
-        <I18nProvider initialLocale={locale}>
-            <AccountView
-                user={mockUser}
-                onSaveProfile={jest.fn()}
-                onLogout={jest.fn()}
-                accountMessage=""
-                accountError=""
-                accountSaving={false}
-                {...props}
-            />
-        </I18nProvider>
-    );
+  return render(
+    <I18nProvider initialLocale={locale}>
+      <AccountView
+        user={mockUser}
+        onSaveProfile={jest.fn()}
+        onLogout={jest.fn()}
+        accountMessage=""
+        accountError=""
+        accountSaving={false}
+        {...props}
+      />
+    </I18nProvider>,
+  );
 };
 
-describe('AccountView', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        localStorage.clear();
+describe("AccountView", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("renders user details correctly", () => {
+    renderAccountView();
+    expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("test@example.com")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Open purchases and contracts",
+      }),
+    ).toHaveAttribute("href", "/account/billing");
+  });
+
+  // REGRESSION: purchase records were only linked from a transient checkout
+  // success notice, leaving no durable route from the signed-in profile.
+  it("keeps purchases and contracts permanently accessible from the profile", () => {
+    renderAccountView();
+
+    expect(
+      screen.getByRole("link", {
+        name: "Open purchases and contracts",
+      }),
+    ).toHaveAttribute("href", "/account/billing");
+  });
+
+  it("calls onSaveProfile with updated name and password", async () => {
+    const onSaveProfile = jest.fn();
+    renderAccountView({ onSaveProfile });
+
+    const nameInput = screen.getByDisplayValue("Test User");
+    fireEvent.change(nameInput, { target: { value: "New Name" } });
+
+    const passwordInputs = screen.getAllByPlaceholderText("••••••••");
+    fireEvent.change(passwordInputs[0], { target: { value: "newpass123" } });
+    fireEvent.change(passwordInputs[1], { target: { value: "newpass123" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(onSaveProfile).toHaveBeenCalledWith(
+        "New Name",
+        "newpass123",
+        "newpass123",
+      ),
+    );
+  });
+
+  it("renders password fields only for local provider", () => {
+    const { rerender } = renderAccountView({
+      user: { ...mockUser, provider: "local" },
+    });
+    expect(screen.getByText(/new password/i)).toBeInTheDocument();
+
+    rerender(
+      <I18nProvider initialLocale="en">
+        <AccountView
+          user={{ ...mockUser, provider: "google" }}
+          onSaveProfile={jest.fn()}
+          onLogout={jest.fn()}
+          accountMessage=""
+          accountError=""
+          accountSaving={false}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.queryByText(/new password/i)).not.toBeInTheDocument();
+  });
+
+  it("handles account deletion flow", async () => {
+    (api.deleteAccount as jest.Mock).mockResolvedValue(undefined);
+    renderAccountView();
+
+    // Initial delete button shows confirmation
+    fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+    expect(
+      screen.getByText(
+        /Permanently delete your live GSUBS account, projects, and local media.*erasure records.*backup resurrection.*financial records.*provider-side residual copies.*Privacy Policy/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
+
+    // Confirm delete - click the confirm button directly
+    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+
+    await waitFor(() => expect(api.deleteAccount).toHaveBeenCalled());
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/login"));
+  });
+
+  it("handles account deletion error", async () => {
+    (api.deleteAccount as jest.Mock).mockRejectedValue(
+      new Error("Delete failed"),
+    );
+    renderAccountView();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Delete failed")).toBeInTheDocument(),
+    );
+    // Verify delete was cancelled (button should be "Delete Account" again or close state)
+    // Based on UI logic, it just sets error and unsets deleting state.
+    // The modal stays open? Let's check AccountView.tsx logic if needed, but error message check is sufficient for lines 49-50.
+  });
+
+  it("cancels account deletion", () => {
+    renderAccountView();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+
+    // Cancel button
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    // Confirmation should disappear
+    expect(
+      screen.queryByText(
+        /Permanently delete your live GSUBS account, projects, and local media/i,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("discloses retained financial data before deletion in English and Greek", () => {
+    const { unmount } = renderAccountView();
+
+    expect(
+      screen.getByText(
+        /live GSUBS account, project records, and local media.*erasure records.*recovery backups.*billing, contact, address, and tax-document data.*legally required period.*provider-side residual copies/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /current continuity journal.*whole-host loss.*remain offline.*user data must not be restored from backup/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
+    unmount();
+    localStorage.clear();
+
+    renderAccountView({}, "el");
+    expect(
+      screen.getByText(
+        /ενεργό λογαριασμό GSUBS.*projects.*τοπικά αρχεία πολυμέσων.*εγγραφές διαγραφής.*backup.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμη περίοδο.*αντίγραφα παρόχων/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /τρέχον ημερολόγιο συνέχειας.*απώλεια ολόκληρου του host.*παραμείνει offline.*δεν πρέπει να επαναφερθούν από backup/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Διαγραφή λογαριασμού" }),
+    );
+    expect(
+      screen.getByText(
+        /Να διαγραφούν οριστικά ο ενεργός λογαριασμός GSUBS, τα projects και τα τοπικά αρχεία πολυμέσων.*εγγραφές διαγραφής.*backup.*οικονομικά αρχεία.*αντίγραφα παρόχων.*Πολιτικής Απορρήτου/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /χωρίς αυτό το ημερολόγιο.*παραμείνει offline.*δεδομένα χρηστών δεν πρέπει να επαναφερθούν από backup/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
+  });
+
+  it("handles data export", async () => {
+    (api.exportData as jest.Mock).mockResolvedValue({
+      profile: {},
+      jobs: [],
+      history: [],
     });
 
-    it('renders user details correctly', () => {
-        renderAccountView();
-        expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
-        expect(screen.getByRole('link', {
-            name: 'Open purchases and contracts',
-        })).toHaveAttribute('href', '/account/billing');
-    });
+    const mockCreateObjectURL = jest.fn(() => "blob:test");
+    const mockRevokeObjectURL = jest.fn();
+    const anchorClick = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    global.URL.createObjectURL = mockCreateObjectURL;
+    global.URL.revokeObjectURL = mockRevokeObjectURL;
 
-    // REGRESSION: purchase records were only linked from a transient checkout
-    // success notice, leaving no durable route from the signed-in profile.
-    it('keeps purchases and contracts permanently accessible from the profile', () => {
-        renderAccountView();
+    renderAccountView();
 
-        expect(screen.getByRole('link', {
-            name: 'Open purchases and contracts',
-        })).toHaveAttribute('href', '/account/billing');
-    });
+    const exportBtn = screen.getByRole("button", { name: /Export My Data/i });
+    fireEvent.click(exportBtn);
 
-    it('calls onSaveProfile with updated name and password', async () => {
-        const onSaveProfile = jest.fn();
-        renderAccountView({ onSaveProfile });
+    // Expect loading state
+    expect(screen.getByText(/Exporting.../i)).toBeInTheDocument();
 
-        const nameInput = screen.getByDisplayValue('Test User');
-        fireEvent.change(nameInput, { target: { value: 'New Name' } });
+    await waitFor(() => expect(api.exportData).toHaveBeenCalled());
+    await waitFor(() => expect(mockCreateObjectURL).toHaveBeenCalled());
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(anchorClick.mock.contexts[0].download).toMatch(
+      /^gsubs-data-\d{4}-\d{2}-\d{2}\.json$/,
+    );
+    await waitFor(() => expect(mockRevokeObjectURL).toHaveBeenCalled());
 
-        const passwordInputs = screen.getAllByPlaceholderText('••••••••');
-        fireEvent.change(passwordInputs[0], { target: { value: 'newpass123' } });
-        fireEvent.change(passwordInputs[1], { target: { value: 'newpass123' } });
+    anchorClick.mockRestore();
+  });
 
-        fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+  it("handles data export error", async () => {
+    (api.exportData as jest.Mock).mockRejectedValue(new Error("Export failed"));
+    renderAccountView();
 
-        await waitFor(() => expect(onSaveProfile).toHaveBeenCalledWith('New Name', 'newpass123', 'newpass123'));
-    });
+    const exportBtn = screen.getByRole("button", { name: /Export My Data/i });
+    fireEvent.click(exportBtn);
 
-    it('renders password fields only for local provider', () => {
-        const { rerender } = renderAccountView({ user: { ...mockUser, provider: 'local' } });
-        expect(screen.getByText(/new password/i)).toBeInTheDocument();
-
-        rerender(
-            <I18nProvider initialLocale="en">
-                <AccountView
-                    user={{ ...mockUser, provider: 'google' }}
-                    onSaveProfile={jest.fn()}
-                    onLogout={jest.fn()}
-                    accountMessage=""
-                    accountError=""
-                    accountSaving={false}
-                />
-            </I18nProvider>
-        );
-        expect(screen.queryByText(/new password/i)).not.toBeInTheDocument();
-    });
-
-    it('handles account deletion flow', async () => {
-        (api.deleteAccount as jest.Mock).mockResolvedValue(undefined);
-        renderAccountView();
-
-        // Initial delete button shows confirmation
-        fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
-        expect(screen.getByText(
-            /Permanently delete your live GSUBS account, projects, and local media.*erasure records.*backup resurrection.*financial records.*provider-side residual copies.*Privacy Policy/i,
-        )).toBeInTheDocument();
-        expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
-
-        // Confirm delete - click the confirm button directly
-        fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
-
-        await waitFor(() => expect(api.deleteAccount).toHaveBeenCalled());
-        await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/login'));
-    });
-
-    it('handles account deletion error', async () => {
-        (api.deleteAccount as jest.Mock).mockRejectedValue(new Error('Delete failed'));
-        renderAccountView();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
-        fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
-
-        await waitFor(() => expect(screen.getByText('Delete failed')).toBeInTheDocument());
-        // Verify delete was cancelled (button should be "Delete Account" again or close state)
-        // Based on UI logic, it just sets error and unsets deleting state.
-        // The modal stays open? Let's check AccountView.tsx logic if needed, but error message check is sufficient for lines 49-50.
-    });
-
-    it('cancels account deletion', () => {
-        renderAccountView();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
-
-        // Cancel button
-        fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
-
-        // Confirmation should disappear
-        expect(screen.queryByText(
-            /Permanently delete your live GSUBS account, projects, and local media/i,
-        )).not.toBeInTheDocument();
-    });
-
-    it('discloses retained financial data before deletion in English and Greek', () => {
-        const { unmount } = renderAccountView();
-
-        expect(screen.getByText(
-            /live GSUBS account, project records, and local media.*erasure records.*recovery backups.*billing, contact, address, and tax-document data.*legally required period.*provider-side residual copies/i,
-        )).toBeInTheDocument();
-        expect(screen.getByText(
-            /current continuity journal.*whole-host loss.*remain offline.*user data must not be restored from backup/i,
-        )).toBeInTheDocument();
-        expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
-        unmount();
-        localStorage.clear();
-
-        renderAccountView({}, 'el');
-        expect(screen.getByText(
-            /ενεργό λογαριασμό GSUBS.*projects.*τοπικά αρχεία πολυμέσων.*εγγραφές διαγραφής.*backup.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμη περίοδο.*αντίγραφα παρόχων/i,
-        )).toBeInTheDocument();
-        expect(screen.getByText(
-            /τρέχον ημερολόγιο συνέχειας.*απώλεια ολόκληρου του host.*παραμείνει offline.*δεν πρέπει να επαναφερθούν από backup/i,
-        )).toBeInTheDocument();
-        expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Διαγραφή λογαριασμού' }));
-        expect(screen.getByText(
-            /Να διαγραφούν οριστικά ο ενεργός λογαριασμός GSUBS, τα projects και τα τοπικά αρχεία πολυμέσων.*εγγραφές διαγραφής.*backup.*οικονομικά αρχεία.*αντίγραφα παρόχων.*Πολιτικής Απορρήτου/i,
-        )).toBeInTheDocument();
-        expect(screen.getByText(
-            /χωρίς αυτό το ημερολόγιο.*παραμείνει offline.*δεδομένα χρηστών δεν πρέπει να επαναφερθούν από backup/i,
-        )).toBeInTheDocument();
-        expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
-    });
-
-    it('handles data export', async () => {
-        (api.exportData as jest.Mock).mockResolvedValue({ profile: {}, jobs: [], history: [] });
-
-        const mockCreateObjectURL = jest.fn(() => 'blob:test');
-        const mockRevokeObjectURL = jest.fn();
-        const anchorClick = jest
-            .spyOn(HTMLAnchorElement.prototype, 'click')
-            .mockImplementation(() => undefined);
-        global.URL.createObjectURL = mockCreateObjectURL;
-        global.URL.revokeObjectURL = mockRevokeObjectURL;
-
-        renderAccountView();
-
-        const exportBtn = screen.getByRole('button', { name: /Export My Data/i });
-        fireEvent.click(exportBtn);
-
-        // Expect loading state
-        expect(screen.getByText(/Exporting.../i)).toBeInTheDocument();
-
-        await waitFor(() => expect(api.exportData).toHaveBeenCalled());
-        await waitFor(() => expect(mockCreateObjectURL).toHaveBeenCalled());
-        expect(anchorClick).toHaveBeenCalledTimes(1);
-        expect(anchorClick.mock.contexts[0].download)
-            .toMatch(/^gsubs-data-\d{4}-\d{2}-\d{2}\.json$/);
-        await waitFor(() => expect(mockRevokeObjectURL).toHaveBeenCalled());
-
-        anchorClick.mockRestore();
-    });
-
-    it('handles data export error', async () => {
-        (api.exportData as jest.Mock).mockRejectedValue(new Error('Export failed'));
-        renderAccountView();
-
-        const exportBtn = screen.getByRole('button', { name: /Export My Data/i });
-        fireEvent.click(exportBtn);
-
-        await waitFor(() => expect(screen.getByText('Export failed')).toBeInTheDocument());
-    });
+    await waitFor(() =>
+      expect(screen.getByText("Export failed")).toBeInTheDocument(),
+    );
+  });
 });

@@ -1,4 +1,3 @@
 {
-  "entry": ["scripts/start-standalone.mjs"],
   "ignore": ["public/sw.js"]
 }

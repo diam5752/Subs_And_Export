@@ -206,7 +206,9 @@ def test_srt_export_missing_transcript_returns_404(client: TestClient, monkeypat
         app.dependency_overrides = {}
 
 
-def test_subtitle_file_export_validates_style_settings(client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path):
+def test_subtitle_file_export_validates_style_settings(
+    client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path
+):
     # REGRESSION: subtitle-only exports must enforce the same range checks as video exports.
     monkeypatch.setattr(export_routes.settings, "project_root", tmp_path)
     data_dir = tmp_path
@@ -245,7 +247,9 @@ def test_subtitle_file_export_validates_style_settings(client: TestClient, monke
         app.dependency_overrides = {}
 
 
-def test_subtitle_file_export_malformed_transcript_returns_422(client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path):
+def test_subtitle_file_export_malformed_transcript_returns_422(
+    client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path
+):
     # REGRESSION: corrupt persisted captions should be reported as an export contract error, not a generic 500.
     monkeypatch.setattr(export_routes.settings, "project_root", tmp_path)
     data_dir = tmp_path
@@ -284,7 +288,9 @@ def test_subtitle_file_export_malformed_transcript_returns_422(client: TestClien
         app.dependency_overrides = {}
 
 
-def test_export_video_invalid_resolution_returns_422(client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path):
+def test_export_video_invalid_resolution_returns_422(
+    client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path
+):
     # REGRESSION: bogus resolution strings must be rejected instead of silently exporting the default size.
     monkeypatch.setattr(export_routes.settings, "project_root", tmp_path)
     data_dir = tmp_path

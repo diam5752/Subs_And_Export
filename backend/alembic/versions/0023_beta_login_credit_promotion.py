@@ -16,9 +16,7 @@ branch_labels = None
 depends_on = None
 
 BETA_CAMPAIGN_ID = "beta_first_20_logins_v1"
-DOWNGRADE_WITH_AWARDS_ERROR = (
-    "Cannot downgrade the Beta login promotion after any campaign slot was awarded."
-)
+DOWNGRADE_WITH_AWARDS_ERROR = "Cannot downgrade the Beta login promotion after any campaign slot was awarded."
 
 
 def upgrade() -> None:
@@ -136,11 +134,7 @@ def downgrade() -> None:
             )
         ).scalar_one()
     )
-    claim_rows = int(
-        connection.execute(
-            sa.text("SELECT COUNT(*) FROM credit_promotion_claims")
-        ).scalar_one()
-    )
+    claim_rows = int(connection.execute(sa.text("SELECT COUNT(*) FROM credit_promotion_claims")).scalar_one())
     ledger_rows = int(
         connection.execute(
             sa.text(

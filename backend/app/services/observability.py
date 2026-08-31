@@ -81,11 +81,7 @@ class ObservabilityStore:
         key = self._runtime_key("session", presence_id)
         presence = Presence(
             auth_state="authenticated" if user_id is not None else "guest",
-            account_key=(
-                self._runtime_key("account", user_id)
-                if user_id is not None
-                else None
-            ),
+            account_key=(self._runtime_key("account", user_id) if user_id is not None else None),
             route=route,
             viewport=viewport,
             seen_at=now,
@@ -196,11 +192,13 @@ class ObservabilityStore:
         }
 
     def _active_snapshot(self, presence: list[Presence]) -> dict[str, int]:
-        authenticated = len({
-            item.account_key
-            for item in presence
-            if item.auth_state == "authenticated" and item.account_key is not None
-        })
+        authenticated = len(
+            {
+                item.account_key
+                for item in presence
+                if item.auth_state == "authenticated" and item.account_key is not None
+            }
+        )
         guests = sum(item.auth_state == "guest" for item in presence)
         return {
             "authenticated_accounts": authenticated,
@@ -224,10 +222,7 @@ class ObservabilityStore:
     @staticmethod
     def _error_counts(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         errors = [item for item in events if str(item.get("kind", "")).endswith("error")]
-        keys = Counter(
-            (item["kind"], item["name"], item["route"], item.get("status_code"))
-            for item in errors
-        )
+        keys = Counter((item["kind"], item["name"], item["route"], item.get("status_code")) for item in errors)
         return [
             {
                 "kind": kind,

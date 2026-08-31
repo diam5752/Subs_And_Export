@@ -1,7 +1,20 @@
-'use client';
+"use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { defaultLocale, locales, messages, Locale, MessageKey } from './i18nMessages';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  defaultLocale,
+  locales,
+  messages,
+  Locale,
+  MessageKey,
+} from "./i18nMessages";
 
 interface I18nContextType {
   locale: Locale;
@@ -10,12 +23,12 @@ interface I18nContextType {
   availableLocales: Locale[];
 }
 
-const I18N_STORAGE_KEY = 'preferredLocale';
+const I18N_STORAGE_KEY = "preferredLocale";
 const I18nContext = createContext<I18nContextType | null>(null);
 
 // Get stored locale - only call on client
 function getStoredLocale(): Locale | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   const stored = localStorage.getItem(I18N_STORAGE_KEY);
   if (stored && locales.includes(stored as Locale)) {
     return stored as Locale;
@@ -23,11 +36,19 @@ function getStoredLocale(): Locale | null {
   return null;
 }
 
-export function I18nProvider({ children, initialLocale }: { children: React.ReactNode; initialLocale?: Locale }) {
+export function I18nProvider({
+  children,
+  initialLocale,
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
   // Always initialize with defaultLocale (or initialLocale prop) for SSR consistency.
   // This ensures server and client first-render produce identical output.
   const [locale, setLocaleState] = useState<Locale>(
-    initialLocale && locales.includes(initialLocale) ? initialLocale : defaultLocale
+    initialLocale && locales.includes(initialLocale)
+      ? initialLocale
+      : defaultLocale,
   );
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -36,7 +57,9 @@ export function I18nProvider({ children, initialLocale }: { children: React.Reac
   useEffect(() => {
     const stored = getStoredLocale();
     if (stored) {
-      setLocaleState((currentLocale) => stored === currentLocale ? currentLocale : stored);
+      setLocaleState((currentLocale) =>
+        stored === currentLocale ? currentLocale : stored,
+      );
     }
     setIsHydrated(true);
   }, []);
@@ -45,10 +68,10 @@ export function I18nProvider({ children, initialLocale }: { children: React.Reac
   // Sync TO external systems (document.lang, localStorage) after hydration
   useEffect(() => {
     if (!isHydrated) return; // Skip during initial hydration
-    if (typeof document !== 'undefined') {
+    if (typeof document !== "undefined") {
       document.documentElement.lang = locale;
     }
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       localStorage.setItem(I18N_STORAGE_KEY, locale);
     }
   }, [locale, isHydrated]);
@@ -59,7 +82,9 @@ export function I18nProvider({ children, initialLocale }: { children: React.Reac
 
   const t = useCallback(
     (key: MessageKey, params?: Record<string, string | number>) => {
-      let message = (messages[locale][key] ?? messages[defaultLocale][key] ?? key) as string;
+      let message = (messages[locale][key] ??
+        messages[defaultLocale][key] ??
+        key) as string;
       if (params) {
         Object.entries(params).forEach(([k, v]) => {
           message = message.replace(`{${k}}`, String(v));
@@ -86,7 +111,7 @@ export function I18nProvider({ children, initialLocale }: { children: React.Reac
 export function useI18n() {
   const context = useContext(I18nContext);
   if (!context) {
-    throw new Error('useI18n must be used within an I18nProvider');
+    throw new Error("useI18n must be used within an I18nProvider");
   }
   return context;
 }

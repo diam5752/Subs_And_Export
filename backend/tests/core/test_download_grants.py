@@ -20,10 +20,14 @@ FILE_PATH = "artifacts/job-123/processed_720x1280.mp4"
 
 
 def _signed_payload(payload: object | str) -> str:
-    raw = payload if isinstance(payload, str) else json.dumps(
-        payload,
-        separators=(",", ":"),
-        sort_keys=True,
+    raw = (
+        payload
+        if isinstance(payload, str)
+        else json.dumps(
+            payload,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
     )
     encoded = download_grants._encode_base64url(raw.encode("utf-8"))
     signature = hmac.new(
@@ -213,16 +217,21 @@ def test_download_grant_rejects_empty_encoding_and_duplicate_json_keys() -> None
     encoded, _signature = valid.split(".", 1)
     with pytest.raises(DownloadGrantError, match="encoding"):
         validate_download_grant(
-            f"{encoded}.", secret=SECRET, expected_file_path=FILE_PATH, ttl_seconds=300, now=1_001,
+            f"{encoded}.",
+            secret=SECRET,
+            expected_file_path=FILE_PATH,
+            ttl_seconds=300,
+            now=1_001,
         )
 
-    duplicate = (
-        '{"exp":1300,"iat":1000,"name":"video.mp4",'
-        f'"path":"{FILE_PATH}","uid":"first","uid":"second","v":1}}'
-    )
+    duplicate = f'{{"exp":1300,"iat":1000,"name":"video.mp4","path":"{FILE_PATH}","uid":"first","uid":"second","v":1}}'
     with pytest.raises(DownloadGrantError, match="payload"):
         validate_download_grant(
-            _signed_payload(duplicate), secret=SECRET, expected_file_path=FILE_PATH, ttl_seconds=300, now=1_001,
+            _signed_payload(duplicate),
+            secret=SECRET,
+            expected_file_path=FILE_PATH,
+            ttl_seconds=300,
+            now=1_001,
         )
 
 

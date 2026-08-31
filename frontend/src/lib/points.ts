@@ -2,90 +2,93 @@ export type ProcessingCreditTier = 30 | 60 | 100;
 
 export const PROCESS_VIDEO_DEFAULT_COST: ProcessingCreditTier = 100;
 const PROCESS_VIDEO_MODEL_COSTS: Record<string, ProcessingCreditTier> = {
-    standard: PROCESS_VIDEO_DEFAULT_COST,
-    pro: PROCESS_VIDEO_DEFAULT_COST,
+  standard: PROCESS_VIDEO_DEFAULT_COST,
+  pro: PROCESS_VIDEO_DEFAULT_COST,
 };
 
 interface VideoCreditQuote {
-    key: 'up_to_3m' | 'up_to_6m' | 'up_to_10m';
-    maxDurationSeconds: number;
-    credits: ProcessingCreditTier;
+  key: "up_to_3m" | "up_to_6m" | "up_to_10m";
+  maxDurationSeconds: number;
+  credits: ProcessingCreditTier;
 }
 
 export const VIDEO_CREDIT_BRACKETS: readonly VideoCreditQuote[] = [
-    { key: 'up_to_3m', maxDurationSeconds: 180, credits: 30 },
-    { key: 'up_to_6m', maxDurationSeconds: 360, credits: 60 },
-    { key: 'up_to_10m', maxDurationSeconds: 600, credits: 100 },
+  { key: "up_to_3m", maxDurationSeconds: 180, credits: 30 },
+  { key: "up_to_6m", maxDurationSeconds: 360, credits: 60 },
+  { key: "up_to_10m", maxDurationSeconds: 600, credits: 100 },
 ] as const;
 
-export function isProcessingCreditTier(value: unknown): value is ProcessingCreditTier {
-    return value === 30 || value === 60 || value === 100;
+export function isProcessingCreditTier(
+  value: unknown,
+): value is ProcessingCreditTier {
+  return value === 30 || value === 60 || value === 100;
 }
 
 export function processVideoCostForTranscribeModel(
-    transcribeModel: string,
+  transcribeModel: string,
 ): ProcessingCreditTier {
-    const normalized = transcribeModel.trim().toLowerCase();
-    return PROCESS_VIDEO_MODEL_COSTS[normalized] ?? PROCESS_VIDEO_DEFAULT_COST;
+  const normalized = transcribeModel.trim().toLowerCase();
+  return PROCESS_VIDEO_MODEL_COSTS[normalized] ?? PROCESS_VIDEO_DEFAULT_COST;
 }
 
 export function videoCreditQuoteForDuration(
-    durationSeconds: number | null | undefined,
+  durationSeconds: number | null | undefined,
 ): VideoCreditQuote {
-    if (
-        typeof durationSeconds !== 'number'
-        || !Number.isFinite(durationSeconds)
-        || durationSeconds <= 0
-    ) {
-        return VIDEO_CREDIT_BRACKETS[VIDEO_CREDIT_BRACKETS.length - 1];
-    }
-    const quote = VIDEO_CREDIT_BRACKETS.find(
-        (candidate) => durationSeconds <= candidate.maxDurationSeconds,
-    );
-    return quote ?? VIDEO_CREDIT_BRACKETS[VIDEO_CREDIT_BRACKETS.length - 1];
+  if (
+    typeof durationSeconds !== "number" ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
+    return VIDEO_CREDIT_BRACKETS[VIDEO_CREDIT_BRACKETS.length - 1];
+  }
+  const quote = VIDEO_CREDIT_BRACKETS.find(
+    (candidate) => durationSeconds <= candidate.maxDurationSeconds,
+  );
+  return quote ?? VIDEO_CREDIT_BRACKETS[VIDEO_CREDIT_BRACKETS.length - 1];
 }
 
 export function processVideoCostForDuration(
-    durationSeconds: number | null | undefined,
+  durationSeconds: number | null | undefined,
 ): ProcessingCreditTier {
-    return videoCreditQuoteForDuration(durationSeconds).credits;
+  return videoCreditQuoteForDuration(durationSeconds).credits;
 }
 
 export function resolveTranscribeModelForSelection(
-    provider: string | null | undefined,
-    mode: string | null | undefined,
+  provider: string | null | undefined,
+  mode: string | null | undefined,
 ): string {
-    const normalizedProvider = (provider ?? '').trim().toLowerCase();
-    const normalizedMode = (mode ?? '').trim().toLowerCase();
+  const normalizedProvider = (provider ?? "").trim().toLowerCase();
+  const normalizedMode = (mode ?? "").trim().toLowerCase();
 
-    if (normalizedMode === 'pro') return 'pro';
-    if (normalizedMode === 'standard') return 'standard';
-    if (normalizedMode.includes('turbo') || normalizedMode.includes('enhanced')) return 'standard';
-    if (normalizedMode.includes('large')) return 'pro';
-    if (normalizedProvider === 'openai') return 'pro';
-    return 'standard';
+  if (normalizedMode === "pro") return "pro";
+  if (normalizedMode === "standard") return "standard";
+  if (normalizedMode.includes("turbo") || normalizedMode.includes("enhanced"))
+    return "standard";
+  if (normalizedMode.includes("large")) return "pro";
+  if (normalizedProvider === "openai") return "pro";
+  return "standard";
 }
 
 export function processVideoCostForSelection(
-    provider: string | null | undefined,
-    mode: string | null | undefined,
-    durationSeconds?: number | null,
+  provider: string | null | undefined,
+  mode: string | null | undefined,
+  durationSeconds?: number | null,
 ): ProcessingCreditTier {
-    // Provider and model no longer change the public video price. Keep them in
-    // the signature for compatibility with existing callers while duration is
-    // the sole pricing authority.
-    void provider;
-    void mode;
-    return processVideoCostForDuration(durationSeconds);
+  // Provider and model no longer change the public video price. Keep them in
+  // the signature for compatibility with existing callers while duration is
+  // the sole pricing authority.
+  void provider;
+  void mode;
+  return processVideoCostForDuration(durationSeconds);
 }
 
 export function transcribeProviderRequiresPaidCredits(
-    provider: string | null | undefined,
+  provider: string | null | undefined,
 ): boolean {
-    const normalizedProvider = (provider ?? 'mock').trim().toLowerCase();
-    return normalizedProvider !== 'mock' && normalizedProvider !== 'local';
+  const normalizedProvider = (provider ?? "mock").trim().toLowerCase();
+  return normalizedProvider !== "mock" && normalizedProvider !== "local";
 }
 
 export function formatPoints(value: number): string {
-    return value.toLocaleString();
+  return value.toLocaleString();
 }

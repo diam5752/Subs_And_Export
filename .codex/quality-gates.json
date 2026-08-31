@@ -64,6 +64,53 @@
       "max_for_new_functions": 10,
       "baseline_file": ".codex/code-complexity-baseline.json"
     },
+    "cognitive_complexity": {
+      "type": "hard_gate",
+      "max_per_function": 15,
+      "legacy_exemptions": 0,
+      "tools": {
+        "python": "complexipy==7.0.1",
+        "typescript_javascript": "eslint-plugin-sonarjs==4.2.0",
+        "java": "maven-pmd-plugin==3.28.0+pmd-java==7.27.0"
+      }
+    },
+    "duplicate_code": {
+      "type": "hard_gate",
+      "duplicated_lines_pct_max": 3,
+      "minimum_clone_lines": 10,
+      "minimum_clone_tokens": 100,
+      "mode": "weak_ignore_comments",
+      "legacy_exemptions": 0,
+      "tool": "jscpd==5.1.0"
+    },
+    "file_length": {
+      "type": "hard_gate",
+      "physical_lines_max": 700,
+      "scope": "tracked_and_untracked_nonignored_hand_written_code",
+      "legacy_exemptions": 0
+    },
+    "inline_quality_suppressions": {
+      "type": "hard_gate",
+      "allowed": 0,
+      "covers": [
+        "Ruff formatter off or skip markers",
+        "Prettier ignore markers",
+        "PMD NOPMD markers",
+        "PMD SuppressWarnings annotations",
+        "jscpd ignore markers"
+      ]
+    },
+    "formatting": {
+      "type": "hard_gate",
+      "python": {
+        "tool": "ruff==0.16.5",
+        "command": "ruff format"
+      },
+      "frontend_web": {
+        "tool": "prettier==3.9.6",
+        "command": "prettier"
+      }
+    },
     "mutation_kill_rate": {
       "type": "strong_target",
       "min_pct": 95
@@ -150,6 +197,34 @@
       "command_id": "check:complexity"
     },
     {
+      "id": "cognitive-complexity",
+      "requirement": "Every Python, TypeScript, JavaScript, and Java function must have cognitive complexity at most 15.",
+      "status": "enabled",
+      "suggested_command": "Run language-native cognitive analysis separately from the Lizard cyclomatic metric.",
+      "command_id": "check:cognitive"
+    },
+    {
+      "id": "duplicate-code",
+      "requirement": "Duplicated lines must not exceed 3% across production code and tests.",
+      "status": "enabled",
+      "suggested_command": "Run jscpd across Python, frontend, Java, SQL, CSS, and shell sources.",
+      "command_id": "check:duplicates"
+    },
+    {
+      "id": "file-length",
+      "requirement": "Every tracked or new non-ignored hand-written code file must contain at most 700 physical lines, including legacy code and tests.",
+      "status": "enabled",
+      "suggested_command": "Run the repository-owned file-length checker across tracked and new non-ignored code with no grandfathered baseline.",
+      "command_id": "check:file-length"
+    },
+    {
+      "id": "canonical-format",
+      "requirement": "Python must match Ruff format and supported frontend/web files must match Prettier.",
+      "status": "enabled",
+      "suggested_command": "Run the pinned formatter check; use `make format` to apply the canonical output.",
+      "command_id": "check:format"
+    },
+    {
       "id": "static-analysis",
       "requirement": "Zero critical or blocker static-analysis issues.",
       "status": "enabled",
@@ -198,21 +273,28 @@
     "Acceptance flows remain human-owned and should be confirmed in .codex/acceptance-flows.md.",
     "Fast/static/security/integration/E2E enforcement is executable today.",
     "Complexity and function-size regressions are blocked across Python, TypeScript, and Java with a reviewed baseline ratchet.",
+    "Cognitive complexity, duplicate-code percentage, canonical formatting, and the 700-line file maximum are independent hard gates without legacy exemptions.",
     "CodeQL, secret scanning, dependency-diff review, and production-image build/vulnerability scans run as dedicated GitHub workflows.",
     "Real-media export compatibility and golden-frame regression checks run locally without external providers.",
     "Java/Spring enforcement is executable through check:java and CI configures JDK 25 plus PostgreSQL; local runs require both services.",
     "Java PIT mutation testing covers the authentication and request-safety boundary; subtitle export performance smoke is also executable nightly.",
     "DAST remains blocked until the repo has a stable deployable preview target for OWASP ZAP."
   ],
-  "generated_at": "2026-04-19T11:38:30.278215+00:00",
+  "generated_at": "2026-08-30T16:01:18+03:00",
   "stack_profile": "hybrid-python-typescript",
   "command_interface": {
     "runner": ".codex/scripts/quality_runner.py",
     "make_include": ".codex/quality.mk",
     "make_targets": [
+      "format",
       "check-fast",
+      "check-format",
       "check-static",
       "check-complexity",
+      "check-cognitive",
+      "check-duplicates",
+      "check-file-length",
+      "check-quality-suppressions",
       "check-unit",
       "check-integration",
       "check-media-export",
@@ -232,14 +314,58 @@
       "builtin": "contract",
       "status": "enabled"
     },
+    "check:format": {
+      "kind": "shell",
+      "shell": "ruff format --check . && cd frontend && npm run format:check",
+      "status": "enabled"
+    },
     "check:static": {
       "kind": "shell",
-      "shell": "mypy backend/app .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py .codex/scripts/check_code_complexity.py && ruff check backend .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py .codex/scripts/check_code_complexity.py && shellcheck .codex/scripts/*.sh deploy/hetzner/*.sh && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
+      "shell": "mypy backend/app .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py .codex/scripts/check_code_complexity.py .codex/scripts/check_file_length.py .codex/scripts/check_quality_suppressions.py && ruff check backend .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py .codex/scripts/check_code_complexity.py .codex/scripts/check_file_length.py .codex/scripts/check_quality_suppressions.py && find .codex/scripts deploy/hetzner -type f -name '*.sh' -exec shellcheck {} + && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
       "status": "enabled"
     },
     "check:complexity": {
       "kind": "shell",
       "shell": "python3 .codex/scripts/check_code_complexity.py",
+      "status": "enabled"
+    },
+    "check:cognitive:python": {
+      "kind": "shell",
+      "shell": "set -o pipefail; git ls-files -z --cached --others --exclude-standard '*.py' '*.pyi' | xargs -0 complexipy",
+      "status": "enabled"
+    },
+    "check:cognitive:frontend": {
+      "kind": "shell",
+      "shell": "cd frontend && npm run lint:cognitive",
+      "status": "enabled"
+    },
+    "check:cognitive:java": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/run_java_gate.py ./mvnw -B pmd:check",
+      "status": "enabled"
+    },
+    "check:cognitive": {
+      "kind": "composite",
+      "steps": [
+        "check:cognitive:python",
+        "check:cognitive:frontend",
+        "check:cognitive:java"
+      ],
+      "status": "enabled"
+    },
+    "check:duplicates": {
+      "kind": "shell",
+      "shell": "cd frontend && npm run analyze:duplicates",
+      "status": "enabled"
+    },
+    "check:file-length": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/check_file_length.py",
+      "status": "enabled"
+    },
+    "check:quality-suppressions": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/check_quality_suppressions.py",
       "status": "enabled"
     },
     "check:unit:backend": {
@@ -310,8 +436,13 @@
       "kind": "composite",
       "steps": [
         "check:contract",
+        "check:format",
         "check:static",
+        "check:file-length",
+        "check:quality-suppressions",
         "check:complexity",
+        "check:cognitive",
+        "check:duplicates",
         "check:unit"
       ],
       "status": "enabled"

@@ -41,6 +41,7 @@ _API_KEY_PATTERNS = [
     re.compile(r"(gsk_[a-zA-Z0-9]{20,})"),  # Groq
 ]
 
+
 def sanitize_message(msg: str) -> str:
     """
     Sanitize string messages to prevent leaking internal details or secrets.
@@ -56,11 +57,13 @@ def sanitize_message(msg: str) -> str:
 
     return msg
 
+
 def sanitize_error(exc: Exception | str) -> str:
     """
     Convenience wrapper to sanitize an exception or a string.
     """
     return sanitize_message(str(exc))
+
 
 def create_error_response(
     status_code: int,
@@ -72,12 +75,14 @@ def create_error_response(
         content["code"] = error_code
     return JSONResponse(status_code=status_code, content=content)
 
+
 async def http_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
     """
     Handle explicit HTTP exceptions (e.g. 404, 403).
     """
     http_exc = cast(StarletteHTTPException, exc)
     return create_error_response(http_exc.status_code, sanitize_message(str(http_exc.detail)))
+
 
 async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
@@ -88,7 +93,7 @@ async def validation_exception_handler(request: Request, exc: Exception) -> JSON
 
     # Specific logic ported from main.py for batch delete limit
     if request.url.path.endswith("/videos/jobs/batch-delete"):
-         for error in errors:
+        for error in errors:
             loc = error.get("loc", ())
             ctx = error.get("ctx", {})
             if (
@@ -106,7 +111,10 @@ async def validation_exception_handler(request: Request, exc: Exception) -> JSON
         sanitized_errors.append(f"{loc}: {msg}")
 
     error_msg = "; ".join(sanitized_errors)
-    return create_error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Validation Error: {sanitize_message(error_msg)}")
+    return create_error_response(
+        status.HTTP_422_UNPROCESSABLE_CONTENT, f"Validation Error: {sanitize_message(error_msg)}"
+    )
+
 
 async def database_exception_handler(request: Request, _exc: Exception) -> JSONResponse:
     """
@@ -114,9 +122,7 @@ async def database_exception_handler(request: Request, _exc: Exception) -> JSONR
     """
     logger.exception("Database error occurred", extra={"path": request.url.path})
     return create_error_response(
-        status.HTTP_500_INTERNAL_SERVER_ERROR,
-        "A database error occurred. Please try again later.",
-        "DB_ERROR"
+        status.HTTP_500_INTERNAL_SERVER_ERROR, "A database error occurred. Please try again later.", "DB_ERROR"
     )
 
 
@@ -155,10 +161,9 @@ async def global_exception_handler(request: Request, _exc: Exception) -> JSONRes
     """
     logger.exception("Unhandled exception", extra={"path": request.url.path})
     return create_error_response(
-        status.HTTP_500_INTERNAL_SERVER_ERROR,
-        "An internal server error occurred.",
-        "INTERNAL_ERROR"
+        status.HTTP_500_INTERNAL_SERVER_ERROR, "An internal server error occurred.", "INTERNAL_ERROR"
     )
+
 
 def register_exception_handlers(app: FastAPI) -> None:
     """

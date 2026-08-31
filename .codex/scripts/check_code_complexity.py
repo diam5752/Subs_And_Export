@@ -101,10 +101,7 @@ def grouped_hotspots(
             value = int(getattr(function, metric_name))
             if value > limit:
                 values[function.key].append(value)
-        grouped[metric_name] = {
-            key: sorted(scores, reverse=True)
-            for key, scores in sorted(values.items())
-        }
+        grouped[metric_name] = {key: sorted(scores, reverse=True) for key, scores in sorted(values.items())}
     return grouped
 
 

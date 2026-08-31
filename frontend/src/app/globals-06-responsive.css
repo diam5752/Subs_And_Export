@@ -1,0 +1,599 @@
+.auth-card-heading h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.035em;
+}
+
+.auth-card-heading p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-google-shell {
+  position: relative;
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+}
+
+.auth-google-official {
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.auth-google-official.is-ready {
+  opacity: 1;
+}
+
+.auth-google-official > div {
+  min-width: 0;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.auth-google-official iframe {
+  /*
+   * Google renders a transparent 10px gutter on both sides of the requested
+   * button width. Keep that gutter responsive after rotation or viewport
+   * resizing instead of allowing its original desktop width to widen the grid.
+   */
+  max-width: calc(100% + 20px) !important;
+}
+
+.auth-google-placeholder,
+.auth-google-unavailable {
+  min-height: 44px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid #d6d8dd;
+  border-radius: 9px;
+  background: #fff;
+  color: #2c2e33;
+  font-size: 14px;
+  font-weight: 620;
+  padding: 12px 16px;
+}
+
+.auth-google-placeholder {
+  position: absolute;
+  inset: 0;
+}
+
+.auth-google-unavailable {
+  color: var(--muted);
+  background: #f7f7f8;
+}
+
+.auth-google-embedded {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid rgb(20 112 245 / 0.2);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f4f8ff, #fff);
+  color: #5f636b;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 14px 15px;
+}
+
+.auth-google-embedded-title {
+  color: #20242c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-google-embedded-copy {
+  min-height: 38px;
+  margin-top: 3px;
+  border: 1px solid rgb(20 112 245 / 0.26);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--accent);
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.auth-google-embedded-copy:focus-visible {
+  outline: 3px solid rgb(20 112 245 / 0.2);
+  outline-offset: 2px;
+}
+
+.auth-google-embedded-result {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0;
+  color: #9a9da4;
+  font-size: 11px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  flex: 1;
+  background: #e3e4e7;
+  content: "";
+}
+
+.auth-label {
+  display: block;
+  margin-bottom: 7px;
+  color: #5f636b;
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.auth-error {
+  border: 1px solid rgb(207 51 75 / 0.22);
+  border-radius: 9px;
+  background: rgb(207 51 75 / 0.06);
+  color: var(--danger);
+  font-size: 12px;
+  padding: 11px 13px;
+}
+
+.auth-switch {
+  margin-top: 22px;
+  text-align: center;
+}
+
+.auth-switch p {
+  font-size: 12px;
+}
+
+.auth-footer {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #e7e7e5;
+  color: #92959b;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 18px clamp(22px, 4vw, 56px) calc(18px + env(safe-area-inset-bottom));
+  text-transform: uppercase;
+}
+
+.auth-footer-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+}
+
+.auth-footer-link:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+
+@media (max-width: 800px) {
+  .studio-header {
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+  }
+
+  .studio-nav {
+    display: none;
+  }
+
+  .studio-header-account {
+    grid-column: 2;
+  }
+
+  .studio-header-account .language-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 6px 8px;
+  }
+
+  .studio-header-account .studio-credit-balance {
+    min-height: 44px;
+  }
+
+  .studio-header-account .profile-trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .studio-header-account .guest-sign-in {
+    min-height: 44px;
+  }
+
+  .studio-header-account .language-toggle > span:last-child {
+    display: none;
+  }
+
+  .studio-main {
+    padding-top: 48px;
+  }
+
+  .auth-main {
+    grid-template-columns: 1fr;
+    gap: 44px;
+    padding: 48px 0;
+  }
+
+  .auth-promise {
+    text-align: center;
+  }
+
+  .auth-promise h1,
+  .auth-promise p {
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .auth-card {
+    width: min(100%, 440px);
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    --studio-header-row-height: 64px;
+  }
+
+  .studio-header,
+  .auth-header {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .studio-header {
+    min-height: var(--studio-header-total-height);
+  }
+
+  .auth-header {
+    min-height: calc(64px + env(safe-area-inset-top));
+  }
+
+  .checkout-return-notice {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px 10px;
+    border-radius: 14px;
+    padding: 10px;
+  }
+
+  .checkout-return-notice-actions {
+    grid-column: 2;
+  }
+
+  .studio-brand strong,
+  .auth-wordmark {
+    font-size: 12px;
+  }
+
+  .studio-main,
+  .studio-footer,
+  .auth-main {
+    width: min(100% - 28px, 860px);
+  }
+
+  .studio-main {
+    padding-top: 36px;
+  }
+
+  .studio-main-workspace {
+    padding-top: 12px;
+  }
+
+  .studio-main-workspace .studio-workflow {
+    gap: 8px;
+  }
+
+  .studio-main-workspace .studio-stepper {
+    display: none;
+  }
+
+  .studio-intro {
+    margin-bottom: 24px;
+  }
+
+  .studio-intro h1 {
+    font-size: clamp(2.4rem, 12vw, 3.5rem);
+  }
+
+  .studio-intro-copy > p {
+    margin-top: 13px;
+    font-size: 14px;
+  }
+
+  .studio-upload-zone {
+    min-height: 285px;
+    padding: 30px 18px;
+  }
+
+  .studio-upload-preview {
+    width: 88px;
+    height: 54px;
+    margin-bottom: 18px;
+  }
+
+  .studio-upload-cta {
+    min-width: 174px;
+  }
+
+  .studio-step {
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 3px;
+  }
+
+  .studio-step-copy strong {
+    font-size: 10px;
+  }
+
+  .studio-step-connector {
+    width: clamp(12px, 5vw, 28px);
+  }
+
+  .studio-panel {
+    padding: 16px;
+  }
+
+  .studio-panel-header {
+    flex-direction: column;
+  }
+
+  .studio-footer {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  /* Keep the empty upload journey inside one modern-phone viewport. This is
+     intentionally scoped so processing notices and the editor can still grow. */
+  .app-shell-upload-landing .studio-stage {
+    min-height: calc(100svh - var(--studio-header-total-height));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-shell-upload-landing .studio-main {
+    flex: 1 1 auto;
+    padding-top: 30px;
+  }
+
+  .app-shell-upload-landing .studio-intro {
+    margin-bottom: 20px;
+  }
+
+  .app-shell-upload-landing .studio-intro h1 {
+    font-size: clamp(2.3rem, 11.4vw, 2.8rem);
+    line-height: 0.96;
+  }
+
+  .app-shell-upload-landing .studio-intro-copy > p {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .app-shell-upload-landing .studio-workflow {
+    gap: 14px;
+  }
+
+  .app-shell-upload-landing .studio-upload-zone {
+    min-height: 275px;
+  }
+
+  .app-shell-upload-landing .studio-upload-preview {
+    width: 82px;
+    height: 50px;
+    margin-bottom: 16px;
+  }
+
+  .app-shell-upload-landing .studio-upload-retention-note {
+    margin-top: 8px;
+    padding-right: 6px;
+    padding-left: 6px;
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+
+  .app-shell-upload-landing .studio-footer {
+    min-height: 64px;
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 0;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    text-align: left;
+  }
+
+  .app-shell-upload-landing .footer-brand img {
+    width: 58px;
+  }
+
+  .app-shell-upload-landing .studio-beta-note {
+    display: none;
+  }
+
+  .app-shell-upload-landing .footer-links {
+    width: auto;
+    justify-content: flex-end;
+    gap: 12px;
+    font-size: 10px;
+  }
+
+  body:has(.app-shell-upload-landing) [data-testid="feedback-trigger"] {
+    bottom: calc(env(safe-area-inset-bottom) + 4.75rem);
+  }
+
+  .auth-main {
+    gap: 0;
+    padding: 24px 0 32px;
+  }
+
+  .auth-promise {
+    display: none;
+  }
+
+  .auth-switch p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    column-gap: 4px;
+  }
+
+  .auth-switch a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .auth-footer {
+    gap: 18px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 780px) {
+  .app-shell-upload-landing .studio-main {
+    padding-top: 24px;
+  }
+
+  .app-shell-upload-landing .studio-intro {
+    margin-bottom: 16px;
+  }
+
+  .app-shell-upload-landing .studio-workflow {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 700px) {
+  .app-shell-upload-landing .studio-main {
+    padding-top: 18px;
+  }
+
+  .app-shell-upload-landing .studio-intro {
+    margin-bottom: 12px;
+  }
+
+  .app-shell-upload-landing .studio-intro h1 {
+    font-size: clamp(2.05rem, 9.2vw, 2.3rem);
+  }
+
+  .app-shell-upload-landing .studio-intro-copy > p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .app-shell-upload-landing .studio-workflow {
+    gap: 8px;
+  }
+
+  .app-shell-upload-landing .studio-step {
+    gap: 3px;
+    padding: 3px 2px;
+  }
+
+  .app-shell-upload-landing .studio-step-number {
+    width: 26px;
+    height: 26px;
+  }
+
+  .app-shell-upload-landing .studio-step-copy strong {
+    font-size: 9px;
+  }
+
+  .app-shell-upload-landing .studio-upload-zone {
+    min-height: 225px;
+    padding: 18px;
+  }
+
+  .app-shell-upload-landing .studio-upload-preview {
+    width: 70px;
+    height: 42px;
+    margin-bottom: 10px;
+  }
+
+  .app-shell-upload-landing .studio-upload-preview svg {
+    width: 34px;
+    height: 34px;
+  }
+
+  .app-shell-upload-landing .studio-upload-zone > p {
+    margin-top: 8px;
+    font-size: 11.5px;
+  }
+
+  .app-shell-upload-landing .studio-upload-zone > small {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  .app-shell-upload-landing .studio-upload-retention-note {
+    margin-top: 6px;
+    font-size: 9.5px;
+    line-height: 1.35;
+  }
+
+  .app-shell-upload-landing .studio-footer {
+    min-height: 58px;
+    padding-top: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .app-shell-upload-landing .footer-brand img {
+    width: 52px;
+  }
+
+  body:has(.app-shell-upload-landing) [data-testid="feedback-trigger"] {
+    bottom: calc(env(safe-area-inset-bottom) + 4.25rem);
+  }
+
+  .studio-main-workspace .editor-phone,
+  .studio-main-workspace .editor-workspace-style-mode .editor-phone {
+    width: min(52vw, 180px);
+  }
+}
+
+@media (max-width: 480px) {
+  .studio-footer {
+    min-height: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    padding-top: 20px;
+    text-align: center;
+  }
+
+  .footer-brand {
+    justify-content: center;
+  }
+
+  .studio-beta-note {
+    max-width: 300px;
+    flex-basis: auto;
+  }
+
+  .footer-links {
+    width: 100%;
+    justify-content: center;
+    gap: 16px;
+    font-size: 11px;
+  }
+}

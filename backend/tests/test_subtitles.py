@@ -63,9 +63,7 @@ def test_get_video_duration(monkeypatch):
 
 def test_create_styled_subtitle_file_generates_ass(tmp_path: Path):
     srt_path = tmp_path / "subs.srt"
-    srt_path.write_text(
-        "1\n00:00:01,000 --> 00:00:02,000\nHello World\n", encoding="utf-8"
-    )
+    srt_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nHello World\n", encoding="utf-8")
 
     ass_path = subtitle_renderer.create_styled_subtitle_file(
         srt_path,
@@ -88,11 +86,13 @@ def test_create_styled_subtitle_file_generates_ass(tmp_path: Path):
 
 def test_ass_positions_complete_multiline_block_at_both_safe_edges() -> None:
     """REGRESSION: the old 35% cap could not render subtitles at the top."""
-    events = [subtitle_renderer.format_ass_dialogue(
-        0.0,
-        2.0,
-        r"ΠΡΩΤΗ ΓΡΑΜΜΗ\NΔΕΥΤΕΡΗ, ΓΡΑΜΜΗ",
-    )]
+    events = [
+        subtitle_renderer.format_ass_dialogue(
+            0.0,
+            2.0,
+            r"ΠΡΩΤΗ ΓΡΑΜΜΗ\NΔΕΥΤΕΡΗ, ΓΡΑΜΜΗ",
+        )
+    ]
     top_dialogue = subtitle_renderer.position_ass_dialogue_events(
         events,
         subtitle_position=95,
@@ -284,7 +284,7 @@ def test_transcribe_with_openai_success(monkeypatch, tmp_path):
 
 def test_wrap_lines_preserves_all_text():
     words = [WordTiming(0, 1, "One"), WordTiming(1, 2, "Two"), WordTiming(2, 3, "Three")]
-    lines = subtitle_renderer.wrap_word_timings(words, max_chars=7) # "One Two" = 7 chars
+    lines = subtitle_renderer.wrap_word_timings(words, max_chars=7)  # "One Two" = 7 chars
     # Expect "One Two", "Three"
     assert len(lines) == 2
     assert lines[0][0].text == "One"
@@ -303,10 +303,7 @@ def test_format_karaoke_text_preserves_all_words():
     # REGRESSION: three-line karaoke must preserve every word and emit explicit
     # ASS line breaks instead of relying on renderer-dependent wrapping.
     text = "ΒΑΛΤΕ ΥΠΟΘΕΣΕΙΣ ΚΑΙ ΕΛΑΤΕ ΝΑ ΦΤΙΑΞΟΥΜΕ"
-    words = [
-        WordTiming(index * 0.4, (index + 1) * 0.4, word)
-        for index, word in enumerate(text.split())
-    ]
+    words = [WordTiming(index * 0.4, (index + 1) * 0.4, word) for index, word in enumerate(text.split())]
 
     rendered = subtitle_renderer.format_karaoke_text(
         Cue(0.0, len(words) * 0.4, text, words),
@@ -362,10 +359,7 @@ def test_standard_model_no_words_lost():
     )
 
     assert " ".join(chunk.text for chunk in chunks).split() == text.split()
-    assert all(
-        len(subtitle_renderer.wrap_lines(chunk.text.split(), max_chars=10)) <= 3
-        for chunk in chunks
-    )
+    assert all(len(subtitle_renderer.wrap_lines(chunk.text.split(), max_chars=10)) <= 3 for chunk in chunks)
     assert chunks[0].start == 0.0
     assert chunks[-1].end == 11.0
 
@@ -390,9 +384,7 @@ def test_create_styled_subtitle_file_clamps_overlapping_cues(tmp_path):
     srt.write_text("1\n00:00:00,000 --> 00:00:05,000\nCollision\n\n2\n00:00:04,000 --> 00:00:08,000\nOverlap\n")
 
     # This invokes normalize_cues_for_ass which clamps
-    ass_path = subtitle_renderer.create_styled_subtitle_file(
-        srt, output_dir=tmp_path
-    )
+    ass_path = subtitle_renderer.create_styled_subtitle_file(srt, output_dir=tmp_path)
     # Parsing verify?
     # We trust internal logic for now, verifying it runs without error.
     assert ass_path.exists()
@@ -411,10 +403,7 @@ def test_1_word_mode_splitting_standard_model(tmp_path: Path):
         highlight_style="active",
         output_dir=tmp_path,
     )
-    dialogue = [
-        line for line in ass_path.read_text(encoding="utf-8").splitlines()
-        if line.startswith("Dialogue:")
-    ]
+    dialogue = [line for line in ass_path.read_text(encoding="utf-8").splitlines() if line.startswith("Dialogue:")]
     visible = [re.sub(r"\{[^}]*\}", "", line.rsplit(",,", maxsplit=1)[-1]) for line in dialogue]
 
     assert visible == ["ONE", "TWO", "THREE"]
@@ -440,10 +429,7 @@ def test_generate_active_word_ass_no_words():
 
 def test_generate_active_word_ass_logic():
     text = "ONE TWO THREE FOUR FIVE SIX"
-    words = [
-        WordTiming(index * 0.5, (index + 1) * 0.5, word)
-        for index, word in enumerate(text.split())
-    ]
+    words = [WordTiming(index * 0.5, (index + 1) * 0.5, word) for index, word in enumerate(text.split())]
     cue = Cue(0.0, 3.0, "ONE TWO\\NTHREE FOUR\\NFIVE SIX", words)
 
     events = subtitle_renderer.generate_active_word_ass(

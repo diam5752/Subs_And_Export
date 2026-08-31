@@ -46,83 +46,100 @@ def reclaim_abandoned_lifecycle_locks(*, data_dir: Path) -> int:
     live shared or exclusive holder is never detached from future contenders.
     Unknown directory entries are preserved for fail-closed manual review.
     """
-    reclaimed = 0
-    for lock_dir_name in (
-        _JOB_WORKSPACE_LOCK_DIR,
-        _ACCOUNT_LIFECYCLE_LOCK_DIR,
-    ):
-        lock_root = data_dir.resolve() / lock_dir_name
-        if not lock_root.exists():
-            continue
+    lock_roots = (
+        data_dir.resolve() / _JOB_WORKSPACE_LOCK_DIR,
+        data_dir.resolve() / _ACCOUNT_LIFECYCLE_LOCK_DIR,
+    )
+    return sum(_reclaim_abandoned_lock_directory(lock_root) for lock_root in lock_roots if lock_root.exists())
 
-        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
-        directory_fd = os.open(lock_root, directory_flags)
-        registry_fd: int | None = None
-        try:
-            os.fchmod(directory_fd, 0o700)
-            registry_fd = _open_private_regular_file(
-                directory_fd=directory_fd,
-                name=_LOCK_REGISTRY_FILE,
-                invalid_message="Lock registry is not a regular file",
-            )
-            with os.scandir(directory_fd) as entries:
-                for entry in entries:
-                    lock_name = entry.name
-                    if not _is_generated_lock_name(lock_name):
-                        continue
-                    registry_acquired = _acquire_registry_for_cleanup(
-                        registry_fd,
-                        timeout_seconds=_LOCK_REGISTRY_SCAVENGE_TIMEOUT_SECONDS,
-                    )
-                    if not registry_acquired:
-                        # Normal request admission takes priority. A later
-                        # startup or retention pass will retry the namespace.
-                        break
-                    lock_fd: int | None = None
-                    lock_acquired = False
-                    try:
-                        lock_fd = os.open(
-                            lock_name,
-                            os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
-                            dir_fd=directory_fd,
-                        )
-                        if not stat.S_ISREG(os.fstat(lock_fd).st_mode):
-                            continue
-                        try:
-                            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                            lock_acquired = True
-                        except BlockingIOError:
-                            continue
-                        if _unlink_lock_if_same(
-                            directory_fd=directory_fd,
-                            lock_fd=lock_fd,
-                            lock_name=lock_name,
-                        ):
-                            reclaimed += 1
-                    except OSError:
-                        # A symlink, concurrent disappearance, or invalid path
-                        # is never followed or removed by the scavenger.
-                        continue
-                    finally:
-                        if lock_fd is not None:
-                            if lock_acquired:
-                                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                            os.close(lock_fd)
-                        fcntl.flock(registry_fd, fcntl.LOCK_UN)
-        finally:
-            if registry_fd is not None:
-                os.close(registry_fd)
-            os.close(directory_fd)
+
+def _reclaim_abandoned_lock_directory(lock_root: Path) -> int:
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+    directory_fd = os.open(lock_root, directory_flags)
+    registry_fd: int | None = None
+    reclaimed = 0
+    try:
+        os.fchmod(directory_fd, 0o700)
+        registry_fd = _open_private_regular_file(
+            directory_fd=directory_fd,
+            name=_LOCK_REGISTRY_FILE,
+            invalid_message="Lock registry is not a regular file",
+        )
+        with os.scandir(directory_fd) as entries:
+            for entry in entries:
+                if not _is_generated_lock_name(entry.name):
+                    continue
+                continue_scan, removed = _reclaim_abandoned_lock_entry(
+                    directory_fd=directory_fd,
+                    registry_fd=registry_fd,
+                    lock_name=entry.name,
+                )
+                reclaimed += int(removed)
+                if not continue_scan:
+                    break
+    finally:
+        if registry_fd is not None:
+            os.close(registry_fd)
+        os.close(directory_fd)
     return reclaimed
+
+
+def _reclaim_abandoned_lock_entry(
+    *,
+    directory_fd: int,
+    registry_fd: int,
+    lock_name: str,
+) -> tuple[bool, bool]:
+    registry_acquired = _acquire_registry_for_cleanup(
+        registry_fd,
+        timeout_seconds=_LOCK_REGISTRY_SCAVENGE_TIMEOUT_SECONDS,
+    )
+    if not registry_acquired:
+        # Normal request admission takes priority. A later startup or
+        # retention pass will retry the namespace.
+        return False, False
+    try:
+        return True, _remove_unlocked_identity_file(
+            directory_fd=directory_fd,
+            lock_name=lock_name,
+        )
+    finally:
+        fcntl.flock(registry_fd, fcntl.LOCK_UN)
+
+
+def _remove_unlocked_identity_file(*, directory_fd: int, lock_name: str) -> bool:
+    lock_fd: int | None = None
+    lock_acquired = False
+    try:
+        lock_fd = os.open(
+            lock_name,
+            os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=directory_fd,
+        )
+        if not stat.S_ISREG(os.fstat(lock_fd).st_mode):
+            return False
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_acquired = True
+        except BlockingIOError:
+            return False
+        return _unlink_lock_if_same(directory_fd=directory_fd, lock_fd=lock_fd, lock_name=lock_name)
+    except OSError:
+        # A symlink, concurrent disappearance, or invalid path is never
+        # followed or removed by the scavenger.
+        return False
+    finally:
+        if lock_fd is not None:
+            if lock_acquired:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
 
 
 def _is_generated_lock_name(lock_name: str) -> bool:
     if not lock_name.endswith(".lock"):
         return False
     digest = lock_name.removesuffix(".lock")
-    return len(digest) == _LOCK_DIGEST_LENGTH and all(
-        character in "0123456789abcdef" for character in digest
-    )
+    return len(digest) == _LOCK_DIGEST_LENGTH and all(character in "0123456789abcdef" for character in digest)
 
 
 @contextmanager
@@ -192,25 +209,52 @@ def _lock_identity(
     contenders never retain an open descriptor, so the last holder can unlink
     its file without splitting future callers across different inodes.
     """
-    if timeout_seconds < 0:
-        label = (
-            "Account lifecycle"
-            if lock_dir_name == _ACCOUNT_LIFECYCLE_LOCK_DIR
-            else "Job workspace"
+    _validate_identity_lock_timeout(timeout_seconds, lock_dir_name=lock_dir_name)
+    directory_fd, registry_fd = _open_identity_lock_registry(
+        data_dir=data_dir,
+        lock_dir_name=lock_dir_name,
+    )
+    lock_fd: int | None = None
+    deadline = time.monotonic() + timeout_seconds
+    lock_mode = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+    try:
+        lock_fd = _acquire_identity_lock(
+            directory_fd=directory_fd,
+            registry_fd=registry_fd,
+            lock_name=lock_name,
+            lock_mode=lock_mode,
+            invalid_lock_message=invalid_lock_message,
+            deadline=deadline,
+            timeout_error=timeout_error,
+            timeout_message=timeout_message,
         )
-        raise ValueError(f"{label} lock timeout cannot be negative")
+        yield
+    finally:
+        if lock_fd is not None:
+            _retire_identity_lock(
+                directory_fd=directory_fd,
+                registry_fd=registry_fd,
+                lock_fd=lock_fd,
+                lock_name=lock_name,
+                shared=shared,
+            )
+            os.close(lock_fd)
+        os.close(registry_fd)
+        os.close(directory_fd)
 
+
+def _validate_identity_lock_timeout(timeout_seconds: float, *, lock_dir_name: str) -> None:
+    if timeout_seconds >= 0:
+        return
+    label = "Account lifecycle" if lock_dir_name == _ACCOUNT_LIFECYCLE_LOCK_DIR else "Job workspace"
+    raise ValueError(f"{label} lock timeout cannot be negative")
+
+
+def _open_identity_lock_registry(*, data_dir: Path, lock_dir_name: str) -> tuple[int, int]:
     lock_root = data_dir.resolve() / lock_dir_name
     lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
     directory_fd = os.open(lock_root, directory_flags)
-    registry_fd: int | None = None
-    lock_fd: int | None = None
-    acquired = False
-    registry_acquired = False
-    deadline = time.monotonic() + timeout_seconds
-    lock_mode = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
-    last_busy_error: BlockingIOError | None = None
     try:
         os.fchmod(directory_fd, 0o700)
         registry_fd = _open_private_regular_file(
@@ -218,77 +262,104 @@ def _lock_identity(
             name=_LOCK_REGISTRY_FILE,
             invalid_message="Lock registry is not a regular file",
         )
-
-        while not acquired:
-            try:
-                fcntl.flock(registry_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                registry_acquired = True
-            except BlockingIOError as exc:
-                last_busy_error = exc
-            else:
-                candidate_fd: int | None = None
-                try:
-                    candidate_fd = _open_private_regular_file(
-                        directory_fd=directory_fd,
-                        name=lock_name,
-                        invalid_message=invalid_lock_message,
-                    )
-                    try:
-                        fcntl.flock(candidate_fd, lock_mode | fcntl.LOCK_NB)
-                    except BlockingIOError as exc:
-                        last_busy_error = exc
-                    else:
-                        lock_fd = candidate_fd
-                        candidate_fd = None
-                        acquired = True
-                finally:
-                    if candidate_fd is not None:
-                        os.close(candidate_fd)
-                    fcntl.flock(registry_fd, fcntl.LOCK_UN)
-                    registry_acquired = False
-
-            if acquired:
-                break
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise timeout_error(timeout_message) from last_busy_error
-            time.sleep(min(_JOB_WORKSPACE_LOCK_POLL_SECONDS, remaining))
-
-        yield
-    finally:
-        if registry_acquired and registry_fd is not None:
-            fcntl.flock(registry_fd, fcntl.LOCK_UN)
-        if lock_fd is not None:
-            if acquired:
-                registry_acquired = _acquire_registry_for_cleanup(registry_fd)
-                try:
-                    if registry_acquired:
-                        if shared:
-                            # Stop contributing a shared holder while the
-                            # registry prevents any new opener. Only the last
-                            # shared holder can promote and retire the inode.
-                            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                            acquired = False
-                            try:
-                                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                                acquired = True
-                            except BlockingIOError:
-                                pass
-                        if acquired:
-                            _unlink_lock_if_same(
-                                directory_fd=directory_fd,
-                                lock_fd=lock_fd,
-                                lock_name=lock_name,
-                            )
-                finally:
-                    if acquired:
-                        fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                    if registry_acquired and registry_fd is not None:
-                        fcntl.flock(registry_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-        if registry_fd is not None:
-            os.close(registry_fd)
+    except BaseException:
         os.close(directory_fd)
+        raise
+    return directory_fd, registry_fd
+
+
+def _try_acquire_identity_lock(
+    *,
+    directory_fd: int,
+    registry_fd: int,
+    lock_name: str,
+    lock_mode: int,
+    invalid_lock_message: str,
+) -> tuple[int | None, BlockingIOError | None]:
+    try:
+        fcntl.flock(registry_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        return None, exc
+    candidate_fd: int | None = None
+    try:
+        candidate_fd = _open_private_regular_file(
+            directory_fd=directory_fd,
+            name=lock_name,
+            invalid_message=invalid_lock_message,
+        )
+        try:
+            fcntl.flock(candidate_fd, lock_mode | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            return None, exc
+        acquired_fd = candidate_fd
+        candidate_fd = None
+        return acquired_fd, None
+    finally:
+        if candidate_fd is not None:
+            os.close(candidate_fd)
+        fcntl.flock(registry_fd, fcntl.LOCK_UN)
+
+
+def _acquire_identity_lock(
+    *,
+    directory_fd: int,
+    registry_fd: int,
+    lock_name: str,
+    lock_mode: int,
+    invalid_lock_message: str,
+    deadline: float,
+    timeout_error: type[JobWorkspaceLockTimeoutError],
+    timeout_message: str,
+) -> int:
+    last_busy_error: BlockingIOError | None = None
+    while True:
+        lock_fd, busy_error = _try_acquire_identity_lock(
+            directory_fd=directory_fd,
+            registry_fd=registry_fd,
+            lock_name=lock_name,
+            lock_mode=lock_mode,
+            invalid_lock_message=invalid_lock_message,
+        )
+        if lock_fd is not None:
+            return lock_fd
+        last_busy_error = busy_error or last_busy_error
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise timeout_error(timeout_message) from last_busy_error
+        time.sleep(min(_JOB_WORKSPACE_LOCK_POLL_SECONDS, remaining))
+
+
+def _retire_identity_lock(
+    *,
+    directory_fd: int,
+    registry_fd: int,
+    lock_fd: int,
+    lock_name: str,
+    shared: bool,
+) -> None:
+    registry_acquired = _acquire_registry_for_cleanup(registry_fd)
+    lock_acquired = True
+    try:
+        if not registry_acquired:
+            return
+        if shared:
+            # Stop contributing a shared holder while the registry prevents
+            # any new opener. Only the last shared holder can promote and
+            # retire the inode.
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_acquired = False
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                lock_acquired = True
+            except BlockingIOError:
+                pass
+        if lock_acquired:
+            _unlink_lock_if_same(directory_fd=directory_fd, lock_fd=lock_fd, lock_name=lock_name)
+    finally:
+        if lock_acquired:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        if registry_acquired:
+            fcntl.flock(registry_fd, fcntl.LOCK_UN)
 
 
 def _open_private_regular_file(
@@ -424,46 +495,23 @@ def delete_job_workspace(
 ) -> None:
     """Delete the exact local upload and artifact tree for one job."""
     artifacts_root = artifacts_dir.resolve()
-    artifact_dir = artifacts_root / job_id
-    if not artifact_dir.is_symlink():
-        resolved_artifact_dir = artifact_dir.resolve()
-        if resolved_artifact_dir.parent != artifacts_root:
-            raise ValueError("Invalid job workspace path")
-
-    marker_owner = get_workspace_owner(
-        data_dir=artifacts_root.parent,
+    artifact_dir = _validated_artifact_workspace(
+        artifacts_root=artifacts_root,
         job_id=job_id,
     )
-    if expected_user_id is None:
-        if marker_owner is not None:
-            raise WorkspaceOwnershipConflictError(
-                "Owned workspace cannot be deleted without an expected account",
-            )
-    elif marker_owner is not None and marker_owner != expected_user_id:
-        raise WorkspaceOwnershipConflictError(
-            "Workspace ownership does not match the expected account",
-        )
-
-    if artifact_dir.is_symlink():
-        # Never follow a workspace symlink into another job. The link belongs
-        # to this exact workspace; its target does not.
-        delete_local_path(artifact_dir)
-    else:
-        if artifact_dir.exists():
-            delete_local_path(artifact_dir)
-
-    expected_stem = f"{job_id}_input"
-    if uploads_dir.exists():
-        for item in uploads_dir.iterdir():
-            if item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES:
-                delete_local_path(item)
-
-    artifact_remains = artifact_dir.exists() or artifact_dir.is_symlink()
-    upload_remains = uploads_dir.exists() and any(
-        item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES
-        for item in uploads_dir.iterdir()
+    _verify_workspace_deletion_owner(
+        data_dir=artifacts_root.parent,
+        job_id=job_id,
+        expected_user_id=expected_user_id,
     )
-    if artifact_remains or upload_remains:
+    _delete_artifact_workspace(artifact_dir)
+    expected_stem = f"{job_id}_input"
+    _delete_matching_uploads(uploads_dir=uploads_dir, expected_stem=expected_stem)
+    if _job_workspace_remains(
+        artifact_dir=artifact_dir,
+        uploads_dir=uploads_dir,
+        expected_stem=expected_stem,
+    ):
         raise RuntimeError("Job workspace cleanup could not be verified")
     if expected_user_id is not None:
         remove_workspace_ownership_after_verified_cleanup(
@@ -471,6 +519,51 @@ def delete_job_workspace(
             job_id=job_id,
             expected_user_id=expected_user_id,
         )
+
+
+def _validated_artifact_workspace(*, artifacts_root: Path, job_id: str) -> Path:
+    artifact_dir = artifacts_root / job_id
+    if artifact_dir.is_symlink():
+        return artifact_dir
+    if artifact_dir.resolve().parent != artifacts_root:
+        raise ValueError("Invalid job workspace path")
+    return artifact_dir
+
+
+def _verify_workspace_deletion_owner(
+    *,
+    data_dir: Path,
+    job_id: str,
+    expected_user_id: str | None,
+) -> None:
+    marker_owner = get_workspace_owner(data_dir=data_dir, job_id=job_id)
+    if expected_user_id is None and marker_owner is not None:
+        raise WorkspaceOwnershipConflictError("Owned workspace cannot be deleted without an expected account")
+    if expected_user_id is not None and marker_owner is not None and marker_owner != expected_user_id:
+        raise WorkspaceOwnershipConflictError("Workspace ownership does not match the expected account")
+
+
+def _delete_artifact_workspace(artifact_dir: Path) -> None:
+    # Never follow a workspace symlink into another job. The link belongs to
+    # this exact workspace; its target does not.
+    if artifact_dir.is_symlink() or artifact_dir.exists():
+        delete_local_path(artifact_dir)
+
+
+def _delete_matching_uploads(*, uploads_dir: Path, expected_stem: str) -> None:
+    if not uploads_dir.exists():
+        return
+    for item in uploads_dir.iterdir():
+        if item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES:
+            delete_local_path(item)
+
+
+def _job_workspace_remains(*, artifact_dir: Path, uploads_dir: Path, expected_stem: str) -> bool:
+    if artifact_dir.exists() or artifact_dir.is_symlink():
+        return True
+    return uploads_dir.exists() and any(
+        item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES for item in uploads_dir.iterdir()
+    )
 
 
 def delete_local_path(path: Path) -> None:

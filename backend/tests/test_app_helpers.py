@@ -1,4 +1,8 @@
+import json
+import logging
+
 from backend.app.core import auth, database
+from backend.app.core.logging import JSONFormatter
 
 
 def test_get_secret_prefers_env_over_file(monkeypatch, tmp_path):
@@ -29,3 +33,28 @@ def test_get_secret_respects_disable_flag(monkeypatch):
 
 def test_database_loads_invalid_json_returns_empty():
     assert database.Database.loads("not valid") == {}
+
+
+def test_database_loads_accepts_only_json_objects():
+    assert database.Database.loads('{"job_id":"job-1","attempt":2}') == {
+        "job_id": "job-1",
+        "attempt": 2,
+    }
+    assert database.Database.loads('["not", "an", "object"]') == {}
+
+
+def test_json_formatter_preserves_request_correlation_id():
+    record = logging.LogRecord(
+        name="gsubs.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="processed",
+        args=(),
+        exc_info=None,
+    )
+    record.request_id = "request-123"
+
+    rendered = json.loads(JSONFormatter().format(record))
+
+    assert rendered["request_id"] == "request-123"

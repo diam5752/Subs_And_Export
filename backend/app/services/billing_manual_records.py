@@ -14,6 +14,27 @@ from backend.app.db.models import (
     DbCreditPurchase,
     DbCreditPurchaseReversal,
 )
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_artifact as _valid_resolution_artifact,
+)
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_explanation as _valid_resolution_explanation,
+)
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_links as _valid_resolution_links,
+)
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_snapshot_decision as _valid_resolution_snapshot_decision,
+)
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_snapshot_encoding as _valid_resolution_snapshot_encoding,
+)
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_snapshot_subjects as _valid_resolution_snapshot_subjects,
+)
+from backend.app.services.billing_withdrawal_resolution_checks import (
+    valid_resolution_timestamps as _valid_resolution_timestamps,
+)
 from backend.app.services.financial_records import (
     financial_retention_deadline,
 )
@@ -443,6 +464,165 @@ def new_withdrawal_resolution(
     )
 
 
+_WITHDRAWAL_RESOLUTION_KEYS = {
+    "schema_version",
+    "document_type",
+    "withdrawal_id",
+    "purchase_id",
+    "locale",
+    "decision",
+    "reason_code",
+    "adjustment_id",
+    "customer_explanation",
+    "mandatory_consumer_rights_preserved",
+    "manual_actions",
+    "resolved_at",
+}
+
+
+def _withdrawal_resolution_snapshot(resolution: DbBillingWithdrawalResolution) -> dict[str, Any]:
+    snapshot = resolution.resolution_snapshot
+    if not isinstance(snapshot, dict):
+        raise BillingManualRecordError("Withdrawal resolution snapshot is invalid")
+    return snapshot
+
+
+def _validate_resolution_actor(resolution: DbBillingWithdrawalResolution) -> None:
+    try:
+        _validate_actor_id(resolution.resolved_by_user_id)
+    except (AttributeError, BillingManualRecordError) as exc:
+        raise BillingManualRecordError("Withdrawal resolution actor is invalid") from exc
+
+
+def _validate_resolution_identity(
+    resolution: DbBillingWithdrawalResolution,
+    *,
+    withdrawal: DbBillingWithdrawalRequest,
+    purchase: DbCreditPurchase,
+    snapshot: dict[str, Any],
+    expected_reason: str | None,
+    expected_adjustment_id: str | None,
+) -> None:
+    explanation = snapshot.get("customer_explanation")
+    if not (
+        _valid_resolution_links(
+            resolution,
+            withdrawal=withdrawal,
+            purchase=purchase,
+            schema_version=WITHDRAWAL_RESOLUTION_SCHEMA_VERSION,
+            expected_resolution_id=_deterministic_id(
+                "gsubs-withdrawal-resolution",
+                resolution.withdrawal_id,
+            ),
+            expected_reason=expected_reason,
+            expected_adjustment_id=expected_adjustment_id,
+        )
+        and _valid_resolution_explanation(explanation)
+        and _valid_resolution_artifact(
+            resolution,
+            purchase=purchase,
+            sha256_pattern=_SHA256_RE,
+        )
+        and _valid_resolution_timestamps(resolution, withdrawal=withdrawal)
+    ):
+        raise BillingManualRecordError("Withdrawal resolution identity is invalid")
+
+
+def _decode_resolution_bytes(resolution: DbBillingWithdrawalResolution) -> object:
+    try:
+        return json.loads(resolution.resolution_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise BillingManualRecordError("Withdrawal resolution content is invalid") from exc
+
+
+def _validate_resolution_snapshot_identity(
+    resolution: DbBillingWithdrawalResolution,
+    *,
+    withdrawal: DbBillingWithdrawalRequest,
+    purchase: DbCreditPurchase,
+    snapshot: dict[str, Any],
+    decoded: object,
+    expected_adjustment_id: str | None,
+) -> None:
+    if not (
+        _valid_resolution_snapshot_encoding(
+            resolution,
+            snapshot=snapshot,
+            decoded=decoded,
+            expected_bytes=_canonical_json_bytes(snapshot, pretty=True),
+            expected_keys=_WITHDRAWAL_RESOLUTION_KEYS,
+            schema_version=WITHDRAWAL_RESOLUTION_SCHEMA_VERSION,
+        )
+        and _valid_resolution_snapshot_subjects(snapshot, withdrawal=withdrawal, purchase=purchase)
+        and _valid_resolution_snapshot_decision(
+            resolution,
+            snapshot=snapshot,
+            expected_adjustment_id=expected_adjustment_id,
+        )
+    ):
+        raise BillingManualRecordError("Withdrawal resolution conflicts with its identity")
+
+
+def _accepted_manual_actions(
+    *,
+    adjustment: DbBillingAdjustmentRecord,
+    reversal: DbCreditPurchaseReversal,
+) -> dict[str, Any]:
+    return {
+        "performed_automatically": False,
+        "stripe_refund_id": reversal.provider_reversal_id,
+        "stripe_refund_status": reversal.status,
+        "refunded_amount_cents": adjustment.amount_cents,
+        "currency": adjustment.currency,
+        "aade_adjustment_id": adjustment.id,
+        "aade_document_type": adjustment.aade_document_type,
+        "aade_series": adjustment.aade_series,
+        "aade_aa": adjustment.aade_aa,
+        "aade_mark": adjustment.aade_mark,
+        "aade_issued_at": adjustment.issued_at,
+    }
+
+
+def _validate_resolution_external_evidence(
+    resolution: DbBillingWithdrawalResolution,
+    *,
+    purchase: DbCreditPurchase,
+    snapshot: dict[str, Any],
+    adjustment: DbBillingAdjustmentRecord | None,
+    reversal: DbCreditPurchaseReversal | None,
+) -> None:
+    if resolution.decision == "accepted_refunded":
+        _validate_accepted_resolution_evidence(
+            purchase=purchase,
+            snapshot=snapshot,
+            adjustment=adjustment,
+            reversal=reversal,
+        )
+        return
+    if adjustment is not None or reversal is not None:
+        raise BillingManualRecordError("Rejected withdrawal evidence is invalid")
+    if snapshot.get("manual_actions") is not None:
+        raise BillingManualRecordError("Rejected withdrawal cannot claim manual actions")
+
+
+def _validate_accepted_resolution_evidence(
+    *,
+    purchase: DbCreditPurchase,
+    snapshot: dict[str, Any],
+    adjustment: DbBillingAdjustmentRecord | None,
+    reversal: DbCreditPurchaseReversal | None,
+) -> None:
+    if adjustment is None or reversal is None:
+        raise BillingManualRecordError("Accepted withdrawal evidence is unavailable")
+    verify_billing_adjustment_record(adjustment, purchase=purchase, reversal=reversal)
+    if (
+        reversal.status != "succeeded"
+        or reversal.active is not True
+        or snapshot.get("manual_actions") != _accepted_manual_actions(adjustment=adjustment, reversal=reversal)
+    ):
+        raise BillingManualRecordError("Accepted withdrawal manual actions are invalid")
+
+
 def verify_withdrawal_resolution(
     resolution: DbBillingWithdrawalResolution,
     *,
@@ -452,126 +632,30 @@ def verify_withdrawal_resolution(
     reversal: DbCreditPurchaseReversal | None = None,
 ) -> None:
     """Verify the immutable customer resolution and its external evidence."""
-    snapshot = resolution.resolution_snapshot
-    if not isinstance(snapshot, dict):
-        raise BillingManualRecordError(
-            "Withdrawal resolution snapshot is invalid",
-        )
-    try:
-        _validate_actor_id(resolution.resolved_by_user_id)
-    except (AttributeError, BillingManualRecordError) as exc:
-        raise BillingManualRecordError(
-            "Withdrawal resolution actor is invalid",
-        ) from exc
+    snapshot = _withdrawal_resolution_snapshot(resolution)
+    _validate_resolution_actor(resolution)
     expected_reason = _RESOLUTION_DECISIONS.get(resolution.decision)
     expected_adjustment_id = adjustment.id if adjustment is not None else None
-    explanation = snapshot.get("customer_explanation")
-    if (
-        resolution.schema_version != WITHDRAWAL_RESOLUTION_SCHEMA_VERSION
-        or resolution.id
-        != _deterministic_id(
-            "gsubs-withdrawal-resolution",
-            resolution.withdrawal_id,
-        )
-        or resolution.withdrawal_id != withdrawal.id
-        or resolution.purchase_id != purchase.id
-        or withdrawal.purchase_id != purchase.id
-        or resolution.locale != withdrawal.locale
-        or expected_reason is None
-        or resolution.reason_code != expected_reason
-        or resolution.adjustment_id != expected_adjustment_id
-        or not isinstance(explanation, str)
-        or explanation.strip() != explanation
-        or len(explanation) < 20
-        or len(explanation) > 1_000
-        or resolution.resolution_mime_type != "application/json; charset=utf-8"
-        or resolution.resolution_filename != f"gsubs-withdrawal-resolution-{purchase.id}.json"
-        or not isinstance(resolution.resolution_bytes, bytes)
-        or not _SHA256_RE.fullmatch(resolution.resolution_sha256)
-        or _sha256(resolution.resolution_bytes) != resolution.resolution_sha256
-        or isinstance(resolution.resolved_at, bool)
-        or resolution.resolved_at < withdrawal.submitted_at
-        or resolution.available_at != resolution.resolved_at
-        or resolution.created_at != resolution.resolved_at
-        or resolution.financial_retention_until <= resolution.resolved_at
-    ):
-        raise BillingManualRecordError(
-            "Withdrawal resolution identity is invalid",
-        )
-    try:
-        decoded = json.loads(resolution.resolution_bytes)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise BillingManualRecordError(
-            "Withdrawal resolution content is invalid",
-        ) from exc
-    if (
-        decoded != snapshot
-        or resolution.resolution_bytes != _canonical_json_bytes(snapshot, pretty=True)
-        or set(snapshot)
-        != {
-            "schema_version",
-            "document_type",
-            "withdrawal_id",
-            "purchase_id",
-            "locale",
-            "decision",
-            "reason_code",
-            "adjustment_id",
-            "customer_explanation",
-            "mandatory_consumer_rights_preserved",
-            "manual_actions",
-            "resolved_at",
-        }
-        or snapshot.get("schema_version") != WITHDRAWAL_RESOLUTION_SCHEMA_VERSION
-        or snapshot.get("document_type") != "gsubs_withdrawal_resolution"
-        or snapshot.get("withdrawal_id") != withdrawal.id
-        or snapshot.get("purchase_id") != purchase.id
-        or snapshot.get("locale") != withdrawal.locale
-        or snapshot.get("decision") != resolution.decision
-        or snapshot.get("reason_code") != resolution.reason_code
-        or snapshot.get("adjustment_id") != expected_adjustment_id
-        or snapshot.get("mandatory_consumer_rights_preserved") is not True
-        or snapshot.get("resolved_at") != resolution.resolved_at
-    ):
-        raise BillingManualRecordError(
-            "Withdrawal resolution conflicts with its identity",
-        )
-    if resolution.decision == "accepted_refunded":
-        if adjustment is None or reversal is None:
-            raise BillingManualRecordError(
-                "Accepted withdrawal evidence is unavailable",
-            )
-        verify_billing_adjustment_record(
-            adjustment,
-            purchase=purchase,
-            reversal=reversal,
-        )
-        expected_manual_actions = {
-            "performed_automatically": False,
-            "stripe_refund_id": reversal.provider_reversal_id,
-            "stripe_refund_status": reversal.status,
-            "refunded_amount_cents": adjustment.amount_cents,
-            "currency": adjustment.currency,
-            "aade_adjustment_id": adjustment.id,
-            "aade_document_type": adjustment.aade_document_type,
-            "aade_series": adjustment.aade_series,
-            "aade_aa": adjustment.aade_aa,
-            "aade_mark": adjustment.aade_mark,
-            "aade_issued_at": adjustment.issued_at,
-        }
-        if (
-            reversal.status != "succeeded"
-            or reversal.active is not True
-            or snapshot.get("manual_actions") != expected_manual_actions
-        ):
-            raise BillingManualRecordError(
-                "Accepted withdrawal manual actions are invalid",
-            )
-    elif adjustment is not None or reversal is not None:
-        raise BillingManualRecordError(
-            "Rejected withdrawal evidence is invalid",
-        )
-    elif snapshot.get("manual_actions") is not None:
-        raise BillingManualRecordError(
-            "Rejected withdrawal cannot claim manual actions",
-        )
+    _validate_resolution_identity(
+        resolution,
+        withdrawal=withdrawal,
+        purchase=purchase,
+        snapshot=snapshot,
+        expected_reason=expected_reason,
+        expected_adjustment_id=expected_adjustment_id,
+    )
+    _validate_resolution_snapshot_identity(
+        resolution,
+        withdrawal=withdrawal,
+        purchase=purchase,
+        snapshot=snapshot,
+        decoded=_decode_resolution_bytes(resolution),
+        expected_adjustment_id=expected_adjustment_id,
+    )
+    _validate_resolution_external_evidence(
+        resolution,
+        purchase=purchase,
+        snapshot=snapshot,
+        adjustment=adjustment,
+        reversal=reversal,
+    )

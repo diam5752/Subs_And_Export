@@ -37,7 +37,7 @@ def _parse_srt_file(path: Path) -> list[tuple[float, float, str]]:
             continue
 
         start_raw, end_raw = [part.strip() for part in lines[timing_index].split("-->", maxsplit=1)]
-        text = "\n".join(lines[timing_index + 1:])
+        text = "\n".join(lines[timing_index + 1 :])
         entries.append((parse_timestamp(start_raw), parse_timestamp(end_raw), text))
     return entries
 
@@ -60,6 +60,7 @@ def test_subtitle_file_export_success(
 ):
     # Setup environment - patch the settings object project_root attribute
     from backend.app.core.config import settings
+
     monkeypatch.setattr(settings, "project_root", tmp_path)
     monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
 
@@ -75,17 +76,15 @@ def test_subtitle_file_export_success(
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     # Add dummy transcription
-    cues = [
-        {"start": 0.5, "end": 1.5, "text": "Hello world"},
-        {"start": 2.0, "end": 3.0, "text": "Testing SRT"}
-    ]
+    cues = [{"start": 0.5, "end": 1.5, "text": "Hello world"}, {"start": 2.0, "end": 3.0, "text": "Testing SRT"}]
     (artifact_dir / "transcription.json").write_text(json.dumps(cues))
-    job.status = "completed" # Must be completed
-    store.update_job(job.id, status="completed", result_data={}) # Ensure result_data dict exists
+    job.status = "completed"  # Must be completed
+    store.update_job(job.id, status="completed", result_data={})  # Ensure result_data dict exists
 
     # Override get_job_store dep
     from backend.app.api.deps import get_db, get_job_store
     from backend.main import app
+
     app.dependency_overrides[get_job_store] = lambda: store
     app.dependency_overrides[get_db] = lambda: db
 
@@ -93,11 +92,7 @@ def test_subtitle_file_export_success(
         headers = _auth_header(client, email)
 
         # Trigger export
-        resp = client.post(
-            f"/videos/jobs/{job.id}/export",
-            headers=headers,
-            json={"resolution": resolution}
-        )
+        resp = client.post(f"/videos/jobs/{job.id}/export", headers=headers, json={"resolution": resolution})
 
         assert resp.status_code == 200, f"Status: {resp.status_code}, Body: {resp.text}"
 
@@ -136,10 +131,36 @@ def test_subtitle_file_export_resegments_long_word_timed_cues(
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     words = [
-        "ΓΕΙΑ", "ΣΑΣ,", "ΜΕ", "ΛΕΝΕ", "ΙΑΝΝΗ.", "ΕΙΜΑΙ", "ΑΠΟ", "ΤΗΝ", "ΑΜΕΡΙΚΗ.",
-        "Ο", "ΠΑΤΕΡΑΣ", "ΜΟΥ", "ΕΙΝΑΙ", "ΑΠΟ", "ΤΗΝ", "ΜΑΚΕΔΟΝΙΑ,", "ΣΕΡΡΕΣ,",
-        "ΑΛΛΑ", "Ο", "ΠΑΠΠΟΥΣ", "ΜΟΥ", "ΚΑΙ", "Η", "ΓΙΑΓΙΑ", "ΜΟΥ", "ΗΤΑΝ",
-        "ΠΡΟΣΦΥΓΕΣ", "ΑΠΟ", "ΤΗΝ", "ΘΡΑΚΗ.",
+        "ΓΕΙΑ",
+        "ΣΑΣ,",
+        "ΜΕ",
+        "ΛΕΝΕ",
+        "ΙΑΝΝΗ.",
+        "ΕΙΜΑΙ",
+        "ΑΠΟ",
+        "ΤΗΝ",
+        "ΑΜΕΡΙΚΗ.",
+        "Ο",
+        "ΠΑΤΕΡΑΣ",
+        "ΜΟΥ",
+        "ΕΙΝΑΙ",
+        "ΑΠΟ",
+        "ΤΗΝ",
+        "ΜΑΚΕΔΟΝΙΑ,",
+        "ΣΕΡΡΕΣ,",
+        "ΑΛΛΑ",
+        "Ο",
+        "ΠΑΠΠΟΥΣ",
+        "ΜΟΥ",
+        "ΚΑΙ",
+        "Η",
+        "ΓΙΑΓΙΑ",
+        "ΜΟΥ",
+        "ΗΤΑΝ",
+        "ΠΡΟΣΦΥΓΕΣ",
+        "ΑΠΟ",
+        "ΤΗΝ",
+        "ΘΡΑΚΗ.",
     ]
     word_timings = []
     cursor = 0.0
@@ -148,12 +169,14 @@ def test_subtitle_file_export_resegments_long_word_timed_cues(
         word_timings.append({"start": cursor, "end": next_cursor, "text": word})
         cursor = next_cursor
 
-    cues = [{
-        "start": 0.0,
-        "end": cursor,
-        "text": " ".join(words),
-        "words": word_timings,
-    }]
+    cues = [
+        {
+            "start": 0.0,
+            "end": cursor,
+            "text": " ".join(words),
+            "words": word_timings,
+        }
+    ]
     (artifact_dir / "transcription.json").write_text(json.dumps(cues), encoding="utf-8")
     store.update_job(
         job.id,
@@ -163,6 +186,7 @@ def test_subtitle_file_export_resegments_long_word_timed_cues(
 
     from backend.app.api.deps import get_db, get_job_store
     from backend.main import app
+
     app.dependency_overrides[get_job_store] = lambda: store
     app.dependency_overrides[get_db] = lambda: db
 

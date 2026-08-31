@@ -449,7 +449,7 @@
   "billingWithdrawalUnavailable": "Electronic submission is currently unavailable. Contact support so the request can be received and reviewed manually.",
   "creditPurchaseContinue": "Continue",
   "creditPurchaseCancelled": "Purchase cancelled — you were not charged.",
-  "creditPurchaseSuccess": "{count} credits were added to your balance.",
+  "creditPurchaseSuccess": "Purchase complete for {count} credits. New available balance: {balance}.",
   "creditPurchasePending": "Payment is being confirmed. Credits will appear automatically.",
   "creditPurchasePendingRetry": "Confirmation is taking longer. Select Check again; the purchase will not be repeated.",
   "creditPurchaseRetry": "Check again",

@@ -23,12 +23,8 @@ def test_minimum_net_revenue_uses_the_most_conservative_package() -> None:
 
 
 def test_economics_catalog_matches_server_owned_checkout_catalog() -> None:
-    assert {
-        (package.amount_eur_cents, package.credits)
-        for package in credit_packages()
-    } == {
-        (int(gross_eur * 100), credits)
-        for gross_eur, credits in PACKAGE_GROSS_EUR_AND_CREDITS
+    assert {(package.amount_eur_cents, package.credits) for package in credit_packages()} == {
+        (int(gross_eur * 100), credits) for gross_eur, credits in PACKAGE_GROSS_EUR_AND_CREDITS
     }
 
 

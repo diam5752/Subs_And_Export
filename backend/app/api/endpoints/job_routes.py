@@ -39,6 +39,8 @@ from .processing_tasks import record_event_safe
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
 def _record_erasure_intent_or_503(
     *,
     kind: TombstoneKind,

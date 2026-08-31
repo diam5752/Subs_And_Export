@@ -16,6 +16,7 @@ from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.services.provider_clients import resolve_elevenlabs_api_key
 from backend.app.services.subtitle_types import Cue, WordTiming
 from backend.app.services.transcription.base import Transcriber
+from backend.app.services.transcription.cloud_response import call_callback
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
 _LANGUAGE_CODES = {"el": "ell", "en": "eng"}
@@ -178,39 +179,31 @@ class ElevenLabsScribeTranscriber(Transcriber):
         flush()
         return cues
 
-    def transcribe(
-        self,
-        audio_path: Path,
-        output_dir: Path,
-        language: str = "el",
-        model: str = "scribe_v2",
-        **kwargs: Any,
-    ) -> tuple[Path, list[Cue]]:
-        selected_model = (model or settings.elevenlabs_transcribe_model).strip()
+    @staticmethod
+    def _validate_runtime(selected_model: str) -> None:
         if selected_model != settings.elevenlabs_transcribe_model:
             raise ValueError("ElevenLabs caption transcription requires scribe_v2")
         if not settings.elevenlabs_enabled:
             raise RuntimeError("ElevenLabs Scribe v2 is disabled.")
         if settings.mock_external_services:
             raise RuntimeError("ElevenLabs Scribe v2 cannot run while mock mode is active.")
-        if (
-            settings.external_provider_monthly_budget_usd <= 0
-            or settings.external_provider_per_request_budget_usd <= 0
-        ):
+        if settings.external_provider_monthly_budget_usd <= 0 or settings.external_provider_per_request_budget_usd <= 0:
             raise RuntimeError("ElevenLabs Scribe v2 safety budgets are closed.")
 
+    def _resolve_api_key(self) -> str:
         api_key = self.api_key or resolve_elevenlabs_api_key()
         if not api_key:
             raise RuntimeError("ElevenLabs API key is required for Scribe v2 transcription.")
+        return api_key
 
-        check_cancelled = kwargs.get("check_cancelled")
-        progress_callback = kwargs.get("progress_callback")
-        if callable(check_cancelled):
-            check_cancelled()
-        if callable(progress_callback):
-            progress_callback(10.0)
-
-        endpoint = self._scribe_endpoint()
+    def _request_transcript(
+        self,
+        *,
+        audio_path: Path,
+        api_key: str,
+        selected_model: str,
+        language: str,
+    ) -> dict[str, Any]:
         form_data = {
             "model_id": selected_model,
             "timestamps_granularity": "word",
@@ -224,7 +217,7 @@ class ElevenLabsScribeTranscriber(Transcriber):
         try:
             with audio_path.open("rb") as audio_file:
                 response = self._transport(
-                    endpoint,
+                    self._scribe_endpoint(),
                     headers={"xi-api-key": api_key},
                     data=form_data,
                     files={"file": (audio_path.name, audio_file, "audio/wav")},
@@ -237,17 +230,20 @@ class ElevenLabsScribeTranscriber(Transcriber):
 
         if not isinstance(raw_payload, dict):
             raise RuntimeError("ElevenLabs Scribe v2 returned an invalid response.")
-        transcription_id = self._transcription_id(raw_payload)
+        return raw_payload
+
+    def _record_erasure_and_delete(
+        self,
+        *,
+        transcription_id: str,
+        api_key: str,
+    ) -> None:
         try:
             configured_erasure_journal().append_provider_transcript(
                 provider="elevenlabs",
                 transcript_id=transcription_id,
             )
         except Exception as journal_exc:
-            # The provider already holds the transcript at this point. Even
-            # when durable replay cannot be recorded, make one bounded best-
-            # effort synchronous deletion attempt. The job still fails closed
-            # because GSUBS cannot prove a replayable erasure intent.
             try:
                 self._delete_transcript(
                     transcription_id=transcription_id,
@@ -263,19 +259,58 @@ class ElevenLabsScribeTranscriber(Transcriber):
             api_key=api_key,
         )
 
-        if callable(check_cancelled):
-            check_cancelled()
-        if callable(progress_callback):
-            progress_callback(90.0)
-
+    def _write_transcript_result(
+        self,
+        *,
+        raw_payload: dict[str, Any],
+        audio_path: Path,
+        output_dir: Path,
+    ) -> tuple[Path, list[Cue]]:
         words = self._parse_words(raw_payload)
         if not words:
             raise RuntimeError("ElevenLabs Scribe v2 response did not include word timestamps.")
         cues = self._build_cues(words)
         segments = [(cue.start, cue.end, cue.text) for cue in cues]
         output_dir.mkdir(parents=True, exist_ok=True)
-        srt_path = write_srt_from_segments(segments, output_dir / f"{audio_path.stem}.srt")
-
-        if callable(progress_callback):
-            progress_callback(100.0)
+        srt_path = write_srt_from_segments(
+            segments,
+            output_dir / f"{audio_path.stem}.srt",
+        )
         return srt_path, cues
+
+    def transcribe(
+        self,
+        audio_path: Path,
+        output_dir: Path,
+        language: str = "el",
+        model: str = "scribe_v2",
+        **kwargs: Any,
+    ) -> tuple[Path, list[Cue]]:
+        selected_model = (model or settings.elevenlabs_transcribe_model).strip()
+        self._validate_runtime(selected_model)
+        api_key = self._resolve_api_key()
+
+        check_cancelled = kwargs.get("check_cancelled")
+        progress_callback = kwargs.get("progress_callback")
+        call_callback(check_cancelled)
+        call_callback(progress_callback, 10.0)
+        raw_payload = self._request_transcript(
+            audio_path=audio_path,
+            api_key=api_key,
+            selected_model=selected_model,
+            language=language,
+        )
+        transcription_id = self._transcription_id(raw_payload)
+        self._record_erasure_and_delete(
+            transcription_id=transcription_id,
+            api_key=api_key,
+        )
+        call_callback(check_cancelled)
+        call_callback(progress_callback, 90.0)
+        result = self._write_transcript_result(
+            raw_payload=raw_payload,
+            audio_path=audio_path,
+            output_dir=output_dir,
+        )
+        call_callback(progress_callback, 100.0)
+        return result

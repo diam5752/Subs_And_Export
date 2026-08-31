@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "next/link";
 
 export default function OfflinePage() {
   return (
@@ -7,9 +7,12 @@ export default function OfflinePage() {
         <span className="studio-kicker">GSUBS / OFFLINE</span>
         <h1 className="studio-title">Δεν υπάρχει σύνδεση αυτή τη στιγμή.</h1>
         <p className="studio-subtitle">
-          Τα αρχεία σου παραμένουν στη συσκευή. Συνδέσου ξανά για upload, επεξεργασία και export.
+          Τα αρχεία σου παραμένουν στη συσκευή. Συνδέσου ξανά για upload,
+          επεξεργασία και export.
         </p>
-        <Link href="/" className="btn-primary inline-flex mt-6">Δοκιμή ξανά</Link>
+        <Link href="/" className="btn-primary inline-flex mt-6">
+          Δοκιμή ξανά
+        </Link>
       </div>
     </main>
   );

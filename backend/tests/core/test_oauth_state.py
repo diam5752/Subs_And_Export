@@ -50,13 +50,16 @@ def test_consume_state_returns_false_when_missing() -> None:
     session.scalar.return_value = None
     store = OAuthStateStore(db=FakeDb(session))
 
-    assert store.consume_state(
-        provider="google",
-        state="missing",
-        user_id=None,
-        user_agent=None,
-        ip=None,
-    ) is False
+    assert (
+        store.consume_state(
+            provider="google",
+            state="missing",
+            user_id=None,
+            user_agent=None,
+            ip=None,
+        )
+        is False
+    )
 
 
 def test_consume_state_deletes_expired_rows(monkeypatch) -> None:
@@ -72,13 +75,16 @@ def test_consume_state_deletes_expired_rows(monkeypatch) -> None:
     )
     store = OAuthStateStore(db=FakeDb(session))
 
-    assert store.consume_state(
-        provider="google",
-        state="expired",
-        user_id=None,
-        user_agent=None,
-        ip=None,
-    ) is False
+    assert (
+        store.consume_state(
+            provider="google",
+            state="expired",
+            user_id=None,
+            user_agent=None,
+            ip=None,
+        )
+        is False
+    )
     session.execute.assert_called_once()
 
 
@@ -146,13 +152,16 @@ def test_consume_state_rejects_provider_user_agent_and_ip_mismatches(monkeypatch
         session = MagicMock()
         session.scalar.return_value = row
         store = OAuthStateStore(db=FakeDb(session))
-        assert store.consume_state(
-            provider=provider,
-            state=row.state,
-            user_id=user_id,
-            user_agent=user_agent,
-            ip=ip,
-        ) is False
+        assert (
+            store.consume_state(
+                provider=provider,
+                state=row.state,
+                user_id=user_id,
+                user_agent=user_agent,
+                ip=ip,
+            )
+            is False
+        )
 
 
 def test_consume_state_deletes_and_returns_true_on_success(monkeypatch) -> None:
@@ -168,11 +177,14 @@ def test_consume_state_deletes_and_returns_true_on_success(monkeypatch) -> None:
     )
     store = OAuthStateStore(db=FakeDb(session))
 
-    assert store.consume_state(
-        provider="google",
-        state="ok",
-        user_id="user-1",
-        user_agent="browser",
-        ip="127.0.0.1",
-    ) is True
+    assert (
+        store.consume_state(
+            provider="google",
+            state="ok",
+            user_id="user-1",
+            user_agent="browser",
+            ip="127.0.0.1",
+        )
+        is True
+    )
     session.execute.assert_called_once()

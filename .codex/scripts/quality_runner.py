@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +44,53 @@ def run_shell(root: Path, shell_command: str) -> int:
     return completed.returncode
 
 
+def _run_builtin_command(name: str, command: dict[str, object], root: Path) -> int:
+    builtin = str(command.get("builtin", ""))
+    if builtin == "contract":
+        return builtin_contract_check(root)
+    print(f"ERROR: unknown builtin `{builtin}` for `{name}`.", file=sys.stderr)
+    return 1
+
+
+def _run_shell_command(name: str, command: dict[str, object], root: Path) -> int:
+    shell_command = str(command.get("shell", "")).strip()
+    if not shell_command:
+        print(f"ERROR: empty shell command for `{name}`.", file=sys.stderr)
+        return 1
+    print(f"RUN {name}: {shell_command}")
+    return run_shell(root, shell_command)
+
+
+def _run_composite_command(
+    name: str,
+    command: dict[str, object],
+    commands: dict[str, object],
+    root: Path,
+    stack: list[str],
+) -> int:
+    steps = command.get("steps", [])
+    if not isinstance(steps, list) or not steps:
+        print(f"ERROR: composite `{name}` has no steps.", file=sys.stderr)
+        return 1
+    for step in steps:
+        if not isinstance(step, str):
+            print(f"ERROR: invalid step in `{name}`.", file=sys.stderr)
+            return 1
+        code = run_command(step, commands, root, stack + [name])
+        if code != 0:
+            return code
+    return 0
+
+
+def _run_terminal_command(name: str, command: dict[str, object], kind: str) -> int:
+    if kind == "blocked":
+        reason = str(command.get("message", "Quality gate is not implemented for this repository yet."))
+        print(f"BLOCKED {name}: {reason}")
+        return int(command.get("exit_code", 2))
+    print(str(command.get("message", "No-op.")))
+    return 0
+
+
 def run_command(name: str, commands: dict[str, object], root: Path, stack: list[str] | None = None) -> int:
     stack = stack or []
     if name in stack:
@@ -58,44 +104,13 @@ def run_command(name: str, commands: dict[str, object], root: Path, stack: list[
 
     kind = str(command.get("kind", ""))
     if kind == "builtin":
-        builtin = str(command.get("builtin", ""))
-        if builtin == "contract":
-            return builtin_contract_check(root)
-        print(f"ERROR: unknown builtin `{builtin}` for `{name}`.", file=sys.stderr)
-        return 1
-
+        return _run_builtin_command(name, command, root)
     if kind == "shell":
-        shell_command = str(command.get("shell", "")).strip()
-        if not shell_command:
-            print(f"ERROR: empty shell command for `{name}`.", file=sys.stderr)
-            return 1
-        print(f"RUN {name}: {shell_command}")
-        return run_shell(root, shell_command)
-
+        return _run_shell_command(name, command, root)
     if kind == "composite":
-        steps = command.get("steps", [])
-        if not isinstance(steps, list) or not steps:
-            print(f"ERROR: composite `{name}` has no steps.", file=sys.stderr)
-            return 1
-        for step in steps:
-            if not isinstance(step, str):
-                print(f"ERROR: invalid step in `{name}`.", file=sys.stderr)
-                return 1
-            code = run_command(step, commands, root, stack + [name])
-            if code != 0:
-                return code
-        return 0
-
-    if kind == "blocked":
-        reason = str(command.get("message", "Quality gate is not implemented for this repository yet."))
-        print(f"BLOCKED {name}: {reason}")
-        return int(command.get("exit_code", 2))
-
-    if kind == "noop":
-        message = str(command.get("message", "No-op."))
-        print(message)
-        return 0
-
+        return _run_composite_command(name, command, commands, root, stack)
+    if kind in {"blocked", "noop"}:
+        return _run_terminal_command(name, command, kind)
     print(f"ERROR: unsupported command kind `{kind}` for `{name}`.", file=sys.stderr)
     return 1
 

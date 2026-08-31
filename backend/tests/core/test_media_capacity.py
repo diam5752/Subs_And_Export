@@ -172,10 +172,13 @@ def test_active_render_storage_reservations_are_counted_once_per_lease(
                 reserved_bytes=600,
                 capacity=2,
             )
-            assert active_render_storage_reservation_bytes(
-                data_dir=tmp_path,
-                capacity=2,
-            ) == 1_000
+            assert (
+                active_render_storage_reservation_bytes(
+                    data_dir=tmp_path,
+                    capacity=2,
+                )
+                == 1_000
+            )
 
 
 def test_multi_slot_render_storage_reservation_is_not_double_counted(
@@ -192,10 +195,13 @@ def test_multi_slot_render_storage_reservation_is_not_double_counted(
             reserved_bytes=900,
             capacity=2,
         )
-        assert active_render_storage_reservation_bytes(
-            data_dir=tmp_path,
-            capacity=2,
-        ) == 900
+        assert (
+            active_render_storage_reservation_bytes(
+                data_dir=tmp_path,
+                capacity=2,
+            )
+            == 900
+        )
 
 
 def test_abandoned_render_storage_reservation_is_cleared(
@@ -209,10 +215,13 @@ def test_abandoned_render_storage_reservation_is_cleared(
             capacity=2,
         )
 
-    assert active_render_storage_reservation_bytes(
-        data_dir=tmp_path,
-        capacity=2,
-    ) == 0
+    assert (
+        active_render_storage_reservation_bytes(
+            data_dir=tmp_path,
+            capacity=2,
+        )
+        == 0
+    )
     reservation_file = tmp_path / ".media-capacity-locks" / f"render-{slots[0]}.lock"
     assert reservation_file.read_bytes() == b""
 
@@ -221,9 +230,7 @@ def test_malformed_active_render_storage_reservation_fails_closed(
     tmp_path: Path,
 ) -> None:
     with lock_media_render(data_dir=tmp_path, capacity=2) as slots:
-        reservation_file = (
-            tmp_path / ".media-capacity-locks" / f"render-{slots[0]}.lock"
-        )
+        reservation_file = tmp_path / ".media-capacity-locks" / f"render-{slots[0]}.lock"
         reservation_file.write_text("not-a-byte-count\n", encoding="ascii")
 
         with pytest.raises(RuntimeError, match="malformed"):

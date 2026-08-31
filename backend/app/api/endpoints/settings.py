@@ -24,8 +24,6 @@ from .validation import (
 logger = logging.getLogger(__name__)
 
 
-
-
 class ProcessingSettings(BaseModel):
     """Settings for video processing."""
 
@@ -50,6 +48,75 @@ ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
     "standard": {"mock", "groq", "local"},
     "pro": {"mock", "elevenlabs", "groq", "openai", "local"},
 }
+
+
+def _validate_request_field_lengths(
+    *,
+    context_prompt: str,
+    transcribe_tier: str,
+    video_quality: str,
+    transcribe_provider: str,
+    openai_model: str,
+    video_resolution: str,
+    highlight_style: str,
+) -> None:
+    limits = (
+        (context_prompt, 5000, "Context prompt too long (max 5000 chars)"),
+        (transcribe_tier, 50, "Model name too long"),
+        (video_quality, 50, "Video quality string too long"),
+        (transcribe_provider, 50, "Provider name too long"),
+        (openai_model, 50, "OpenAI model name too long"),
+        (video_resolution, 50, "Resolution string too long"),
+        (highlight_style, 20, "Highlight style too long"),
+    )
+    for value, maximum, detail in limits:
+        if len(value) > maximum:
+            raise HTTPException(status_code=400, detail=detail)
+
+
+def _resolve_transcribe_settings(
+    transcribe_tier: str,
+    transcribe_provider: str,
+    openai_model: str,
+) -> tuple[str, str, str | None]:
+    tier = validate_transcribe_tier(transcribe_tier)
+    provider = (
+        validate_transcribe_provider(transcribe_provider)
+        if transcribe_provider
+        else settings.transcribe_tier_provider[tier]
+    )
+    if provider not in ALLOWED_TIER_PROVIDER_OVERRIDES[tier]:
+        raise HTTPException(
+            status_code=400,
+            detail="transcribe_provider does not match selected tier",
+        )
+
+    model = validate_model_name(
+        openai_model,
+        allow_empty=True,
+        field_name="openai_model",
+    )
+    if model and provider != "openai":
+        raise HTTPException(
+            status_code=400,
+            detail="openai_model requires transcribe_provider=openai",
+        )
+    if settings.mock_external_services:
+        return tier, "mock", None
+    return tier, provider, model
+
+
+def _validate_subtitle_color(subtitle_color: str | None) -> str | None:
+    if not subtitle_color:
+        return subtitle_color
+    if len(subtitle_color) > 20:
+        raise HTTPException(status_code=400, detail="Subtitle color too long")
+    if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid subtitle color format (expected &HAABBGGRR)",
+        )
+    return subtitle_color
 
 
 def parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
@@ -99,35 +166,20 @@ def build_processing_settings(
     Raises:
         HTTPException: If any validation fails
     """
-    # Security: Validate input lengths to prevent DoS
-    if len(context_prompt) > 5000:
-        raise HTTPException(status_code=400, detail="Context prompt too long (max 5000 chars)")
-    if len(transcribe_tier) > 50:
-        raise HTTPException(status_code=400, detail="Model name too long")
-    if len(video_quality) > 50:
-        raise HTTPException(status_code=400, detail="Video quality string too long")
-    if len(transcribe_provider) > 50:
-        raise HTTPException(status_code=400, detail="Provider name too long")
-    if len(openai_model) > 50:
-        raise HTTPException(status_code=400, detail="OpenAI model name too long")
-    if len(video_resolution) > 50:
-        raise HTTPException(status_code=400, detail="Resolution string too long")
-    if len(highlight_style) > 20:
-        raise HTTPException(status_code=400, detail="Highlight style too long")
-
-    tier = validate_transcribe_tier(transcribe_tier)
-    provider = validate_transcribe_provider(transcribe_provider) if transcribe_provider else settings.transcribe_tier_provider[tier]
-    allowed_providers = ALLOWED_TIER_PROVIDER_OVERRIDES[tier]
-    if provider not in allowed_providers:
-        raise HTTPException(status_code=400, detail="transcribe_provider does not match selected tier")
-
-    openai_model_value = validate_model_name(openai_model, allow_empty=True, field_name="openai_model")
-    if openai_model_value and provider != "openai":
-        raise HTTPException(status_code=400, detail="openai_model requires transcribe_provider=openai")
-
-    if settings.mock_external_services:
-        provider = "mock"
-        openai_model_value = None
+    _validate_request_field_lengths(
+        context_prompt=context_prompt,
+        transcribe_tier=transcribe_tier,
+        video_quality=video_quality,
+        transcribe_provider=transcribe_provider,
+        openai_model=openai_model,
+        video_resolution=video_resolution,
+        highlight_style=highlight_style,
+    )
+    tier, provider, openai_model_value = _resolve_transcribe_settings(
+        transcribe_tier,
+        transcribe_provider,
+        openai_model,
+    )
 
     quality = validate_video_quality(video_quality)
     subtitle_position = validate_subtitle_position(subtitle_position)
@@ -136,11 +188,7 @@ def build_processing_settings(
     highlight_style = validate_highlight_style(highlight_style)
     subtitle_size = validate_subtitle_size(subtitle_size)
 
-    if subtitle_color:
-        if len(subtitle_color) > 20:
-            raise HTTPException(status_code=400, detail="Subtitle color too long")
-        if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
-            raise HTTPException(status_code=400, detail="Invalid subtitle color format (expected &HAABBGGRR)")
+    subtitle_color = _validate_subtitle_color(subtitle_color)
 
     target_width, target_height = parse_resolution(video_resolution)
     return ProcessingSettings(

@@ -108,11 +108,7 @@ def test_run_ffmpeg_command_bounds_decode_filter_and_encode_threads(
         timeout_seconds=1.0,
     )
 
-    thread_values = [
-        command[index + 1]
-        for index, value in enumerate(command)
-        if value == "-threads"
-    ]
+    thread_values = [command[index + 1] for index, value in enumerate(command) if value == "-threads"]
     progress_index = command.index("-progress")
     filter_index = command.index("-filter_threads")
     complex_filter_index = command.index("-filter_complex_threads")
@@ -155,11 +151,7 @@ def test_4k_render_reserves_both_lanes_and_uses_both_cpu_threads(
         timeout_seconds=1.0,
     )
 
-    thread_values = [
-        command[index + 1]
-        for index, value in enumerate(command)
-        if value == "-threads"
-    ]
+    thread_values = [command[index + 1] for index, value in enumerate(command) if value == "-threads"]
     assert thread_values == ["2", "2"]
 
 

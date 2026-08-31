@@ -1,140 +1,151 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { CueItem } from '../CueItem';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { CueItem } from "../CueItem";
 
 // Mock I18nContext
-jest.mock('@/context/I18nContext', () => ({
-    useI18n: () => ({ t: (key: string) => key }),
+jest.mock("@/context/I18nContext", () => ({
+  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 // Mock Spinner
-jest.mock('@/components/Spinner', () => ({
-    Spinner: () => <div data-testid="spinner">Spinner</div>,
+jest.mock("@/components/Spinner", () => ({
+  Spinner: () => <div data-testid="spinner">Spinner</div>,
 }));
 
-describe('CueItem', () => {
-    const mockCue = {
-        start: 12.5,
-        end: 15.0,
-        text: 'Hello world'
-    };
+describe("CueItem", () => {
+  const mockCue = {
+    start: 12.5,
+    end: 15.0,
+    text: "Hello world",
+  };
 
-    const defaultProps = {
-        cue: mockCue,
-        index: 0,
-        isActive: false,
-        isEditing: false,
-        canEdit: true,
-        draftText: 'Hello world',
-        isSaving: false,
-        onSeek: jest.fn(),
-        onEdit: jest.fn(),
-        onSave: jest.fn(),
-        onCancel: jest.fn(),
-        onUpdateDraft: jest.fn(),
-    };
+  const defaultProps = {
+    cue: mockCue,
+    index: 0,
+    isActive: false,
+    isEditing: false,
+    canEdit: true,
+    draftText: "Hello world",
+    isSaving: false,
+    onSeek: jest.fn(),
+    onEdit: jest.fn(),
+    onSave: jest.fn(),
+    onCancel: jest.fn(),
+    onUpdateDraft: jest.fn(),
+  };
 
-    it('renders correctly in view mode with accessible labels', () => {
-        render(<CueItem {...defaultProps} />);
+  it("renders correctly in view mode with accessible labels", () => {
+    render(<CueItem {...defaultProps} />);
 
-        // 12.5 seconds -> 0:13 because (12.5 % 60).toFixed(0) is '13' (rounding up)
-        // 12.5 / 60 = 0.208333... floor is 0.
-        // So it should be 0:13
-        expect(screen.getByText('0:13')).toBeInTheDocument();
-        expect(screen.getByText('Hello world')).toBeInTheDocument();
-        expect(screen.getByLabelText('jumpToTime')).toHaveClass('cue-time-button');
-        expect(screen.getByLabelText('jumpToCue')).toHaveClass('cue-text-button');
-        expect(screen.getByRole('button', { name: /transcriptEditAtTime/i }))
-            .toHaveClass('cue-edit-button');
+    // 12.5 seconds -> 0:13 because (12.5 % 60).toFixed(0) is '13' (rounding up)
+    // 12.5 / 60 = 0.208333... floor is 0.
+    // So it should be 0:13
+    expect(screen.getByText("0:13")).toBeInTheDocument();
+    expect(screen.getByText("Hello world")).toBeInTheDocument();
+    expect(screen.getByLabelText("jumpToTime")).toHaveClass("cue-time-button");
+    expect(screen.getByLabelText("jumpToCue")).toHaveClass("cue-text-button");
+    expect(
+      screen.getByRole("button", { name: /transcriptEditAtTime/i }),
+    ).toHaveClass("cue-edit-button");
 
-        // Check accessibility labels
-        // The mock t function returns the key, so we check for 'jumpToTime'
-        // The CueItem component uses t('jumpToTime')?.replace(...) || ...
-        // Our mock returns 'jumpToTime', so replace won't find {time}.
-        // Wait, the component code:
-        // aria-label={t('jumpToTime')?.replace('{time}', formattedTime) || `Jump to ${formattedTime}`}
-        // If t('jumpToTime') returns 'jumpToTime', replace returns 'jumpToTime' (if no match).
-        // Let's adjust expectation based on mock behavior.
-        // Or we can use regex to be safe.
+    // Check accessibility labels
+    // The mock t function returns the key, so we check for 'jumpToTime'
+    // The CueItem component uses t('jumpToTime')?.replace(...) || ...
+    // Our mock returns 'jumpToTime', so replace won't find {time}.
+    // Wait, the component code:
+    // aria-label={t('jumpToTime')?.replace('{time}', formattedTime) || `Jump to ${formattedTime}`}
+    // If t('jumpToTime') returns 'jumpToTime', replace returns 'jumpToTime' (if no match).
+    // Let's adjust expectation based on mock behavior.
+    // Or we can use regex to be safe.
+  });
+
+  it("renders correctly in edit mode", () => {
+    render(<CueItem {...defaultProps} isEditing={true} />);
+
+    const textarea = screen.getByRole("textbox");
+    expect(textarea).toHaveValue("Hello world");
+
+    // Wait for focus
+    waitFor(() => expect(textarea).toHaveFocus());
+
+    expect(screen.getByLabelText("transcriptSave")).toBeInTheDocument();
+    expect(screen.getByLabelText("transcriptCancel")).toBeInTheDocument();
+    expect(screen.getByLabelText("transcriptSave")).toHaveClass(
+      "cue-form-action",
+    );
+    expect(screen.getByLabelText("transcriptCancel")).toHaveClass(
+      "cue-form-action",
+    );
+  });
+
+  it("shows loading state when saving", () => {
+    render(<CueItem {...defaultProps} isEditing={true} isSaving={true} />);
+
+    const saveButton = screen.getByRole("button", { name: "transcriptSave" });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    expect(screen.getByText("transcriptSaving")).toBeInTheDocument();
+  });
+
+  it("calls onSeek when clicked", () => {
+    render(<CueItem {...defaultProps} />);
+
+    fireEvent.click(screen.getByText("0:13"));
+    expect(defaultProps.onSeek).toHaveBeenCalledWith(12.5);
+  });
+
+  it("calls onEdit when edit button clicked", () => {
+    render(<CueItem {...defaultProps} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /transcriptEditAtTime/i }),
+    );
+    expect(defaultProps.onEdit).toHaveBeenCalledWith(0);
+  });
+
+  it("calls onUpdateDraft when typing", () => {
+    render(<CueItem {...defaultProps} isEditing={true} />);
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "New text" } });
+    expect(defaultProps.onUpdateDraft).toHaveBeenCalledWith("New text");
+  });
+
+  it("supports keyboard save and cancel shortcuts", () => {
+    render(<CueItem {...defaultProps} isEditing />);
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(textarea, { key: "Escape" });
+
+    expect(defaultProps.onSave).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves focus into and back out of the editor during an edit session", async () => {
+    const { rerender } = render(<CueItem {...defaultProps} />);
+
+    rerender(<CueItem {...defaultProps} isEditing />);
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "transcriptSave" }));
+    rerender(<CueItem {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /transcriptEditAtTime/i }),
+      ).toHaveFocus();
     });
+  });
 
-    it('renders correctly in edit mode', () => {
-        render(<CueItem {...defaultProps} isEditing={true} />);
+  it("seeks from the cue text and disables editing when the cue is locked", () => {
+    render(<CueItem {...defaultProps} canEdit={false} />);
 
-        const textarea = screen.getByRole('textbox');
-        expect(textarea).toHaveValue('Hello world');
-
-        // Wait for focus
-        waitFor(() => expect(textarea).toHaveFocus());
-
-        expect(screen.getByLabelText('transcriptSave')).toBeInTheDocument();
-        expect(screen.getByLabelText('transcriptCancel')).toBeInTheDocument();
-        expect(screen.getByLabelText('transcriptSave')).toHaveClass('cue-form-action');
-        expect(screen.getByLabelText('transcriptCancel')).toHaveClass('cue-form-action');
-    });
-
-    it('shows loading state when saving', () => {
-        render(<CueItem {...defaultProps} isEditing={true} isSaving={true} />);
-
-        const saveButton = screen.getByRole('button', { name: 'transcriptSave' });
-        expect(saveButton).toBeDisabled();
-        expect(saveButton).toHaveAttribute('aria-busy', 'true');
-        expect(screen.getByTestId('spinner')).toBeInTheDocument();
-        expect(screen.getByText('transcriptSaving')).toBeInTheDocument();
-    });
-
-    it('calls onSeek when clicked', () => {
-        render(<CueItem {...defaultProps} />);
-
-        fireEvent.click(screen.getByText('0:13'));
-        expect(defaultProps.onSeek).toHaveBeenCalledWith(12.5);
-    });
-
-    it('calls onEdit when edit button clicked', () => {
-        render(<CueItem {...defaultProps} />);
-
-        fireEvent.click(screen.getByRole('button', { name: /transcriptEditAtTime/i }));
-        expect(defaultProps.onEdit).toHaveBeenCalledWith(0);
-    });
-
-    it('calls onUpdateDraft when typing', () => {
-        render(<CueItem {...defaultProps} isEditing={true} />);
-
-        const textarea = screen.getByRole('textbox');
-        fireEvent.change(textarea, { target: { value: 'New text' } });
-        expect(defaultProps.onUpdateDraft).toHaveBeenCalledWith('New text');
-    });
-
-    it('supports keyboard save and cancel shortcuts', () => {
-        render(<CueItem {...defaultProps} isEditing />);
-
-        const textarea = screen.getByRole('textbox');
-        fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
-        fireEvent.keyDown(textarea, { key: 'Escape' });
-
-        expect(defaultProps.onSave).toHaveBeenCalledTimes(1);
-        expect(defaultProps.onCancel).toHaveBeenCalledTimes(1);
-    });
-
-    it('moves focus into and back out of the editor during an edit session', async () => {
-        const { rerender } = render(<CueItem {...defaultProps} />);
-
-        rerender(<CueItem {...defaultProps} isEditing />);
-        await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
-
-        fireEvent.click(screen.getByRole('button', { name: 'transcriptSave' }));
-        rerender(<CueItem {...defaultProps} />);
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: /transcriptEditAtTime/i })).toHaveFocus();
-        });
-    });
-
-    it('seeks from the cue text and disables editing when the cue is locked', () => {
-        render(<CueItem {...defaultProps} canEdit={false} />);
-
-        fireEvent.click(screen.getByRole('button', { name: 'jumpToCue' }));
-        expect(defaultProps.onSeek).toHaveBeenCalledWith(12.5);
-        expect(screen.getByRole('button', { name: /transcriptEditAtTime/i })).toBeDisabled();
-    });
+    fireEvent.click(screen.getByRole("button", { name: "jumpToCue" }));
+    expect(defaultProps.onSeek).toHaveBeenCalledWith(12.5);
+    expect(
+      screen.getByRole("button", { name: /transcriptEditAtTime/i }),
+    ).toBeDisabled();
+  });
 });

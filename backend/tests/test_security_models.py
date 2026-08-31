@@ -45,9 +45,6 @@ def test_transcription_request_limits():
         TranscriptionCueRequest(start=0.0, end=1.0, text="a" * 2001)
 
 
-
-
-
 def test_batch_delete_request_limits():
     # Verify job_ids limit (64 chars)
     valid_id = "a" * 64

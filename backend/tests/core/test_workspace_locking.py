@@ -145,8 +145,7 @@ def test_job_workspace_lock_files_are_per_job_and_opaque(tmp_path: Path) -> None
         lock_files = list(lock_root.glob("*.lock"))
         assert len(lock_files) == len(job_ids)
         assert {path.name for path in lock_files} == {
-            f"{hashlib.sha256(job_id.encode('utf-8')).hexdigest()}.lock"
-            for job_id in job_ids
+            f"{hashlib.sha256(job_id.encode('utf-8')).hexdigest()}.lock" for job_id in job_ids
         }
 
     # Normal releases retire per-identity inodes safely; only one bounded
@@ -253,11 +252,8 @@ def test_scavenger_reaches_stale_tail_past_multiple_live_holders(
 
         assert reclaim_abandoned_lifecycle_locks(data_dir=tmp_path) == 1
         assert not stale_path.exists()
-        assert {
-            path.name for path in lock_root.glob("*.lock")
-        } == {
-            workspace_deletion._job_workspace_lock_name(job_id)
-            for job_id in live_job_ids
+        assert {path.name for path in lock_root.glob("*.lock")} == {
+            workspace_deletion._job_workspace_lock_name(job_id) for job_id in live_job_ids
         }
 
 

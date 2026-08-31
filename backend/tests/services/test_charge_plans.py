@@ -243,6 +243,7 @@ def test_processing_preflight_rejects_closed_budget_before_wallet_check(
 
     wallet_check.assert_not_called()
 
+
 class TestExternalProviderBudget:
     """The app budget is enforced before any provider reservation."""
 

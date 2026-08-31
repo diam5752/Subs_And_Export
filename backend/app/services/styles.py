@@ -11,6 +11,7 @@ class SubtitleStyle:
     """
     Centralized configuration for subtitle visualization styling.
     """
+
     font_family: str = "Arial"
     font_size: int = settings.default_sub_font_size
     primary_color: str = "#FFFF00"

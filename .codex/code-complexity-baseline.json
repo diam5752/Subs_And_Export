@@ -1,74 +1,41 @@
 {
   "hotspots": {
     "cyclomatic_complexity": {
-      ".codex/scripts/check_architecture.py::build_python_graph": [
-        12
-      ],
       ".codex/scripts/check_architecture.py::resolve_python_import": [
         12
-      ],
-      ".codex/scripts/quality_runner.py::run_command": [
-        16
-      ],
-      ".codex/scripts/run_java_gate.py::candidate_homes": [
-        15
       ],
       "backend/app/api/deps.py::_process_stream_authorization": [
         12
       ],
-      "backend/app/api/endpoints/auth.py::export_my_data": [
-        42
-      ],
       "backend/app/api/endpoints/billing.py::stripe_webhook": [
         11
       ],
-      "backend/app/api/endpoints/billing_admin.py::_payment_confirmation_at": [
-        13
-      ],
-      "backend/app/api/endpoints/billing_admin.py::_record_original_document_for_refund": [
-        16
-      ],
-      "backend/app/api/endpoints/billing_admin.py::list_pending_withdrawal_reviews": [
-        15
-      ],
-      "backend/app/api/endpoints/billing_admin.py::record_issued_aade_document": [
+      "backend/app/api/endpoints/billing_admin_accounting.py::record_issued_aade_document": [
         18
       ],
-      "backend/app/api/endpoints/billing_admin.py::record_manual_refund_accounting": [
+      "backend/app/api/endpoints/billing_admin_accounting.py::record_manual_refund_accounting": [
         12
       ],
-      "backend/app/api/endpoints/billing_admin.py::resolve_withdrawal_review": [
+      "backend/app/api/endpoints/billing_admin_support.py::_payment_confirmation_at": [
+        13
+      ],
+      "backend/app/api/endpoints/billing_admin_support.py::_record_original_document_for_refund": [
+        16
+      ],
+      "backend/app/api/endpoints/billing_admin_withdrawals.py::resolve_withdrawal_review": [
         15
       ],
       "backend/app/api/endpoints/export_routes.py::_download_grant_file_path": [
         12
       ],
-      "backend/app/api/endpoints/export_routes.py::_export_video_locked": [
-        45
-      ],
-      "backend/app/api/endpoints/file_utils.py::save_request_stream_with_limit": [
-        15
-      ],
       "backend/app/api/endpoints/job_routes.py::batch_delete_jobs": [
         14
       ],
       "backend/app/api/endpoints/processing_tasks.py::run_video_processing": [
-        58
+        11
       ],
       "backend/app/api/endpoints/reprocess_routes.py::_record_and_delete_failed_reprocess": [
         11
-      ],
-      "backend/app/api/endpoints/reprocess_routes.py::reprocess_job": [
-        26
-      ],
-      "backend/app/api/endpoints/settings.py::build_processing_settings": [
-        16
-      ],
-      "backend/app/api/endpoints/videos.py::_queue_saved_upload": [
-        20
-      ],
-      "backend/app/api/endpoints/videos.py::_record_and_delete_rejected_upload": [
-        21
       ],
       "backend/app/core/auth.py::_assert_google_payload_claims": [
         16
@@ -76,41 +43,26 @@
       "backend/app/core/auth.py::_normalize_google_avatar_url": [
         12
       ],
-      "backend/app/core/cleanup.py::_cleanup_orphan_ownership_markers": [
-        16
-      ],
       "backend/app/core/cleanup.py::cleanup_expired_workspaces": [
         13
-      ],
-      "backend/app/core/config.py::assert_stripe_stage_configuration": [
-        13
-      ],
-      "backend/app/core/config.py::parse_list": [
-        14
       ],
       "backend/app/core/config.py::validate_allowed_origins": [
         14
       ],
+      "backend/app/core/config_runtime.py::assert_stripe_stage_configuration": [
+        13
+      ],
       "backend/app/core/download_grants.py::_validate_file_path": [
         13
       ],
-      "backend/app/core/download_grants.py::validate_download_grant": [
-        26
-      ],
       "backend/app/core/erasure_journal.py::_initialize_unlocked": [
-        25
+        15
       ],
       "backend/app/core/erasure_journal.py::_recover_pending_unlocked": [
         13
       ],
       "backend/app/core/erasure_journal.py::_scan_journal_unlocked": [
         11
-      ],
-      "backend/app/core/erasure_journal.py::_validate": [
-        40
-      ],
-      "backend/app/core/erasure_journal.py::_validate_checkpoint": [
-        20
       ],
       "backend/app/core/erasure_journal.py::_verify_continuity_unlocked": [
         13
@@ -121,29 +73,8 @@
       "backend/app/core/erasure_journal.py::configured_erasure_journal": [
         16
       ],
-      "backend/app/core/media_capacity.py::_lock_capacity_pool": [
-        13
-      ],
-      "backend/app/core/media_capacity.py::active_render_storage_reservation_bytes": [
-        14
-      ],
-      "backend/app/core/private_media.py::__call__": [
-        11
-      ],
-      "backend/app/core/ratelimit.py::get_client_ip": [
-        12
-      ],
-      "backend/app/core/workspace_deletion.py::_lock_identity": [
-        25
-      ],
-      "backend/app/core/workspace_deletion.py::delete_job_workspace": [
+      "backend/app/core/erasure_journal_storage.py::_validate_checkpoint": [
         20
-      ],
-      "backend/app/core/workspace_deletion.py::reclaim_abandoned_lifecycle_locks": [
-        15
-      ],
-      "backend/app/core/workspace_ownership.py::_locked_registry": [
-        17
       ],
       "backend/app/core/workspace_ownership.py::_read_marker": [
         14
@@ -154,23 +85,8 @@
       "backend/app/core/workspace_ownership.py::record_workspace_ownership": [
         12
       ],
-      "backend/app/services/account_erasure.py::_erase_account_and_media_locked": [
-        25
-      ],
-      "backend/app/services/billing.py::_apply_reversal_event": [
-        79
-      ],
-      "backend/app/services/billing.py::_capture_and_fulfill_checkout": [
-        14
-      ],
-      "backend/app/services/billing.py::_create_checkout_locked": [
-        14
-      ],
-      "backend/app/services/billing.py::_ensure_purchase": [
+      "backend/app/services/account_data_export.py::build_account_data_export": [
         15
-      ],
-      "backend/app/services/billing.py::_fulfill_checkout": [
-        37
       ],
       "backend/app/services/billing.py::_normalize_payment_intent_state": [
         28
@@ -178,47 +94,23 @@
       "backend/app/services/billing.py::_normalize_refund_state": [
         17
       ],
-      "backend/app/services/billing.py::_process_event": [
+      "backend/app/services/billing_checkout_service.py::_create_checkout_locked": [
         14
       ],
-      "backend/app/services/billing.py::_resolve_event_scope": [
-        25
-      ],
-      "backend/app/services/billing.py::_upsert_authoritative_refunds_in_session": [
-        24
-      ],
-      "backend/app/services/billing.py::_validate_checkout_identity": [
-        20
-      ],
-      "backend/app/services/billing.py::_validate_checkout_session": [
-        12
-      ],
-      "backend/app/services/billing.py::_validate_manual_payment_intent": [
-        11
-      ],
-      "backend/app/services/billing.py::prepare_account_deletion": [
-        24
-      ],
-      "backend/app/services/billing.py::verify_and_process_webhook": [
+      "backend/app/services/billing_checkout_service.py::_ensure_purchase": [
         15
       ],
-      "backend/app/services/billing_consumer_records.py::_consumer_contract_accepted_at_v1": [
+      "backend/app/services/billing_checkout_service.py::verify_and_process_webhook": [
+        15
+      ],
+      "backend/app/services/billing_consumer_contracts.py::_consumer_contract_accepted_at_v1": [
         13
       ],
-      "backend/app/services/billing_consumer_records.py::_verify_contract_confirmation_v1": [
-        54
-      ],
-      "backend/app/services/billing_consumer_records.py::_verify_withdrawal_v1": [
-        68
-      ],
-      "backend/app/services/billing_consumer_records.py::list_purchases": [
-        26
-      ],
-      "backend/app/services/billing_consumer_records.py::new_contract_confirmation": [
+      "backend/app/services/billing_consumer_contracts.py::new_contract_confirmation": [
         13
       ],
-      "backend/app/services/billing_consumer_records.py::submit_withdrawal": [
-        22
+      "backend/app/services/billing_fulfillment_service.py::_capture_and_fulfill_checkout": [
+        14
       ],
       "backend/app/services/billing_manual_records.py::new_billing_adjustment_record": [
         22
@@ -229,11 +121,17 @@
       "backend/app/services/billing_manual_records.py::verify_billing_adjustment_record": [
         40
       ],
-      "backend/app/services/billing_manual_records.py::verify_withdrawal_resolution": [
-        50
-      ],
       "backend/app/services/billing_records.py::build_paid_financial_record": [
         21
+      ],
+      "backend/app/services/billing_validation_service.py::_validate_checkout_identity": [
+        20
+      ],
+      "backend/app/services/billing_validation_service.py::_validate_checkout_session": [
+        12
+      ],
+      "backend/app/services/billing_validation_service.py::_validate_manual_payment_intent": [
+        11
       ],
       "backend/app/services/consumer_contracts.py::consumer_contract_registry_is_approved": [
         11
@@ -247,10 +145,7 @@
       "backend/app/services/ffmpeg_utils.py::probe_media": [
         11
       ],
-      "backend/app/services/ffmpeg_utils.py::run_ffmpeg_with_subs": [
-        29
-      ],
-      "backend/app/services/points.py::_mutate_paid_wallet_once_in_session": [
+      "backend/app/services/paid_wallet.py::_mutate_paid_wallet_once_in_session": [
         11
       ],
       "backend/app/services/provider_budget.py::assert_can_reserve": [
@@ -259,77 +154,17 @@
       "backend/app/services/provider_budget.py::reserve_in_session": [
         18
       ],
-      "backend/app/services/subtitle_renderer.py::_score_wrapped_chunk": [
-        13
-      ],
-      "backend/app/services/subtitle_renderer.py::_wrap_items_balanced.best_layout": [
-        12
-      ],
-      "backend/app/services/subtitle_renderer.py::create_styled_subtitle_file": [
-        17
-      ],
-      "backend/app/services/subtitle_renderer.py::generate_active_word_ass": [
-        24
-      ],
-      "backend/app/services/subtitle_renderer.py::normalize_cues_for_ass": [
-        21
-      ],
-      "backend/app/services/subtitle_renderer.py::split_long_cues": [
-        17
-      ],
-      "backend/app/services/subtitles.py::extract_audio": [
-        18
-      ],
-      "backend/app/services/transcription/elevenlabs_scribe.py::transcribe": [
-        21
-      ],
-      "backend/app/services/transcription/groq_cloud.py::transcribe": [
-        19
-      ],
-      "backend/app/services/transcription/local_whisper.py::transcribe": [
-        15
-      ],
-      "backend/app/services/transcription/openai_cloud.py::transcribe": [
-        21
-      ],
       "backend/app/services/transcription/standard_whisper.py::transcribe": [
         15
       ],
       "backend/app/services/usage_ledger.py::_validate_existing_reservation": [
         15
       ],
-      "backend/app/services/usage_ledger.py::fail": [
-        31
-      ],
-      "backend/app/services/usage_ledger.py::finalize": [
-        28
-      ],
-      "backend/app/services/usage_ledger.py::reconcile_stale_reservations": [
-        25
-      ],
-      "backend/app/services/usage_ledger.py::reserve": [
-        35
-      ],
       "backend/app/services/usage_ledger.py::summarize": [
         14
       ],
-      "backend/app/services/video_processing.py::_load_persisted_cues": [
-        20
-      ],
-      "backend/app/services/video_processing.py::generate_video_variant": [
-        21
-      ],
-      "backend/app/services/video_processing.py::process_video_pipeline": [
-        74
-      ],
       "backend/app/services/video_processing.py::resolve_runtime_transcribe_provider": [
         11
-      ],
-      "backend/main.py::serve_static": [
-        11
-      ],
-      "frontend/src/app/account/billing/page.tsx::(anonymous)": [
-        15
       ],
       "frontend/src/app/admin/billing/ManualRefundCard.tsx::ManualRefundCard": [
         17
@@ -337,78 +172,38 @@
       "frontend/src/app/admin/billing/WithdrawalReviewCard.tsx::WithdrawalReviewCard": [
         11
       ],
-      "frontend/src/app/admin/billing/page.tsx::BillingInvoiceCard": [
-        65
-      ],
-      "frontend/src/app/page.tsx::handleAccountDialogKeyDown": [
-        11
-      ],
-      "frontend/src/app/page.tsx::processingQuoteChangeFromError": [
-        12
-      ],
-      "frontend/src/app/page.tsx::reconcileCheckout": [
-        16
-      ],
-      "frontend/src/app/page.tsx::restoreSession": [
-        13
-      ],
-      "frontend/src/components/CreditPurchaseDialog.tsx::handleCheckout": [
-        14
-      ],
-      "frontend/src/components/CreditPurchaseDialog.tsx::handlePackageKeyDown": [
-        12
-      ],
       "frontend/src/components/GoogleSignInControl.tsx::(anonymous)": [
         12
       ],
       "frontend/src/components/GoogleSignInControl.tsx::initializeGoogle": [
-        18
-      ],
-      "frontend/src/components/InfoTooltip.tsx::InfoTooltip": [
-        14
+        17
       ],
       "frontend/src/components/JobListItem.tsx::arePropsEqual": [
         21
       ],
-      "frontend/src/components/PreviewPlayer.tsx::(anonymous)": [
-        13
+      "frontend/src/components/usePreviewGestures.ts::(anonymous)": [
+        12
       ],
-      "frontend/src/components/ProcessingGateModal.tsx::ProcessingGateModal": [
-        34
+      "frontend/src/features/process/ProcessContext.tsx::(anonymous)": [
+        15
       ],
-      "frontend/src/components/ProcessingGateModal.tsx::handleKeyDown": [
-        11
+      "frontend/src/features/process/ProcessContext.tsx::ProcessProvider": [
+        20
       ],
-      "frontend/src/components/RecentJobsList.tsx::RecentJobsList": [
-        27
+      "frontend/src/features/process/dashboardProcessing.ts::processingQuoteChangeFromError": [
+        12
       ],
-      "frontend/src/components/SubtitleOverlay.tsx::(anonymous)": [
-        17,
-        11,
-        11,
-        11
-      ],
-      "frontend/src/components/SubtitleOverlay.tsx::renderOverlay": [
-        13
-      ],
-      "frontend/src/features/process/CueItem.tsx::(anonymous)": [
-        11
-      ],
-      "frontend/src/features/process/components/UploadSection.tsx::(anonymous)": [
-        40,
+      "frontend/src/features/process/useSessionJobRestore.ts::(anonymous)": [
         11
       ],
       "frontend/src/hooks/useJobPolling.ts::poll": [
         13
       ],
-      "frontend/src/lib/api.ts::apiErrorFromPayload": [
-        13
-      ],
-      "frontend/src/lib/api.ts::normalizedProcessVideoSettings": [
+      "frontend/src/lib/apiClient.ts::reprocessJob": [
         22
       ],
-      "frontend/src/lib/api.ts::request": [
-        14
+      "frontend/src/lib/apiCore.ts::normalizedProcessVideoSettings": [
+        22
       ],
       "frontend/src/lib/subtitleUtils.ts::scoreWrappedTextLines": [
         13
@@ -416,29 +211,23 @@
       "frontend/src/lib/subtitleUtils.ts::scoreWrappedWidthLines": [
         14
       ],
-      "frontend/src/lib/subtitleUtils.ts::updateCueText": [
-        14
-      ],
       "frontend/src/lib/video.ts::finish": [
         18
       ],
       "frontend/src/lib/video.ts::parseIsoBmffMovieBox": [
-        16
-      ],
-      "frontend/src/lib/video.ts::parseMovieDuration": [
-        19
+        13
       ],
       "frontend/src/lib/video.ts::parseTrackDimensions": [
         21
       ],
-      "frontend/src/lib/video.ts::parseVideoTrackDimensions": [
-        14
-      ],
-      "frontend/src/lib/video.ts::readIsoBmffMetadata": [
-        35
-      ],
       "frontend/src/lib/video.ts::readIsoBox": [
         11
+      ],
+      "frontend/src/lib/video.ts::recordIsoTopLevelBox": [
+        11
+      ],
+      "frontend/src/lib/video.ts::scanIsoTopLevelBoxes": [
+        13
       ],
       "src/main/java/com/ascentia/subs/auth/GoogleAvatarUrl.java::GoogleAvatarUrl::normalize": [
         13
@@ -452,9 +241,6 @@
       "src/main/java/com/ascentia/subs/web/AppController.java::AppController::sanitizeDownloadFilename": [
         14
       ],
-      "src/main/java/com/ascentia/subs/web/AppController.java::AppController::serveStatic": [
-        27
-      ],
       "src/main/java/com/ascentia/subs/web/DownloadGrantService.java::DownloadGrantService::validate": [
         21
       ],
@@ -466,62 +252,50 @@
       "backend/app/api/endpoints/auth.py::delete_account": [
         53
       ],
-      "backend/app/api/endpoints/auth.py::export_my_data": [
-        563
-      ],
-      "backend/app/api/endpoints/billing_admin.py::_payment_confirmation_at": [
-        54
-      ],
-      "backend/app/api/endpoints/billing_admin.py::_pending_invoice": [
-        114
-      ],
-      "backend/app/api/endpoints/billing_admin.py::_record_original_document_for_refund": [
-        77
-      ],
-      "backend/app/api/endpoints/billing_admin.py::list_pending_billing_invoices": [
-        60
-      ],
-      "backend/app/api/endpoints/billing_admin.py::list_pending_refund_reviews": [
-        114
-      ],
-      "backend/app/api/endpoints/billing_admin.py::list_pending_withdrawal_reviews": [
-        187
-      ],
-      "backend/app/api/endpoints/billing_admin.py::record_issued_aade_document": [
+      "backend/app/api/endpoints/billing_admin_accounting.py::record_issued_aade_document": [
         138
       ],
-      "backend/app/api/endpoints/billing_admin.py::record_manual_refund_accounting": [
+      "backend/app/api/endpoints/billing_admin_accounting.py::record_manual_refund_accounting": [
         144
       ],
-      "backend/app/api/endpoints/billing_admin.py::resolve_withdrawal_review": [
-        162
-      ],
-      "backend/app/api/endpoints/export_routes.py::_export_video_locked": [
-        179
-      ],
-      "backend/app/api/endpoints/file_utils.py::save_request_stream_with_limit": [
+      "backend/app/api/endpoints/billing_admin_reviews.py::list_pending_billing_invoices": [
         60
+      ],
+      "backend/app/api/endpoints/billing_admin_reviews.py::list_pending_refund_reviews": [
+        114
+      ],
+      "backend/app/api/endpoints/billing_admin_reviews.py::list_pending_withdrawal_reviews": [
+        117
+      ],
+      "backend/app/api/endpoints/billing_admin_support.py::_payment_confirmation_at": [
+        54
+      ],
+      "backend/app/api/endpoints/billing_admin_support.py::_pending_invoice": [
+        114
+      ],
+      "backend/app/api/endpoints/billing_admin_support.py::_record_original_document_for_refund": [
+        77
+      ],
+      "backend/app/api/endpoints/billing_admin_withdrawals.py::resolve_withdrawal_review": [
+        162
       ],
       "backend/app/api/endpoints/job_routes.py::batch_delete_jobs": [
         62
       ],
       "backend/app/api/endpoints/processing_tasks.py::run_video_processing": [
-        425
+        88
       ],
       "backend/app/api/endpoints/reprocess_routes.py::_reserve_reprocess_job": [
         91
       ],
       "backend/app/api/endpoints/reprocess_routes.py::reprocess_job": [
-        154
+        81
       ],
       "backend/app/api/endpoints/settings.py::build_processing_settings": [
-        71
+        56
       ],
       "backend/app/api/endpoints/videos.py::_queue_saved_upload": [
-        216
-      ],
-      "backend/app/api/endpoints/videos.py::_record_and_delete_rejected_upload": [
-        77
+        61
       ],
       "backend/app/api/endpoints/videos.py::_reserve_stream_upload": [
         71
@@ -532,44 +306,20 @@
       "backend/app/core/auth.py::upsert_google_user": [
         63
       ],
-      "backend/app/core/cleanup.py::_cleanup_orphan_ownership_markers": [
-        58
-      ],
       "backend/app/core/cleanup.py::cleanup_expired_workspaces": [
-        106
+        95
       ],
       "backend/app/core/cleanup.py::run_configured_retention": [
-        64
-      ],
-      "backend/app/core/download_grants.py::validate_download_grant": [
-        78
-      ],
-      "backend/app/core/erasure_journal.py::_decode": [
-        81
+        62
       ],
       "backend/app/core/erasure_journal.py::_recover_pending_unlocked": [
-        57
+        51
       ],
       "backend/app/core/erasure_journal.py::_replace_unlocked": [
         52
       ],
-      "backend/app/core/erasure_journal.py::_validate": [
-        57
-      ],
-      "backend/app/core/media_capacity.py::_lock_capacity_pool": [
-        54
-      ],
-      "backend/app/core/media_capacity.py::active_render_storage_reservation_bytes": [
-        53
-      ],
-      "backend/app/core/workspace_deletion.py::_lock_identity": [
-        101
-      ],
-      "backend/app/core/workspace_deletion.py::reclaim_abandoned_lifecycle_locks": [
-        64
-      ],
-      "backend/app/core/workspace_ownership.py::_locked_registry": [
-        79
+      "backend/app/core/erasure_journal_codec.py::_decode": [
+        75
       ],
       "backend/app/core/workspace_ownership.py::_read_marker": [
         53
@@ -577,26 +327,11 @@
       "backend/app/core/workspace_ownership.py::record_workspace_ownership": [
         73
       ],
+      "backend/app/services/account_data_export.py::build_account_data_export": [
+        231
+      ],
       "backend/app/services/account_erasure.py::_erase_account_and_media_locked": [
-        134
-      ],
-      "backend/app/services/artifact_manager.py::persist_artifacts": [
         62
-      ],
-      "backend/app/services/billing.py::_apply_reversal_event": [
-        287
-      ],
-      "backend/app/services/billing.py::_capture_and_fulfill_checkout": [
-        109
-      ],
-      "backend/app/services/billing.py::_create_checkout_locked": [
-        78
-      ],
-      "backend/app/services/billing.py::_ensure_purchase": [
-        118
-      ],
-      "backend/app/services/billing.py::_fulfill_checkout": [
-        170
       ],
       "backend/app/services/billing.py::_normalize_payment_intent_state": [
         79
@@ -604,44 +339,35 @@
       "backend/app/services/billing.py::_normalize_refund_state": [
         59
       ],
-      "backend/app/services/billing.py::_process_event": [
-        89
-      ],
-      "backend/app/services/billing.py::_resolve_event_scope": [
-        122
-      ],
-      "backend/app/services/billing.py::_upsert_authoritative_refunds_in_session": [
-        114
-      ],
       "backend/app/services/billing.py::create_checkout_session": [
-        59
+        57
       ],
-      "backend/app/services/billing.py::prepare_account_deletion": [
-        134
+      "backend/app/services/billing_checkout_service.py::_create_checkout_locked": [
+        78
       ],
-      "backend/app/services/billing.py::verify_and_process_webhook": [
+      "backend/app/services/billing_checkout_service.py::_ensure_purchase": [
+        118
+      ],
+      "backend/app/services/billing_checkout_service.py::verify_and_process_webhook": [
         94
       ],
-      "backend/app/services/billing_consumer_records.py::_consumer_contract_snapshot_v1": [
+      "backend/app/services/billing_consumer_contracts.py::_consumer_contract_snapshot_v1": [
         52
       ],
-      "backend/app/services/billing_consumer_records.py::_verify_contract_confirmation_v1": [
-        177
-      ],
-      "backend/app/services/billing_consumer_records.py::_verify_withdrawal_v1": [
-        183
-      ],
-      "backend/app/services/billing_consumer_records.py::get_withdrawal_resolution": [
-        61
-      ],
-      "backend/app/services/billing_consumer_records.py::list_purchases": [
-        144
-      ],
-      "backend/app/services/billing_consumer_records.py::new_contract_confirmation": [
+      "backend/app/services/billing_consumer_contracts.py::new_contract_confirmation": [
         69
       ],
-      "backend/app/services/billing_consumer_records.py::submit_withdrawal": [
-        208
+      "backend/app/services/billing_consumer_withdrawals.py::get_withdrawal_resolution": [
+        61
+      ],
+      "backend/app/services/billing_consumer_withdrawals.py::submit_withdrawal": [
+        67
+      ],
+      "backend/app/services/billing_fulfillment_service.py::_capture_and_fulfill_checkout": [
+        109
+      ],
+      "backend/app/services/billing_fulfillment_service.py::_fulfill_checkout": [
+        54
       ],
       "backend/app/services/billing_manual_records.py::new_billing_adjustment_record": [
         106
@@ -652,9 +378,6 @@
       "backend/app/services/billing_manual_records.py::verify_billing_adjustment_record": [
         119
       ],
-      "backend/app/services/billing_manual_records.py::verify_withdrawal_resolution": [
-        131
-      ],
       "backend/app/services/billing_records.py::build_paid_financial_record": [
         129
       ],
@@ -662,7 +385,7 @@
         216
       ],
       "backend/app/services/charge_plans.py::reserve_transcription_charge": [
-        56
+        52
       ],
       "backend/app/services/consumer_contracts.py::build_consumer_contract_snapshot": [
         60
@@ -671,18 +394,18 @@
         51
       ],
       "backend/app/services/erasure_reconciliation.py::_replay_job_terminal_erasure": [
-        62
+        58
       ],
       "backend/app/services/erasure_reconciliation.py::reconcile_erasure_journal": [
         88
       ],
       "backend/app/services/ffmpeg_utils.py::run_ffmpeg_with_subs": [
-        177
+        67
       ],
       "backend/app/services/login_promotion.py::claim_for_login": [
         85
       ],
-      "backend/app/services/points.py::_mutate_paid_wallet_once_in_session": [
+      "backend/app/services/paid_wallet.py::_mutate_paid_wallet_once_in_session": [
         93
       ],
       "backend/app/services/points.py::credit_once_in_session": [
@@ -692,158 +415,79 @@
         60
       ],
       "backend/app/services/product_feedback.py::submit": [
-        71
+        66
       ],
       "backend/app/services/provider_budget.py::reserve_in_session": [
-        120
-      ],
-      "backend/app/services/startup_recovery.py::reconcile_interrupted_media_jobs": [
-        51
+        104
       ],
       "backend/app/services/subtitle_renderer.py::create_styled_subtitle_file": [
-        129
-      ],
-      "backend/app/services/subtitle_renderer.py::generate_active_word_ass": [
-        71
-      ],
-      "backend/app/services/subtitle_renderer.py::normalize_cues_for_ass": [
-        61
-      ],
-      "backend/app/services/subtitle_renderer.py::split_long_cues": [
         75
-      ],
-      "backend/app/services/subtitles.py::extract_audio": [
-        110
       ],
       "backend/app/services/transcription/catalog.py::list_transcription_engines": [
         118
       ],
-      "backend/app/services/transcription/elevenlabs_scribe.py::transcribe": [
-        89
-      ],
-      "backend/app/services/transcription/groq_cloud.py::transcribe": [
-        69
-      ],
-      "backend/app/services/transcription/local_whisper.py::transcribe": [
-        62
-      ],
-      "backend/app/services/transcription/openai_cloud.py::transcribe": [
-        64
-      ],
       "backend/app/services/transcription/standard_whisper.py::transcribe": [
         60
-      ],
-      "backend/app/services/usage_ledger.py::_resolve_retry_idempotency_in_session": [
-        56
-      ],
-      "backend/app/services/usage_ledger.py::fail": [
-        194
-      ],
-      "backend/app/services/usage_ledger.py::finalize": [
-        167
-      ],
-      "backend/app/services/usage_ledger.py::reconcile_stale_reservations": [
-        211
-      ],
-      "backend/app/services/usage_ledger.py::reserve": [
-        265
       ],
       "backend/app/services/video_export_cache.py::build_video_export_signature": [
         51
       ],
-      "backend/app/services/video_processing.py::_load_persisted_cues": [
-        54
-      ],
-      "backend/app/services/video_processing.py::generate_video_variant": [
-        106
-      ],
       "backend/app/services/video_processing.py::process_video_pipeline": [
-        300
+        136
       ],
       "backend/cli.py::process": [
         118
       ],
-      "backend/main.py::serve_static": [
-        58
-      ],
-      "frontend/src/app/account/billing/page.tsx::(anonymous)": [
-        196
-      ],
       "frontend/src/app/admin/billing/ManualRefundCard.tsx::ManualRefundCard": [
-        246
+        211
       ],
       "frontend/src/app/admin/billing/WithdrawalReviewCard.tsx::WithdrawalReviewCard": [
-        278
-      ],
-      "frontend/src/app/admin/billing/page.tsx::BillingInvoiceCard": [
-        269
+        229
       ],
       "frontend/src/app/login/page.tsx::LoginPage": [
         86
       ],
-      "frontend/src/app/page.tsx::(anonymous)": [
-        60
-      ],
-      "frontend/src/app/page.tsx::DashboardPage": [
-        67
-      ],
-      "frontend/src/app/page.tsx::reconcileCheckout": [
-        60
-      ],
       "frontend/src/app/register/page.tsx::RegisterPage": [
-        123
+        108
       ],
       "frontend/src/components/ConfirmActionModal.tsx::ConfirmActionModal": [
         82
       ],
       "frontend/src/components/GoogleSignInControl.tsx::initializeGoogle": [
-        74
+        64
       ],
       "frontend/src/components/InfoTooltip.tsx::InfoTooltip": [
-        67
-      ],
-      "frontend/src/components/InlineSubtitleEditor.tsx::InlineSubtitleEditor": [
-        76
-      ],
-      "frontend/src/components/PhoneFrame.tsx::PhoneFrame": [
         53
       ],
-      "frontend/src/components/ProcessingGateModal.tsx::ProcessingGateModal": [
-        245
+      "frontend/src/components/InlineSubtitleEditor.tsx::InlineSubtitleEditor": [
+        65
       ],
-      "frontend/src/components/RecentJobsList.tsx::RecentJobsList": [
-        136
-      ],
-      "frontend/src/components/VideoModal.tsx::VideoModal": [
+      "frontend/src/components/PhoneFrame.tsx::PhoneFrame": [
         51
       ],
-      "frontend/src/features/process/CueItem.tsx::(anonymous)": [
-        103
+      "frontend/src/components/ProcessingGateModal.tsx::ProcessingGateModal": [
+        127
       ],
-      "frontend/src/features/process/components/PreviewSection.tsx::(anonymous)": [
-        116
+      "frontend/src/components/RecentJobsList.tsx::RecentJobsList": [
+        114
+      ],
+      "frontend/src/features/process/CueItem.tsx::(anonymous)": [
+        79
+      ],
+      "frontend/src/features/process/ProcessContext.tsx::(anonymous)": [
+        54
+      ],
+      "frontend/src/features/process/ProcessContext.tsx::ProcessProvider": [
+        165
       ],
       "frontend/src/features/process/components/PreviewSection.tsx::PreviewSection": [
-        85
+        62
       ],
       "frontend/src/features/process/components/Sidebar.tsx::(anonymous)": [
-        68,
-        59
+        56
       ],
       "frontend/src/features/process/components/UploadSection.tsx::(anonymous)": [
-        249
-      ],
-      "frontend/src/lib/api.ts::apiErrorFromPayload": [
-        60
-      ],
-      "frontend/src/lib/api.ts::request": [
-        56
-      ],
-      "frontend/src/lib/subtitleUtils.ts::updateCueText": [
-        56
-      ],
-      "frontend/src/lib/video.ts::readIsoBmffMetadata": [
-        71
+        247
       ],
       "src/main/java/com/ascentia/subs/auth/AuthStore.java::AuthStore::upsertGoogleUser": [
         104
@@ -853,9 +497,6 @@
       ],
       "src/main/java/com/ascentia/subs/usage/UsageLedgerStore.java::UsageLedgerStore::reserve": [
         67
-      ],
-      "src/main/java/com/ascentia/subs/web/AppController.java::AppController::serveStatic": [
-        93
       ],
       "src/main/java/com/ascentia/subs/web/DownloadGrantService.java::DownloadGrantService::validate": [
         52

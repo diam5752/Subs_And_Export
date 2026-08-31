@@ -1,4 +1,4 @@
-describe('next.config', () => {
+describe("next.config", () => {
   const originalApiBase = process.env.NEXT_PUBLIC_API_URL;
 
   afterEach(() => {
@@ -9,104 +9,110 @@ describe('next.config', () => {
     }
   });
 
-  it('allows media and images from API base', async () => {
-    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8080';
+  it("allows media and images from API base", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8080";
 
-    const nextConfigModule = await import('../../next.config');
+    const nextConfigModule = await import("../../next.config");
     const headers = await nextConfigModule.default.headers?.();
-    const csp = headers?.[0]?.headers?.find((header) => header.key === 'Content-Security-Policy')?.value;
+    const csp = headers?.[0]?.headers?.find(
+      (header) => header.key === "Content-Security-Policy",
+    )?.value;
 
     expect(csp).toContain("media-src 'self' http://localhost:8080");
     expect(csp).toContain("img-src 'self' http://localhost:8080");
     expect(csp).toContain("connect-src 'self' http://localhost:8080");
   });
 
-  it('defaults CSP API access to the frontend API base fallback', async () => {
+  it("defaults CSP API access to the frontend API base fallback", async () => {
     delete process.env.NEXT_PUBLIC_API_URL;
 
-    const nextConfigModule = await import('../../next.config');
+    const nextConfigModule = await import("../../next.config");
     const headers = await nextConfigModule.default.headers?.();
-    const csp = headers?.[0]?.headers?.find((header) => header.key === 'Content-Security-Policy')?.value;
+    const csp = headers?.[0]?.headers?.find(
+      (header) => header.key === "Content-Security-Policy",
+    )?.value;
 
     expect(csp).toContain("img-src 'self' http://localhost:8080");
     expect(csp).toContain("media-src 'self' http://localhost:8080");
     expect(csp).toContain("connect-src 'self' http://localhost:8080");
   });
 
-  it('keeps production API access same-origin when configured with an empty base', async () => {
-    process.env.NEXT_PUBLIC_API_URL = '';
+  it("keeps production API access same-origin when configured with an empty base", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "";
 
-    const nextConfigModule = await import('../../next.config');
+    const nextConfigModule = await import("../../next.config");
     const headers = await nextConfigModule.default.headers?.();
-    const csp = headers?.[0]?.headers?.find((header) => header.key === 'Content-Security-Policy')?.value;
+    const csp = headers?.[0]?.headers?.find(
+      (header) => header.key === "Content-Security-Policy",
+    )?.value;
 
     expect(csp).toContain("connect-src 'self' https://accounts.google.com");
-    expect(csp).not.toContain('localhost:8080');
+    expect(csp).not.toContain("localhost:8080");
   });
 
-  it('allows Google Identity Services in the production CSP', async () => {
-    process.env.NEXT_PUBLIC_API_URL = 'https://api.example.test';
+  it("allows Google Identity Services in the production CSP", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "https://api.example.test";
 
-    const nextConfigModule = await import('../../next.config');
+    const nextConfigModule = await import("../../next.config");
     const headers = await nextConfigModule.default.headers?.();
-    const csp = headers?.[0]?.headers?.find((header) => header.key === 'Content-Security-Policy')?.value;
+    const csp = headers?.[0]?.headers?.find(
+      (header) => header.key === "Content-Security-Policy",
+    )?.value;
 
     expect(csp).toContain("script-src 'self'");
-    expect(csp).toContain('https://accounts.google.com');
+    expect(csp).toContain("https://accounts.google.com");
     expect(csp).toContain(
       "style-src 'self' 'unsafe-inline' https://accounts.google.com",
     );
-    expect(csp).toContain('connect-src');
-    expect(csp).toContain('frame-src https://accounts.google.com');
+    expect(csp).toContain("connect-src");
+    expect(csp).toContain("frame-src https://accounts.google.com");
   });
 
-  it('allows only the Google profile-image host used by verified avatars', async () => {
-    const nextConfigModule = await import('../../next.config');
+  it("allows only the Google profile-image host used by verified avatars", async () => {
+    const nextConfigModule = await import("../../next.config");
     const headers = await nextConfigModule.default.headers?.();
     const csp = headers?.[0]?.headers?.find(
-      (header) => header.key === 'Content-Security-Policy',
+      (header) => header.key === "Content-Security-Policy",
     )?.value;
 
     // REGRESSION: the restrictive production CSP blocked the profile picture
     // even when the verified Google token supplied it.
-    expect(csp).toContain(
-      'img-src',
-    );
-    expect(csp).toContain('https://lh3.googleusercontent.com');
+    expect(csp).toContain("img-src");
+    expect(csp).toContain("https://lh3.googleusercontent.com");
     expect(nextConfigModule.default.images?.remotePatterns).toEqual([
       {
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
       },
     ]);
   });
 
-  it('keeps Google Identity popup communication available', async () => {
+  it("keeps Google Identity popup communication available", async () => {
     // REGRESSION: COOP "same-origin" severs the window.opener channel that
     // Google Identity Services uses to return a popup credential.
-    const nextConfigModule = await import('../../next.config');
+    const nextConfigModule = await import("../../next.config");
     const headers = await nextConfigModule.default.headers?.();
     const coop = headers?.[0]?.headers?.find(
-      (header) => header.key === 'Cross-Origin-Opener-Policy',
+      (header) => header.key === "Cross-Origin-Opener-Policy",
     )?.value;
 
-    expect(coop).toBe('same-origin-allow-popups');
+    expect(coop).toBe("same-origin-allow-popups");
   });
 
-  it('allows local loopback dev origins for Next assets in CI', async () => {
+  it("allows local loopback dev origins for Next assets in CI", async () => {
     // REGRESSION: GitHub Actions Playwright runs can request dev assets from
     // 127.0.0.1 even when the main page uses localhost, which otherwise breaks
     // dashboard hydration and E2E shell rendering.
-    const nextConfigModule = await import('../../next.config');
+    const nextConfigModule = await import("../../next.config");
 
     expect(nextConfigModule.default.allowedDevOrigins).toEqual(
-      expect.arrayContaining(['127.0.0.1', 'localhost']),
+      expect.arrayContaining(["127.0.0.1", "localhost"]),
     );
   });
 
-  it('keeps the localhost QA surface free of framework UI', async () => {
-    const nextConfigModule = await import('../../next.config');
+  it("keeps the localhost QA surface free of framework UI", async () => {
+    const nextConfigModule = await import("../../next.config");
 
     expect(nextConfigModule.default.devIndicators).toBe(false);
   });

@@ -116,13 +116,15 @@ def test_snapshot_groups_sanitized_errors(tmp_path: Path) -> None:
 
     snapshot = store.snapshot()
 
-    assert snapshot["errors"] == [{
-        "kind": "backend_error",
-        "name": "http_5xx",
-        "route": "videos",
-        "status_code": 500,
-        "count": 2,
-    }]
+    assert snapshot["errors"] == [
+        {
+            "kind": "backend_error",
+            "name": "http_5xx",
+            "route": "videos",
+            "status_code": 500,
+            "count": 2,
+        }
+    ]
     assert all("message" not in json.dumps(item) for item in snapshot["recent"])
 
 

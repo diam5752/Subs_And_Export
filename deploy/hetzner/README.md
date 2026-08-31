@@ -103,6 +103,14 @@ request for a deliberately impossible PaymentIntent ID and requires Stripe's
 authenticated `resource_missing` response, proving that the restricted key has
 Payment Intents Write access before cutover.
 
+Before enabling live paid credits, the restricted key must grant Checkout
+Sessions write access, Payment Intents write access, and read access for the
+charge/refund evidence used by reconciliation. Payment Intents read-only access
+is insufficient: Checkout can authorize the card, but the signed webhook cannot
+perform the required manual capture and the purchase remains pending. Recheck
+these exact permissions in the Stripe Dashboard whenever the live restricted
+key is created, replaced, or narrowed.
+
 Source videos and generated media live only in the dedicated local
 `subframe-app-data` Docker volume. Browser uploads go through the authenticated
 backend stream endpoint; there is no cloud-object-storage path or credential.

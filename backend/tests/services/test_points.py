@@ -9,35 +9,11 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 
 from backend.app.core.database import Database
-from backend.app.db.models import DbPointTransaction, DbUser, DbUserPoints
+from backend.app.db.models import DbPointTransaction, DbUserPoints
 from backend.app.services.points import PointsStore, make_idempotency_id
+from backend.tests.services.points_test_support import seed_user as _seed_user
 
 EXPLICIT_TEST_BALANCE = 500
-
-
-def _seed_user(
-    db: Database,
-    *,
-    user_id: str | None = None,
-    email: str | None = None,
-    email_verified: bool = True,
-) -> str:
-    resolved_user_id = user_id or uuid.uuid4().hex
-    resolved_email = email or f"{resolved_user_id}@example.com"
-    with db.session() as session:
-        session.add(
-            DbUser(
-                id=resolved_user_id,
-                email=resolved_email,
-                name="Test",
-                provider="local",
-                password_hash="x",
-                google_sub=None,
-                created_at="now",
-                email_verified=email_verified,
-            )
-        )
-    return resolved_user_id
 
 
 def test_ensure_account_with_explicit_balance_creates_transaction(
@@ -531,11 +507,7 @@ def test_credit_and_refund_log_transactions(tmp_path: Path) -> None:
     assert refunded == 500
 
     with db.session() as session:
-        txs = list(
-            session.scalars(
-                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
-            ).all()
-        )
+        txs = list(session.scalars(select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)).all())
         assert len(txs) == 2
         assert {tx.reason: tx.delta for tx in txs} == {
             "purchase": 250,

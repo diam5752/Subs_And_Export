@@ -3,125 +3,71 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
-import json
 import os
-import re
 import time
 import uuid
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Iterator
 
 from .config import settings
-
-TombstoneKind = Literal["workspace", "job", "account"]
-_ALLOWED_KINDS = frozenset({"workspace", "job", "account"})
-ProviderTombstoneKind = Literal["provider_transcript"]
-ProviderName = Literal["elevenlabs"]
-OrphanTombstoneKind = Literal["orphan_workspace"]
-JobTerminalTombstoneKind = Literal["job_terminal"]
-JobTerminalStatus = Literal["cancelled", "failed"]
-_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
-_EVENT_ID = re.compile(r"^[0-9a-f]{32}$")
-_JOURNAL_FILENAME = "tombstones.jsonl"
-_LOCK_FILENAME = ".journal.lock"
-_CONTINUITY_FILENAME = ".continuity-id"
-_CHECKPOINT_FILENAME = ".journal-checkpoint.json"
-_PENDING_FILENAME = ".journal-pending.json"
-_CONTINUITY_ID = re.compile(r"^[0-9a-f]{64}$")
-_DIGEST = re.compile(r"^[0-9a-f]{64}$")
-_STATE_SCHEMA_VERSION = 1
-_STATE_DOMAIN = b"gsubs-erasure-journal-state/v1"
-_MAX_STATE_BYTES = 16 * 1024
-MAX_TOMBSTONE_BYTES = 8 * 1024 * 1024
-MAX_JOURNAL_BYTES = 512 * 1024 * 1024
-
-
-class ErasureJournalError(RuntimeError):
-    """Raised when a privacy tombstone cannot be durably stored or trusted."""
-
-
-@dataclass(frozen=True, slots=True)
-class ErasureTombstone:
-    schema_version: int
-    event_id: str
-    kind: TombstoneKind
-    created_at: int
-    user_id: str
-    job_ids: list[str]
-
-
-@dataclass(frozen=True, slots=True)
-class ProviderTranscriptErasureTombstone:
-    """Provider erasure intent without account, filename, or transcript data."""
-
-    schema_version: int
-    event_id: str
-    kind: ProviderTombstoneKind
-    created_at: int
-    provider: ProviderName
-    transcript_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class OrphanWorkspaceErasureTombstone:
-    """Filesystem erasure intent for a workspace with no surviving owner row."""
-
-    schema_version: int
-    event_id: str
-    kind: OrphanTombstoneKind
-    created_at: int
-    job_ids: list[str]
-
-
-@dataclass(frozen=True, slots=True)
-class JobTerminalErasureTombstone:
-    """Restore-safe intent to clean media and finish a processing job."""
-
-    schema_version: int
-    event_id: str
-    kind: JobTerminalTombstoneKind
-    created_at: int
-    user_id: str
-    job_ids: list[str]
-    terminal_status: JobTerminalStatus
-
-
-ErasureJournalEntry = (
-    ErasureTombstone
-    | ProviderTranscriptErasureTombstone
-    | OrphanWorkspaceErasureTombstone
-    | JobTerminalErasureTombstone
+from .erasure_journal_codec import ErasureJournalCodecMixin
+from .erasure_journal_storage import ErasureJournalStorageMixin
+from .erasure_journal_types import (
+    CHECKPOINT_FILENAME as _CHECKPOINT_FILENAME,
+)
+from .erasure_journal_types import (
+    CONTINUITY_FILENAME as _CONTINUITY_FILENAME,
+)
+from .erasure_journal_types import (
+    CONTINUITY_ID as _CONTINUITY_ID,
+)
+from .erasure_journal_types import (
+    JOURNAL_FILENAME as _JOURNAL_FILENAME,
+)
+from .erasure_journal_types import (
+    LOCK_FILENAME as _LOCK_FILENAME,
+)
+from .erasure_journal_types import (
+    MAX_JOURNAL_BYTES,
+    MAX_TOMBSTONE_BYTES,
+    JournalCheckpoint,
+    PendingJournalMutation,
+    ProviderName,
+)
+from .erasure_journal_types import (
+    PENDING_FILENAME as _PENDING_FILENAME,
+)
+from .erasure_journal_types import (
+    STATE_SCHEMA_VERSION as _STATE_SCHEMA_VERSION,
+)
+from .erasure_journal_types import (
+    ErasureJournalEntry as ErasureJournalEntry,
+)
+from .erasure_journal_types import (
+    ErasureJournalError as ErasureJournalError,
+)
+from .erasure_journal_types import (
+    ErasureTombstone as ErasureTombstone,
+)
+from .erasure_journal_types import (
+    JobTerminalErasureTombstone as JobTerminalErasureTombstone,
+)
+from .erasure_journal_types import (
+    JobTerminalStatus as JobTerminalStatus,
+)
+from .erasure_journal_types import (
+    OrphanWorkspaceErasureTombstone as OrphanWorkspaceErasureTombstone,
+)
+from .erasure_journal_types import (
+    ProviderTranscriptErasureTombstone as ProviderTranscriptErasureTombstone,
+)
+from .erasure_journal_types import (
+    TombstoneKind as TombstoneKind,
 )
 
 
-@dataclass(frozen=True, slots=True)
-class JournalCheckpoint:
-    """Integrity state for one acknowledged journal generation."""
-
-    schema_version: int
-    continuity_id: str
-    generation: int
-    entry_count: int
-    journal_size: int
-    chain_digest: str
-    tail_size: int
-    tail_digest: str
-
-
-@dataclass(frozen=True, slots=True)
-class PendingJournalMutation:
-    """Crash-recovery record written before a journal mutation."""
-
-    schema_version: int
-    operation: Literal["append", "replace"]
-    before: JournalCheckpoint
-    after: JournalCheckpoint
-
-
-class ErasureJournal:
+class ErasureJournal(ErasureJournalStorageMixin, ErasureJournalCodecMixin):
     """Append-only, fsync-backed erasure intent journal."""
 
     def __init__(
@@ -134,9 +80,13 @@ class ErasureJournal:
     ) -> None:
         if retention_days < 14 or retention_days > 365:
             raise ValueError("Erasure journal retention must be between 14 and 365 days")
-        if expected_continuity_id is not None and _CONTINUITY_ID.fullmatch(
-            expected_continuity_id,
-        ) is None:
+        if (
+            expected_continuity_id is not None
+            and _CONTINUITY_ID.fullmatch(
+                expected_continuity_id,
+            )
+            is None
+        ):
             raise ValueError("Erasure journal continuity identifier is invalid")
         self.root = root
         self.retention_days = retention_days
@@ -395,24 +345,16 @@ class ErasureJournal:
         if pending_exists:
             raise ErasureJournalError("Erasure journal has an incomplete initialization")
 
-        state_exists = journal_exists or checkpoint_exists or (
-            self.anchor_path is not None and anchor_exists
-        )
+        state_exists = journal_exists or checkpoint_exists or (self.anchor_path is not None and anchor_exists)
         if explicit:
-            if state_exists:
-                raise ErasureJournalError("Erasure journal is only partially initialized")
-            self._create_empty_state_unlocked(continuity_id)
+            self._initialize_explicit_unlocked(continuity_id, state_exists=state_exists)
             return
-
         if self.expected_continuity_id is not None:
-            if checkpoint_exists and anchor_exists and not journal_exists:
-                raise ErasureJournalError("Erasure journal ledger is unavailable")
-            if journal_exists and anchor_exists and not checkpoint_exists:
-                raise ErasureJournalError("Erasure journal checkpoint is unavailable")
-            if journal_exists and checkpoint_exists and not anchor_exists:
-                raise ErasureJournalError("Erasure journal external anchor is unavailable")
-            raise ErasureJournalError("Erasure journal has not been initialized")
-
+            self._raise_configured_initialization_error(
+                journal_exists=journal_exists,
+                checkpoint_exists=checkpoint_exists,
+                anchor_exists=anchor_exists,
+            )
         if journal_exists and not checkpoint_exists and self.anchor_path is None:
             # One-time development migration. Production never reaches this
             # path because configured continuity requires explicit bootstrap.
@@ -426,6 +368,26 @@ class ErasureJournal:
         if state_exists:
             raise ErasureJournalError("Erasure journal is only partially initialized")
         self._create_empty_state_unlocked(continuity_id)
+
+    def _initialize_explicit_unlocked(self, continuity_id: str, *, state_exists: bool) -> None:
+        if state_exists:
+            raise ErasureJournalError("Erasure journal is only partially initialized")
+        self._create_empty_state_unlocked(continuity_id)
+
+    @staticmethod
+    def _raise_configured_initialization_error(
+        *,
+        journal_exists: bool,
+        checkpoint_exists: bool,
+        anchor_exists: bool,
+    ) -> None:
+        if checkpoint_exists and anchor_exists and not journal_exists:
+            raise ErasureJournalError("Erasure journal ledger is unavailable")
+        if journal_exists and anchor_exists and not checkpoint_exists:
+            raise ErasureJournalError("Erasure journal checkpoint is unavailable")
+        if journal_exists and checkpoint_exists and not anchor_exists:
+            raise ErasureJournalError("Erasure journal external anchor is unavailable")
+        raise ErasureJournalError("Erasure journal has not been initialized")
 
     def _create_empty_state_unlocked(self, continuity_id: str) -> None:
         try:
@@ -451,8 +413,7 @@ class ErasureJournal:
             if path.is_symlink() or (path.exists() and not path.is_file()):
                 raise ErasureJournalError(message)
         if self.anchor_path is not None and (
-            self.anchor_path.is_symlink()
-            or (self.anchor_path.exists() and not self.anchor_path.is_file())
+            self.anchor_path.is_symlink() or (self.anchor_path.exists() and not self.anchor_path.is_file())
         ):
             raise ErasureJournalError("Erasure journal external anchor is invalid")
 
@@ -651,20 +612,14 @@ class ErasureJournal:
             label="checkpoint",
         )
         allowed_checkpoints = (pending.before, pending.after)
-        if not any(
-            self._same_checkpoint(existing_checkpoint, allowed)
-            for allowed in allowed_checkpoints
-        ):
+        if not any(self._same_checkpoint(existing_checkpoint, allowed) for allowed in allowed_checkpoints):
             raise ErasureJournalError("Erasure journal checkpoint conflicts with pending state")
         if self.anchor_path is not None:
             existing_anchor = self._read_checkpoint_unlocked(
                 self.anchor_path,
                 label="external anchor",
             )
-            if not any(
-                self._same_checkpoint(existing_anchor, allowed)
-                for allowed in allowed_checkpoints
-            ):
+            if not any(self._same_checkpoint(existing_anchor, allowed) for allowed in allowed_checkpoints):
                 raise ErasureJournalError("Erasure journal external anchor conflicts with pending state")
 
         _entries, observed_before = self._scan_journal_unlocked(
@@ -698,436 +653,12 @@ class ErasureJournal:
         self._write_anchor_unlocked(pending.after)
         self._clear_pending_unlocked()
 
-    def _read_checkpoint_unlocked(self, path: Path, *, label: str) -> JournalCheckpoint:
-        try:
-            if path.is_symlink() or not path.is_file():
-                raise ErasureJournalError(f"Erasure journal {label} is unavailable")
-            raw_bytes = path.read_bytes()
-            if len(raw_bytes) > _MAX_STATE_BYTES:
-                raise ErasureJournalError(f"Erasure journal {label} is invalid")
-            raw = json.loads(raw_bytes)
-        except ErasureJournalError:
-            raise
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ErasureJournalError(f"Erasure journal {label} could not be read") from exc
-        if not isinstance(raw, dict) or set(raw) != {
-            "schema_version",
-            "continuity_id",
-            "generation",
-            "entry_count",
-            "journal_size",
-            "chain_digest",
-            "tail_size",
-            "tail_digest",
-        }:
-            raise ErasureJournalError(f"Erasure journal {label} is invalid")
-        checkpoint = JournalCheckpoint(
-            schema_version=raw["schema_version"],
-            continuity_id=raw["continuity_id"],
-            generation=raw["generation"],
-            entry_count=raw["entry_count"],
-            journal_size=raw["journal_size"],
-            chain_digest=raw["chain_digest"],
-            tail_size=raw["tail_size"],
-            tail_digest=raw["tail_digest"],
-        )
-        self._validate_checkpoint(checkpoint, label=label)
-        return checkpoint
-
-    def _read_pending_unlocked(self) -> PendingJournalMutation:
-        try:
-            if self.pending_path.is_symlink() or not self.pending_path.is_file():
-                raise ErasureJournalError("Erasure journal pending state is invalid")
-            raw_bytes = self.pending_path.read_bytes()
-            if len(raw_bytes) > _MAX_STATE_BYTES:
-                raise ErasureJournalError("Erasure journal pending state is invalid")
-            raw = json.loads(raw_bytes)
-        except ErasureJournalError:
-            raise
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ErasureJournalError("Erasure journal pending state could not be read") from exc
-        if not isinstance(raw, dict) or set(raw) != {
-            "schema_version",
-            "operation",
-            "before",
-            "after",
-        }:
-            raise ErasureJournalError("Erasure journal pending state is invalid")
-        before = self._checkpoint_from_mapping(raw["before"], label="pending state")
-        after = self._checkpoint_from_mapping(raw["after"], label="pending state")
-        pending = PendingJournalMutation(
-            schema_version=raw["schema_version"],
-            operation=raw["operation"],
-            before=before,
-            after=after,
-        )
-        if (
-            pending.schema_version != _STATE_SCHEMA_VERSION
-            or pending.operation not in {"append", "replace"}
-        ):
-            raise ErasureJournalError("Erasure journal pending state is invalid")
-        return pending
-
-    def _checkpoint_from_mapping(self, raw: object, *, label: str) -> JournalCheckpoint:
-        if not isinstance(raw, dict) or set(raw) != {
-            "schema_version",
-            "continuity_id",
-            "generation",
-            "entry_count",
-            "journal_size",
-            "chain_digest",
-            "tail_size",
-            "tail_digest",
-        }:
-            raise ErasureJournalError(f"Erasure journal {label} is invalid")
-        checkpoint = JournalCheckpoint(
-            schema_version=raw["schema_version"],
-            continuity_id=raw["continuity_id"],
-            generation=raw["generation"],
-            entry_count=raw["entry_count"],
-            journal_size=raw["journal_size"],
-            chain_digest=raw["chain_digest"],
-            tail_size=raw["tail_size"],
-            tail_digest=raw["tail_digest"],
-        )
-        self._validate_checkpoint(checkpoint, label=label)
-        return checkpoint
-
-    @staticmethod
-    def _validate_checkpoint(checkpoint: JournalCheckpoint, *, label: str) -> None:
-        if (
-            checkpoint.schema_version != _STATE_SCHEMA_VERSION
-            or not isinstance(checkpoint.continuity_id, str)
-            or _CONTINUITY_ID.fullmatch(checkpoint.continuity_id) is None
-            or type(checkpoint.generation) is not int
-            or checkpoint.generation < 0
-            or type(checkpoint.entry_count) is not int
-            or checkpoint.entry_count < 0
-            or type(checkpoint.journal_size) is not int
-            or checkpoint.journal_size < 0
-            or checkpoint.journal_size > MAX_JOURNAL_BYTES
-            or not isinstance(checkpoint.chain_digest, str)
-            or _DIGEST.fullmatch(checkpoint.chain_digest) is None
-            or type(checkpoint.tail_size) is not int
-            or checkpoint.tail_size < 0
-            or checkpoint.tail_size > MAX_TOMBSTONE_BYTES
-            or not isinstance(checkpoint.tail_digest, str)
-            or _DIGEST.fullmatch(checkpoint.tail_digest) is None
-            or (checkpoint.entry_count == 0) != (checkpoint.journal_size == 0)
-            or (checkpoint.entry_count == 0) != (checkpoint.tail_size == 0)
-        ):
-            raise ErasureJournalError(f"Erasure journal {label} is invalid")
-
-    @staticmethod
-    def _verify_checkpoint_continuity(
-        checkpoint: JournalCheckpoint,
-        continuity_id: str,
-    ) -> None:
-        if checkpoint.continuity_id != continuity_id:
-            raise ErasureJournalError("Erasure journal state has the wrong continuity binding")
-
-    def _write_checkpoint_unlocked(self, checkpoint: JournalCheckpoint) -> None:
-        self._write_private_bytes_atomic(
-            self.checkpoint_path,
-            self._encode_checkpoint(checkpoint),
-        )
-
-    def _write_anchor_unlocked(self, checkpoint: JournalCheckpoint) -> None:
-        if self.anchor_path is None:
-            return
-        self._write_private_bytes_atomic(
-            self.anchor_path,
-            self._encode_checkpoint(checkpoint),
-        )
-
-    def _write_pending_unlocked(self, pending: PendingJournalMutation) -> None:
-        encoded = (
-            json.dumps(
-                {
-                    "schema_version": pending.schema_version,
-                    "operation": pending.operation,
-                    "before": asdict(pending.before),
-                    "after": asdict(pending.after),
-                },
-                ensure_ascii=True,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("ascii")
-            + b"\n"
-        )
-        self._write_private_bytes_atomic(self.pending_path, encoded)
-
-    def _clear_pending_unlocked(self) -> None:
-        try:
-            self.pending_path.unlink(missing_ok=True)
-            self._fsync_directory(self.root)
-        except OSError as exc:
-            raise ErasureJournalError("Erasure journal pending state could not be cleared") from exc
-
-    @staticmethod
-    def _encode_checkpoint(checkpoint: JournalCheckpoint) -> bytes:
-        return (
-            json.dumps(
-                asdict(checkpoint),
-                ensure_ascii=True,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("ascii")
-            + b"\n"
-        )
-
-    def _write_private_bytes_atomic(self, path: Path, content: bytes) -> None:
-        parent = path.parent
-        temporary_path = parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
-        try:
-            if parent.is_symlink():
-                raise ErasureJournalError("Erasure journal state directory is invalid")
-            parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            if not parent.is_dir() or parent.is_symlink():
-                raise ErasureJournalError("Erasure journal state directory is invalid")
-            if path.is_symlink() or (path.exists() and not path.is_file()):
-                raise ErasureJournalError("Erasure journal state file is invalid")
-            with temporary_path.open("xb") as temporary:
-                os.chmod(temporary_path, 0o600)
-                temporary.write(content)
-                temporary.flush()
-                os.fsync(temporary.fileno())
-            temporary_path.replace(path)
-            os.chmod(path, 0o600)
-            self._fsync_directory(parent)
-        except ErasureJournalError:
-            temporary_path.unlink(missing_ok=True)
-            raise
-        except OSError as exc:
-            temporary_path.unlink(missing_ok=True)
-            raise ErasureJournalError("Erasure journal state could not be stored durably") from exc
-
-    @classmethod
-    def _empty_checkpoint(cls, continuity_id: str) -> JournalCheckpoint:
-        return JournalCheckpoint(
-            schema_version=_STATE_SCHEMA_VERSION,
-            continuity_id=continuity_id,
-            generation=0,
-            entry_count=0,
-            journal_size=0,
-            chain_digest=cls._genesis_digest(continuity_id),
-            tail_size=0,
-            tail_digest=cls._digest(b""),
-        )
-
-    @staticmethod
-    def _same_checkpoint(left: JournalCheckpoint, right: JournalCheckpoint) -> bool:
-        return left == right
-
-    @staticmethod
-    def _same_physical_state(left: JournalCheckpoint, right: JournalCheckpoint) -> bool:
-        return (
-            left.continuity_id == right.continuity_id
-            and left.entry_count == right.entry_count
-            and left.journal_size == right.journal_size
-            and left.chain_digest == right.chain_digest
-            and left.tail_size == right.tail_size
-            and left.tail_digest == right.tail_digest
-        )
-
-    @staticmethod
-    def _digest(content: bytes) -> str:
-        return hashlib.sha256(content).hexdigest()
-
-    @classmethod
-    def _genesis_digest(cls, continuity_id: str) -> str:
-        return cls._digest(_STATE_DOMAIN + b"\0genesis\0" + continuity_id.encode("ascii"))
-
-    @classmethod
-    def _advance_chain(cls, chain_digest: str, encoded: bytes) -> str:
-        return cls._digest(
-            _STATE_DOMAIN
-            + b"\0entry\0"
-            + bytes.fromhex(chain_digest)
-            + len(encoded).to_bytes(8, "big")
-            + encoded
-        )
-
-    @staticmethod
-    def _fsync_directory(directory: Path) -> None:
-        descriptor: int | None = None
-        try:
-            descriptor = os.open(directory, os.O_RDONLY)
-            os.fsync(descriptor)
-        except OSError as exc:
-            raise ErasureJournalError("Erasure journal directory could not be synchronized") from exc
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
-
-    @staticmethod
-    def _encode(tombstone: ErasureJournalEntry) -> bytes:
-        encoded = (
-            json.dumps(
-                asdict(tombstone),
-                ensure_ascii=True,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
-            + b"\n"
-        )
-        if len(encoded) > MAX_TOMBSTONE_BYTES:
-            raise ErasureJournalError("Erasure intent contains too many identifiers")
-        return encoded
-
-    @classmethod
-    def _decode(cls, line: bytes) -> ErasureJournalEntry:
-        try:
-            raw = json.loads(line)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ErasureJournalError("Erasure journal contains malformed JSON") from exc
-        if not isinstance(raw, dict):
-            raise ErasureJournalError("Erasure journal contains an invalid record schema")
-        if raw.get("kind") == "provider_transcript":
-            if set(raw) != {
-                "schema_version",
-                "event_id",
-                "kind",
-                "created_at",
-                "provider",
-                "transcript_id",
-            }:
-                raise ErasureJournalError("Erasure journal contains an invalid record schema")
-            entry: ErasureJournalEntry = ProviderTranscriptErasureTombstone(
-                schema_version=raw["schema_version"],
-                event_id=raw["event_id"],
-                kind=raw["kind"],
-                created_at=raw["created_at"],
-                provider=raw["provider"],
-                transcript_id=raw["transcript_id"],
-            )
-        elif raw.get("kind") == "orphan_workspace":
-            if set(raw) != {
-                "schema_version",
-                "event_id",
-                "kind",
-                "created_at",
-                "job_ids",
-            }:
-                raise ErasureJournalError("Erasure journal contains an invalid record schema")
-            entry = OrphanWorkspaceErasureTombstone(
-                schema_version=raw["schema_version"],
-                event_id=raw["event_id"],
-                kind=raw["kind"],
-                created_at=raw["created_at"],
-                job_ids=raw["job_ids"],
-            )
-        elif raw.get("kind") == "job_terminal":
-            if set(raw) != {
-                "schema_version",
-                "event_id",
-                "kind",
-                "created_at",
-                "user_id",
-                "job_ids",
-                "terminal_status",
-            }:
-                raise ErasureJournalError("Erasure journal contains an invalid record schema")
-            entry = JobTerminalErasureTombstone(
-                schema_version=raw["schema_version"],
-                event_id=raw["event_id"],
-                kind=raw["kind"],
-                created_at=raw["created_at"],
-                user_id=raw["user_id"],
-                job_ids=raw["job_ids"],
-                terminal_status=raw["terminal_status"],
-            )
-        else:
-            if set(raw) != {
-                "schema_version",
-                "event_id",
-                "kind",
-                "created_at",
-                "user_id",
-                "job_ids",
-            }:
-                raise ErasureJournalError("Erasure journal contains an invalid record schema")
-            entry = ErasureTombstone(
-                schema_version=raw["schema_version"],
-                event_id=raw["event_id"],
-                kind=raw["kind"],
-                created_at=raw["created_at"],
-                user_id=raw["user_id"],
-                job_ids=raw["job_ids"],
-            )
-        cls._validate(entry)
-        return entry
-
-    @staticmethod
-    def _validate(tombstone: ErasureJournalEntry) -> None:
-        if tombstone.schema_version != 1:
-            raise ErasureJournalError("Erasure journal schema version is unsupported")
-        if not isinstance(tombstone.event_id, str) or not _EVENT_ID.fullmatch(tombstone.event_id):
-            raise ErasureJournalError("Erasure journal event identifier is invalid")
-        if type(tombstone.created_at) is not int or tombstone.created_at <= 0:
-            raise ErasureJournalError("Erasure journal timestamp is invalid")
-        if isinstance(tombstone, ProviderTranscriptErasureTombstone):
-            if tombstone.kind != "provider_transcript" or tombstone.provider != "elevenlabs":
-                raise ErasureJournalError("Erasure journal provider event is invalid")
-            if not isinstance(tombstone.transcript_id, str) or not _IDENTIFIER.fullmatch(
-                tombstone.transcript_id,
-            ):
-                raise ErasureJournalError("Erasure journal provider transcript identifier is invalid")
-            return
-        if isinstance(tombstone, OrphanWorkspaceErasureTombstone):
-            if tombstone.kind != "orphan_workspace":
-                raise ErasureJournalError("Erasure journal orphan workspace event is invalid")
-            if not isinstance(tombstone.job_ids, list) or not tombstone.job_ids or any(
-                not isinstance(job_id, str) or not _IDENTIFIER.fullmatch(job_id)
-                for job_id in tombstone.job_ids
-            ):
-                raise ErasureJournalError("Erasure journal orphan workspace identifiers are invalid")
-            if tombstone.job_ids != sorted(set(tombstone.job_ids)):
-                raise ErasureJournalError("Erasure journal job identifiers are not canonical")
-            return
-        if isinstance(tombstone, JobTerminalErasureTombstone):
-            if (
-                tombstone.kind != "job_terminal"
-                or tombstone.terminal_status not in {"cancelled", "failed"}
-            ):
-                raise ErasureJournalError("Erasure journal terminal job event is invalid")
-            if not isinstance(tombstone.user_id, str) or not _IDENTIFIER.fullmatch(
-                tombstone.user_id,
-            ):
-                raise ErasureJournalError("Erasure journal account identifier is invalid")
-            if not isinstance(tombstone.job_ids, list) or not tombstone.job_ids or any(
-                not isinstance(job_id, str) or not _IDENTIFIER.fullmatch(job_id)
-                for job_id in tombstone.job_ids
-            ):
-                raise ErasureJournalError("Erasure journal terminal job identifiers are invalid")
-            if tombstone.job_ids != sorted(set(tombstone.job_ids)):
-                raise ErasureJournalError("Erasure journal job identifiers are not canonical")
-            return
-        if tombstone.kind not in _ALLOWED_KINDS:
-            raise ErasureJournalError("Erasure journal event kind is invalid")
-        if not isinstance(tombstone.user_id, str) or not _IDENTIFIER.fullmatch(tombstone.user_id):
-            raise ErasureJournalError("Erasure journal account identifier is invalid")
-        if not isinstance(tombstone.job_ids, list) or any(
-            not isinstance(job_id, str) or not _IDENTIFIER.fullmatch(job_id)
-            for job_id in tombstone.job_ids
-        ):
-            raise ErasureJournalError("Erasure journal job identifiers are invalid")
-        if tombstone.job_ids != sorted(set(tombstone.job_ids)):
-            raise ErasureJournalError("Erasure journal job identifiers are not canonical")
-        if tombstone.kind in {"workspace", "job"} and not tombstone.job_ids:
-            raise ErasureJournalError("Erasure journal job event is empty")
-
 
 def configured_erasure_journal() -> ErasureJournal:
     """Build the configured journal and reject restored-media co-location."""
     root = settings.erasure_journal_dir.expanduser().resolve()
     data_dir = settings.data_dir.expanduser().resolve()
-    if (
-        root == Path(root.anchor)
-        or root == data_dir
-        or root.is_relative_to(data_dir)
-        or data_dir.is_relative_to(root)
-    ):
+    if root == Path(root.anchor) or root == data_dir or root.is_relative_to(data_dir) or data_dir.is_relative_to(root):
         raise ErasureJournalError("Erasure journal must be isolated from application media")
     configured_anchor = settings.erasure_journal_anchor_path
     anchor_path = configured_anchor.expanduser().resolve() if configured_anchor is not None else None

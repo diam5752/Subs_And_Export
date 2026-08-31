@@ -14,15 +14,23 @@ def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeyp
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
+
         class MockJobStore:
             def get_job(self, job_id):
                 if job_id == "job1":
                     return Job(
-                        id="job1", user_id="test_user_id", status="processing", progress=50,
-                        message="processing", created_at=0, updated_at=0, result_data={}
+                        id="job1",
+                        user_id="test_user_id",
+                        status="processing",
+                        progress=50,
+                        message="processing",
+                        created_at=0,
+                        updated_at=0,
+                        result_data={},
                     )
                 return None
 
@@ -53,6 +61,7 @@ def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeyp
     finally:
         app.dependency_overrides = {}
 
+
 def test_cancel_job_invalid_status(client: TestClient, user_auth_headers: dict, monkeypatch):
     from backend.app.api import deps
     from backend.app.core.auth import User
@@ -60,14 +69,22 @@ def test_cancel_job_invalid_status(client: TestClient, user_auth_headers: dict, 
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
+
         class MockJobStore:
             def get_job(self, job_id):
                 return Job(
-                    id="job1", user_id="test_user_id", status="completed", progress=100,
-                    message="done", created_at=0, updated_at=0, result_data={}
+                    id="job1",
+                    user_id="test_user_id",
+                    status="completed",
+                    progress=100,
+                    message="done",
+                    created_at=0,
+                    updated_at=0,
+                    result_data={},
                 )
 
             def count_active_jobs_for_user(self, user_id):
@@ -81,6 +98,7 @@ def test_cancel_job_invalid_status(client: TestClient, user_auth_headers: dict, 
     finally:
         app.dependency_overrides = {}
 
+
 def test_export_video_failure(
     client: TestClient,
     user_auth_headers: dict,
@@ -93,6 +111,7 @@ def test_export_video_failure(
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
@@ -101,8 +120,14 @@ def test_export_video_failure(
         class MockJobStore:
             def get_job(self, job_id):
                 return Job(
-                    id="job1", user_id="test_user_id", status="completed", progress=100,
-                    message="done", created_at=0, updated_at=0, result_data={}
+                    id="job1",
+                    user_id="test_user_id",
+                    status="completed",
+                    progress=100,
+                    message="done",
+                    created_at=0,
+                    updated_at=0,
+                    result_data={},
                 )
 
             def count_active_jobs_for_user(self, user_id):
@@ -118,6 +143,7 @@ def test_export_video_failure(
         # We can structure data roots to point to real tmp dir with inputs
         import tempfile
         from pathlib import Path
+
         with tempfile.TemporaryDirectory() as td:
             tpath = Path(td)
             uploads = tpath / "uploads"
@@ -129,17 +155,14 @@ def test_export_video_failure(
             # Mock generate_video_variant to raise exception
             def mock_gen(*args, **kwargs):
                 raise ValueError(
-                    "Command ['ffmpeg', '-i', '/data/uploads/private.mp4'] "
-                    "returned non-zero exit status 234"
+                    "Command ['ffmpeg', '-i', '/data/uploads/private.mp4'] returned non-zero exit status 234"
                 )
 
             monkeypatch.setattr(export_routes, "generate_video_variant", mock_gen)
             caplog.set_level(logging.ERROR, logger=export_routes.__name__)
 
             response = client.post(
-                "/videos/jobs/job1/export",
-                headers=user_auth_headers,
-                json={"resolution": "1080x1920"}
+                "/videos/jobs/job1/export", headers=user_auth_headers, json={"resolution": "1080x1920"}
             )
             assert response.status_code == 500
             assert response.json()["detail"] == "Export failed. Please try again."

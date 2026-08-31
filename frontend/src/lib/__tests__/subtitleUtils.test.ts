@@ -1,378 +1,425 @@
-
-import fs from 'node:fs';
-import path from 'node:path';
+import fs from "node:fs";
+import path from "node:path";
 
 import {
-    findCueAtTime,
-    findCueIndexAtTime,
-    getSubtitlePositionStyle,
-    normalizeSubtitleText,
-    resegmentCues,
-    resetWordWidthCache,
-    updateCueText,
-} from '../subtitleUtils';
-import { TranscriptionCue as Cue } from '../api';
+  findCueAtTime,
+  findCueIndexAtTime,
+  getSubtitlePositionStyle,
+  normalizeSubtitleText,
+  resegmentCues,
+  resetWordWidthCache,
+  updateCueText,
+} from "../subtitleUtils";
+import { TranscriptionCue as Cue } from "../api";
 
 // Mock cues
 const mockCues: Cue[] = [
-    { start: 0, end: 2, text: "Hello world", words: [{ start: 0, end: 1, text: "Hello" }, { start: 1, end: 2, text: "world" }] },
-    { start: 2, end: 5, text: "This is a test of splitting", words: [{ start: 2, end: 3, text: "This" }, { start: 3, end: 3.5, text: "is" }, { start: 3.5, end: 4, text: "a" }, { start: 4, end: 4.5, text: "test" }, { start: 4.5, end: 4.8, text: "of" }, { start: 4.8, end: 5, text: "splitting" }] }
+  {
+    start: 0,
+    end: 2,
+    text: "Hello world",
+    words: [
+      { start: 0, end: 1, text: "Hello" },
+      { start: 1, end: 2, text: "world" },
+    ],
+  },
+  {
+    start: 2,
+    end: 5,
+    text: "This is a test of splitting",
+    words: [
+      { start: 2, end: 3, text: "This" },
+      { start: 3, end: 3.5, text: "is" },
+      { start: 3.5, end: 4, text: "a" },
+      { start: 4, end: 4.5, text: "test" },
+      { start: 4.5, end: 4.8, text: "of" },
+      { start: 4.8, end: 5, text: "splitting" },
+    ],
+  },
 ];
 
-describe('resegmentCues', () => {
-    beforeEach(() => {
-        resetWordWidthCache();
-    });
+describe("resegmentCues", () => {
+  beforeEach(() => {
+    resetWordWidthCache();
+  });
 
-    it('should return empty list for empty input', () => {
-        expect(resegmentCues([], 2, 100)).toEqual([]);
-    });
+  it("should return empty list for empty input", () => {
+    expect(resegmentCues([], 2, 100)).toEqual([]);
+  });
 
-    it('should return original cues if maxLines is 0 (One Word Mode)', () => {
-        expect(resegmentCues(mockCues, 0, 100)).toEqual(mockCues);
-    });
+  it("should return original cues if maxLines is 0 (One Word Mode)", () => {
+    expect(resegmentCues(mockCues, 0, 100)).toEqual(mockCues);
+  });
 
-    it('should regroup words into new cues based on maxLines', () => {
-        // Force very small width/large font to trigger splits
-        // Actually the util hardcodes 1080 width, so we rely on subtitleSize
-        // maxCharsPerLine = getEffectiveMaxChars(100, 1080) -> ~28 chars
+  it("should regroup words into new cues based on maxLines", () => {
+    // Force very small width/large font to trigger splits
+    // Actually the util hardcodes 1080 width, so we rely on subtitleSize
+    // maxCharsPerLine = getEffectiveMaxChars(100, 1080) -> ~28 chars
 
-        // "Hello world" (11 chars) + "This is a test of splitting" (27 chars) joined
-        // If we set 2 lines (56 chars limit approx), it might merge them?
-        // But logic respects maxLines.
+    // "Hello world" (11 chars) + "This is a test of splitting" (27 chars) joined
+    // If we set 2 lines (56 chars limit approx), it might merge them?
+    // But logic respects maxLines.
 
-        // Let's try 1 line limit.
-        // "Hello world This is a test of splitting" -> 38 chars
-        // 1 line limit (max 28 chars) -> should split.
+    // Let's try 1 line limit.
+    // "Hello world This is a test of splitting" -> 38 chars
+    // 1 line limit (max 28 chars) -> should split.
 
-        const result = resegmentCues(mockCues, 1, 100);
+    const result = resegmentCues(mockCues, 1, 100);
 
-        // Expect strict segmentation.
-        // Hello world (11) -> fits
-        // This is a test (14) -> fits
-        // of splitting (12) -> fits
-        // So we expect 3 cues maybe?
+    // Expect strict segmentation.
+    // Hello world (11) -> fits
+    // This is a test (14) -> fits
+    // of splitting (12) -> fits
+    // So we expect 3 cues maybe?
 
-        expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBeGreaterThanOrEqual(2);
 
-        // Verify continuity
-        expect(result[0].start).toBe(0);
-        const lastCue = result[result.length - 1];
-        expect(lastCue.end).toBe(mockCues[mockCues.length - 1].end);
-    });
+    // Verify continuity
+    expect(result[0].start).toBe(0);
+    const lastCue = result[result.length - 1];
+    expect(lastCue.end).toBe(mockCues[mockCues.length - 1].end);
+  });
 
-    it('should respect subtitle size scaling', () => {
-        // If font is HUGE (200%), max chars drops significantly (e.g. to 14)
-        const hugeFontCues = resegmentCues(mockCues, 1, 200);
-        const normalFontCues = resegmentCues(mockCues, 1, 100);
+  it("should respect subtitle size scaling", () => {
+    // If font is HUGE (200%), max chars drops significantly (e.g. to 14)
+    const hugeFontCues = resegmentCues(mockCues, 1, 200);
+    const normalFontCues = resegmentCues(mockCues, 1, 100);
 
-        // Huge font should result in MORE cues (shorter lines)
-        expect(hugeFontCues.length).toBeGreaterThanOrEqual(normalFontCues.length);
-    });
+    // Huge font should result in MORE cues (shorter lines)
+    expect(hugeFontCues.length).toBeGreaterThanOrEqual(normalFontCues.length);
+  });
 
-    it('splits cues based on wrapped line count (not just total chars)', () => {
-        // REGRESSION: user selected 3 lines but got 4 displayed due to naive total-char packing.
-        const cue: Cue = {
-            start: 0,
-            end: 4,
-            text: 'AAAAAA AAAAAA AAAAAA AAAAAA',
-            words: [
-                { start: 0, end: 1, text: 'AAAAAA' },
-                { start: 1, end: 2, text: 'AAAAAA' },
-                { start: 2, end: 3, text: 'AAAAAA' },
-                { start: 3, end: 4, text: 'AAAAAA' },
-            ],
-        };
-
-        const result = resegmentCues([cue], 3, 300); // very large font => low max chars per line
-        expect(result).toHaveLength(2);
-        expect(result.flatMap((item) => item.text.split(' '))).toEqual(['AAAAAA', 'AAAAAA', 'AAAAAA', 'AAAAAA']);
-    });
-
-    it('uses canvas text measurement (when available) to enforce maxLines', () => {
-        // REGRESSION: char-count heuristics can under-estimate actual rendered width and allow
-        // an on-screen 4th line even when "Three Lines" is selected.
-        const getContextSpy = jest
-            .spyOn(HTMLCanvasElement.prototype, 'getContext')
-            .mockImplementation(() => {
-                return {
-                    measureText: (text: string) => ({
-                        width: text === ' ' ? 20 : text.length * 100,
-                    }),
-                } as unknown as CanvasRenderingContext2D;
-            });
-
-        try {
-            const cue: Cue = {
-                start: 0,
-                end: 4,
-                text: 'AAAAAA AAAAAA AAAAAA AAAAAA',
-                words: [
-                    { start: 0, end: 1, text: 'AAAAAA' },
-                    { start: 1, end: 2, text: 'AAAAAA' },
-                    { start: 2, end: 3, text: 'AAAAAA' },
-                    { start: 3, end: 4, text: 'AAAAAA' },
-                ],
-            };
-
-            const result = resegmentCues([cue], 3, 100);
-            expect(result).toHaveLength(2);
-            expect(result.flatMap((item) => item.text.split(' '))).toEqual(['AAAAAA', 'AAAAAA', 'AAAAAA', 'AAAAAA']);
-        } finally {
-            getContextSpy.mockRestore();
-        }
-    });
-
-    it('expands phrase timings into individual words', () => {
-        const cue: Cue = {
-            start: 0,
-            end: 3,
-            text: 'hello world again',
-            words: [
-                { start: 0, end: 2, text: 'hello world' },
-                { start: 2, end: 3, text: 'again' },
-            ],
-        };
-
-        const result = resegmentCues([cue], 3, 100);
-        expect(result).toHaveLength(1);
-        expect(result[0].words?.map((w) => w.text)).toEqual(['HELLO', 'WORLD', 'AGAIN']);
-        expect(result[0].words?.[0].start).toBe(0);
-        expect(result[0].words?.[0].end).toBe(1);
-        expect(result[0].words?.[1].start).toBe(1);
-        expect(result[0].words?.[1].end).toBe(2);
-    });
-
-    it('trims whitespace from word timings (whisper-style tokens)', () => {
-        const cue: Cue = {
-            start: 0,
-            end: 2,
-            text: ' hello world',
-            words: [
-                { start: 0, end: 1, text: ' hello' },
-                { start: 1, end: 2, text: ' world' },
-            ],
-        };
-
-        const result = resegmentCues([cue], 2, 100);
-        expect(result).toHaveLength(1);
-        expect(result[0].words?.map((w) => w.text)).toEqual(['HELLO', 'WORLD']);
-    });
-
-    it('interpolates word timings when cues have no word-level data', () => {
-        const cue: Cue = {
-            start: 0,
-            end: 4,
-            text: 'one two three',
-            words: null,
-        };
-
-        const result = resegmentCues([cue], 3, 100);
-        expect(result).toHaveLength(1);
-        const words = result[0].words ?? [];
-        expect(words.map((w) => w.text)).toEqual(['ONE', 'TWO', 'THREE']);
-        expect(words[0].start).toBe(0);
-        expect(words[words.length - 1].end).toBe(4);
-        expect(words[0].end).toBeCloseTo(4 * (3 / 11), 5);
-        expect(words[1].end).toBeCloseTo(4 * (6 / 11), 5);
-    });
-
-    it('normalizes Greek accents to match backend subtitle rendering', () => {
-        expect(normalizeSubtitleText('Γειά σου κόσμε')).toBe('ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ');
-
-        const cue: Cue = {
-            start: 0,
-            end: 2,
-            text: 'γειά σου κόσμε',
-            words: [
-                { start: 0, end: 0.6, text: 'γειά' },
-                { start: 0.6, end: 1.2, text: 'σου' },
-                { start: 1.2, end: 2, text: 'κόσμε' },
-            ],
-        };
-
-        const result = resegmentCues([cue], 2, 100);
-        expect(result).toHaveLength(1);
-        expect(result[0].text).toBe('ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ');
-        expect(result[0].words?.map((word) => word.text)).toEqual(['ΓΕΙΑ', 'ΣΟΥ', 'ΚΟΣΜΕ']);
-    });
-
-    it('avoids leaving a single orphan word in the final cue chunk', () => {
-        const cue: Cue = {
-            start: 0,
-            end: 5,
-            text: 'AAAAAA AAAAAA AAAAAA AAAAAA AAAAAA',
-            words: [
-                { start: 0, end: 1, text: 'AAAAAA' },
-                { start: 1, end: 2, text: 'AAAAAA' },
-                { start: 2, end: 3, text: 'AAAAAA' },
-                { start: 3, end: 4, text: 'AAAAAA' },
-                { start: 4, end: 5, text: 'AAAAAA' },
-            ],
-        };
-
-        const result = resegmentCues([cue], 2, 200);
-        expect(result).toHaveLength(2);
-        expect(result.map((item) => item.text.split(' ').length)).toEqual(expect.arrayContaining([2, 3]));
-        expect(result.every((item) => item.text.split(' ').length > 1)).toBe(true);
-    });
-
-    it('matches the backend Greek export segmentation fixture', () => {
-        // REGRESSION: preview segmentation and exported SRT/VTT/TXT segmentation must
-        // agree on the UI percentage scale for Greek captions.
-        const fixturePath = path.join(process.cwd(), '..', 'testdata', 'subtitles', 'greek_long_cue.json');
-        const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8')) as Cue[];
-
-        const result = resegmentCues(fixture, 2, 85);
-
-        expect(result.map((cue) => cue.text)).toEqual([
-            'ΓΕΙΑ ΣΑΣ,',
-            'ΜΕ ΛΕΝΕ ΙΑΝΝΗ.',
-            'ΕΙΜΑΙ ΑΠΟ ΤΗΝ ΑΜΕΡΙΚΗ.',
-            'Ο ΠΑΤΕΡΑΣ ΜΟΥ ΕΙΝΑΙ ΑΠΟ ΤΗΝ ΜΑΚΕΔΟΝΙΑ, ΣΕΡΡΕΣ,',
-            'ΑΛΛΑ Ο ΠΑΠΠΟΥΣ ΜΟΥ ΚΑΙ Η ΓΙΑΓΙΑ ΜΟΥ ΗΤΑΝ ΠΡΟΣΦΥΓΕΣ',
-            'ΑΠΟ ΤΗΝ ΘΡΑΚΗ.',
-        ]);
-        expect(result[result.length - 1].end).toBe(15);
-    });
-});
-
-describe('findCueIndexAtTime', () => {
-    const cues: Cue[] = [
-        { start: 0, end: 1, text: "A" },
-        { start: 1, end: 2, text: "B" },
-        { start: 3, end: 4, text: "C" }
-    ];
-
-    it('finds cue at start time', () => {
-        expect(findCueIndexAtTime(cues, 0)).toBe(0);
-        expect(findCueIndexAtTime(cues, 1)).toBe(1);
-        expect(findCueIndexAtTime(cues, 3)).toBe(2);
-    });
-
-    it('finds cue in middle of duration', () => {
-        expect(findCueIndexAtTime(cues, 0.5)).toBe(0);
-        expect(findCueIndexAtTime(cues, 1.5)).toBe(1);
-        expect(findCueIndexAtTime(cues, 3.9)).toBe(2);
-    });
-
-    it('returns -1 for time before first cue', () => {
-        expect(findCueIndexAtTime(cues, -1)).toBe(-1);
-    });
-
-    it('returns -1 for time in gap', () => {
-        expect(findCueIndexAtTime(cues, 2.5)).toBe(-1);
-    });
-
-    it('returns -1 for time after last cue', () => {
-        expect(findCueIndexAtTime(cues, 5)).toBe(-1);
-    });
-
-    it('returns -1 for exact end time (exclusive)', () => {
-        expect(findCueIndexAtTime(cues, 1)).not.toBe(0); // 1 is start of B
-        expect(findCueIndexAtTime(cues, 2)).toBe(-1);
-    });
-});
-
-describe('findCueAtTime', () => {
-    const cues: Cue[] = [
-        { start: 0, end: 1, text: "A" }
-    ];
-
-    it('returns cue object when found', () => {
-        expect(findCueAtTime(cues, 0.5)).toEqual(cues[0]);
-    });
-
-    it('returns undefined when not found', () => {
-        expect(findCueAtTime(cues, 1.5)).toBeUndefined();
-    });
-});
-
-describe('getSubtitlePositionStyle', () => {
-    it('keeps the complete subtitle block inside the safe frame across the full slider', () => {
-        // REGRESSION: the old 35% cap could not move subtitles to the top.
-        expect(getSubtitlePositionStyle(5)).toEqual({
-            top: '95%',
-            transform: 'translateY(-100%)',
-        });
-        expect(getSubtitlePositionStyle(50)).toEqual({
-            top: '50%',
-            transform: 'translateY(-50%)',
-        });
-        expect(getSubtitlePositionStyle(95)).toEqual({
-            top: '5%',
-            transform: 'translateY(0)',
-        });
-        expect(getSubtitlePositionStyle(-10)).toEqual(getSubtitlePositionStyle(5));
-        expect(getSubtitlePositionStyle(120)).toEqual(getSubtitlePositionStyle(95));
-        expect(getSubtitlePositionStyle(Number.NaN)).toEqual(getSubtitlePositionStyle(16));
-    });
-});
-
-describe('updateCueText', () => {
-    const timedCue: Cue = {
-        start: 0,
-        end: 4,
-        text: 'one two three four',
-        words: [
-            { start: 0, end: 1, text: 'one' },
-            { start: 1, end: 2, text: 'two' },
-            { start: 2, end: 3, text: 'three' },
-            { start: 3, end: 4, text: 'four' },
-        ],
+  it("splits cues based on wrapped line count (not just total chars)", () => {
+    // REGRESSION: user selected 3 lines but got 4 displayed due to naive total-char packing.
+    const cue: Cue = {
+      start: 0,
+      end: 4,
+      text: "AAAAAA AAAAAA AAAAAA AAAAAA",
+      words: [
+        { start: 0, end: 1, text: "AAAAAA" },
+        { start: 1, end: 2, text: "AAAAAA" },
+        { start: 2, end: 3, text: "AAAAAA" },
+        { start: 3, end: 4, text: "AAAAAA" },
+      ],
     };
 
-    it('preserves timing slots when the word count is unchanged', () => {
-        const result = updateCueText(timedCue, 'ένα δύο τρία τέσσερα');
+    const result = resegmentCues([cue], 3, 300); // very large font => low max chars per line
+    expect(result).toHaveLength(2);
+    expect(result.flatMap((item) => item.text.split(" "))).toEqual([
+      "AAAAAA",
+      "AAAAAA",
+      "AAAAAA",
+      "AAAAAA",
+    ]);
+  });
 
-        expect(result.text).toBe('ένα δύο τρία τέσσερα');
-        expect(result.words).toEqual([
-            { start: 0, end: 1, text: 'ένα' },
-            { start: 1, end: 2, text: 'δύο' },
-            { start: 2, end: 3, text: 'τρία' },
-            { start: 3, end: 4, text: 'τέσσερα' },
-        ]);
+  it("uses canvas text measurement (when available) to enforce maxLines", () => {
+    // REGRESSION: char-count heuristics can under-estimate actual rendered width and allow
+    // an on-screen 4th line even when "Three Lines" is selected.
+    const getContextSpy = jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation(() => {
+        return {
+          measureText: (text: string) => ({
+            width: text === " " ? 20 : text.length * 100,
+          }),
+        } as unknown as CanvasRenderingContext2D;
+      });
+
+    try {
+      const cue: Cue = {
+        start: 0,
+        end: 4,
+        text: "AAAAAA AAAAAA AAAAAA AAAAAA",
+        words: [
+          { start: 0, end: 1, text: "AAAAAA" },
+          { start: 1, end: 2, text: "AAAAAA" },
+          { start: 2, end: 3, text: "AAAAAA" },
+          { start: 3, end: 4, text: "AAAAAA" },
+        ],
+      };
+
+      const result = resegmentCues([cue], 3, 100);
+      expect(result).toHaveLength(2);
+      expect(result.flatMap((item) => item.text.split(" "))).toEqual([
+        "AAAAAA",
+        "AAAAAA",
+        "AAAAAA",
+        "AAAAAA",
+      ]);
+    } finally {
+      getContextSpy.mockRestore();
+    }
+  });
+
+  it("expands phrase timings into individual words", () => {
+    const cue: Cue = {
+      start: 0,
+      end: 3,
+      text: "hello world again",
+      words: [
+        { start: 0, end: 2, text: "hello world" },
+        { start: 2, end: 3, text: "again" },
+      ],
+    };
+
+    const result = resegmentCues([cue], 3, 100);
+    expect(result).toHaveLength(1);
+    expect(result[0].words?.map((w) => w.text)).toEqual([
+      "HELLO",
+      "WORLD",
+      "AGAIN",
+    ]);
+    expect(result[0].words?.[0].start).toBe(0);
+    expect(result[0].words?.[0].end).toBe(1);
+    expect(result[0].words?.[1].start).toBe(1);
+    expect(result[0].words?.[1].end).toBe(2);
+  });
+
+  it("trims whitespace from word timings (whisper-style tokens)", () => {
+    const cue: Cue = {
+      start: 0,
+      end: 2,
+      text: " hello world",
+      words: [
+        { start: 0, end: 1, text: " hello" },
+        { start: 1, end: 2, text: " world" },
+      ],
+    };
+
+    const result = resegmentCues([cue], 2, 100);
+    expect(result).toHaveLength(1);
+    expect(result[0].words?.map((w) => w.text)).toEqual(["HELLO", "WORLD"]);
+  });
+
+  it("interpolates word timings when cues have no word-level data", () => {
+    const cue: Cue = {
+      start: 0,
+      end: 4,
+      text: "one two three",
+      words: null,
+    };
+
+    const result = resegmentCues([cue], 3, 100);
+    expect(result).toHaveLength(1);
+    const words = result[0].words ?? [];
+    expect(words.map((w) => w.text)).toEqual(["ONE", "TWO", "THREE"]);
+    expect(words[0].start).toBe(0);
+    expect(words[words.length - 1].end).toBe(4);
+    expect(words[0].end).toBeCloseTo(4 * (3 / 11), 5);
+    expect(words[1].end).toBeCloseTo(4 * (6 / 11), 5);
+  });
+
+  it("normalizes Greek accents to match backend subtitle rendering", () => {
+    expect(normalizeSubtitleText("Γειά σου κόσμε")).toBe("ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ");
+
+    const cue: Cue = {
+      start: 0,
+      end: 2,
+      text: "γειά σου κόσμε",
+      words: [
+        { start: 0, end: 0.6, text: "γειά" },
+        { start: 0.6, end: 1.2, text: "σου" },
+        { start: 1.2, end: 2, text: "κόσμε" },
+      ],
+    };
+
+    const result = resegmentCues([cue], 2, 100);
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe("ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ");
+    expect(result[0].words?.map((word) => word.text)).toEqual([
+      "ΓΕΙΑ",
+      "ΣΟΥ",
+      "ΚΟΣΜΕ",
+    ]);
+  });
+
+  it("avoids leaving a single orphan word in the final cue chunk", () => {
+    const cue: Cue = {
+      start: 0,
+      end: 5,
+      text: "AAAAAA AAAAAA AAAAAA AAAAAA AAAAAA",
+      words: [
+        { start: 0, end: 1, text: "AAAAAA" },
+        { start: 1, end: 2, text: "AAAAAA" },
+        { start: 2, end: 3, text: "AAAAAA" },
+        { start: 3, end: 4, text: "AAAAAA" },
+        { start: 4, end: 5, text: "AAAAAA" },
+      ],
+    };
+
+    const result = resegmentCues([cue], 2, 200);
+    expect(result).toHaveLength(2);
+    expect(result.map((item) => item.text.split(" ").length)).toEqual(
+      expect.arrayContaining([2, 3]),
+    );
+    expect(result.every((item) => item.text.split(" ").length > 1)).toBe(true);
+  });
+
+  it("matches the backend Greek export segmentation fixture", () => {
+    // REGRESSION: preview segmentation and exported SRT/VTT/TXT segmentation must
+    // agree on the UI percentage scale for Greek captions.
+    const fixturePath = path.join(
+      process.cwd(),
+      "..",
+      "testdata",
+      "subtitles",
+      "greek_long_cue.json",
+    );
+    const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf-8")) as Cue[];
+
+    const result = resegmentCues(fixture, 2, 85);
+
+    expect(result.map((cue) => cue.text)).toEqual([
+      "ΓΕΙΑ ΣΑΣ,",
+      "ΜΕ ΛΕΝΕ ΙΑΝΝΗ.",
+      "ΕΙΜΑΙ ΑΠΟ ΤΗΝ ΑΜΕΡΙΚΗ.",
+      "Ο ΠΑΤΕΡΑΣ ΜΟΥ ΕΙΝΑΙ ΑΠΟ ΤΗΝ ΜΑΚΕΔΟΝΙΑ, ΣΕΡΡΕΣ,",
+      "ΑΛΛΑ Ο ΠΑΠΠΟΥΣ ΜΟΥ ΚΑΙ Η ΓΙΑΓΙΑ ΜΟΥ ΗΤΑΝ ΠΡΟΣΦΥΓΕΣ",
+      "ΑΠΟ ΤΗΝ ΘΡΑΚΗ.",
+    ]);
+    expect(result[result.length - 1].end).toBe(15);
+  });
+});
+
+describe("findCueIndexAtTime", () => {
+  const cues: Cue[] = [
+    { start: 0, end: 1, text: "A" },
+    { start: 1, end: 2, text: "B" },
+    { start: 3, end: 4, text: "C" },
+  ];
+
+  it("finds cue at start time", () => {
+    expect(findCueIndexAtTime(cues, 0)).toBe(0);
+    expect(findCueIndexAtTime(cues, 1)).toBe(1);
+    expect(findCueIndexAtTime(cues, 3)).toBe(2);
+  });
+
+  it("finds cue in middle of duration", () => {
+    expect(findCueIndexAtTime(cues, 0.5)).toBe(0);
+    expect(findCueIndexAtTime(cues, 1.5)).toBe(1);
+    expect(findCueIndexAtTime(cues, 3.9)).toBe(2);
+  });
+
+  it("returns -1 for time before first cue", () => {
+    expect(findCueIndexAtTime(cues, -1)).toBe(-1);
+  });
+
+  it("returns -1 for time in gap", () => {
+    expect(findCueIndexAtTime(cues, 2.5)).toBe(-1);
+  });
+
+  it("returns -1 for time after last cue", () => {
+    expect(findCueIndexAtTime(cues, 5)).toBe(-1);
+  });
+
+  it("returns -1 for exact end time (exclusive)", () => {
+    expect(findCueIndexAtTime(cues, 1)).not.toBe(0); // 1 is start of B
+    expect(findCueIndexAtTime(cues, 2)).toBe(-1);
+  });
+});
+
+describe("findCueAtTime", () => {
+  const cues: Cue[] = [{ start: 0, end: 1, text: "A" }];
+
+  it("returns cue object when found", () => {
+    expect(findCueAtTime(cues, 0.5)).toEqual(cues[0]);
+  });
+
+  it("returns undefined when not found", () => {
+    expect(findCueAtTime(cues, 1.5)).toBeUndefined();
+  });
+});
+
+describe("getSubtitlePositionStyle", () => {
+  it("keeps the complete subtitle block inside the safe frame across the full slider", () => {
+    // REGRESSION: the old 35% cap could not move subtitles to the top.
+    expect(getSubtitlePositionStyle(5)).toEqual({
+      top: "95%",
+      transform: "translateY(-100%)",
     });
-
-    it('merges adjacent timing slots when words are removed', () => {
-        const result = updateCueText(timedCue, 'πρώτο δεύτερο');
-
-        expect(result.words).toEqual([
-            { start: 0, end: 2, text: 'πρώτο' },
-            { start: 2, end: 4, text: 'δεύτερο' },
-        ]);
+    expect(getSubtitlePositionStyle(50)).toEqual({
+      top: "50%",
+      transform: "translateY(-50%)",
     });
-
-    it('splits timing slots monotonically when words are added', () => {
-        const result = updateCueText(
-            {
-                start: 0,
-                end: 2,
-                text: 'one two',
-                words: [
-                    { start: 0, end: 1, text: 'one' },
-                    { start: 1, end: 2, text: 'two' },
-                ],
-            },
-            'a b c d e',
-        );
-
-        expect(result.words).toEqual([
-            { start: 0, end: 1 / 3, text: 'a' },
-            { start: 1 / 3, end: 2 / 3, text: 'b' },
-            { start: 2 / 3, end: 1, text: 'c' },
-            { start: 1, end: 1.5, text: 'd' },
-            { start: 1.5, end: 2, text: 'e' },
-        ]);
+    expect(getSubtitlePositionStyle(95)).toEqual({
+      top: "5%",
+      transform: "translateY(0)",
     });
+    expect(getSubtitlePositionStyle(-10)).toEqual(getSubtitlePositionStyle(5));
+    expect(getSubtitlePositionStyle(120)).toEqual(getSubtitlePositionStyle(95));
+    expect(getSubtitlePositionStyle(Number.NaN)).toEqual(
+      getSubtitlePositionStyle(16),
+    );
+  });
+});
 
-    it('normalizes whitespace and safely handles empty or missing timings', () => {
-        expect(updateCueText(timedCue, '   ').words).toBeUndefined();
-        expect(updateCueText({ start: 0, end: 1, text: 'old' }, '  νέο   κείμενο  ')).toEqual({
-            start: 0,
-            end: 1,
-            text: 'νέο κείμενο',
-            words: undefined,
-        });
+describe("updateCueText", () => {
+  const timedCue: Cue = {
+    start: 0,
+    end: 4,
+    text: "one two three four",
+    words: [
+      { start: 0, end: 1, text: "one" },
+      { start: 1, end: 2, text: "two" },
+      { start: 2, end: 3, text: "three" },
+      { start: 3, end: 4, text: "four" },
+    ],
+  };
+
+  it("preserves timing slots when the word count is unchanged", () => {
+    const result = updateCueText(timedCue, "ένα δύο τρία τέσσερα");
+
+    expect(result.text).toBe("ένα δύο τρία τέσσερα");
+    expect(result.words).toEqual([
+      { start: 0, end: 1, text: "ένα" },
+      { start: 1, end: 2, text: "δύο" },
+      { start: 2, end: 3, text: "τρία" },
+      { start: 3, end: 4, text: "τέσσερα" },
+    ]);
+  });
+
+  it("merges adjacent timing slots when words are removed", () => {
+    const result = updateCueText(timedCue, "πρώτο δεύτερο");
+
+    expect(result.words).toEqual([
+      { start: 0, end: 2, text: "πρώτο" },
+      { start: 2, end: 4, text: "δεύτερο" },
+    ]);
+  });
+
+  it("splits timing slots monotonically when words are added", () => {
+    const result = updateCueText(
+      {
+        start: 0,
+        end: 2,
+        text: "one two",
+        words: [
+          { start: 0, end: 1, text: "one" },
+          { start: 1, end: 2, text: "two" },
+        ],
+      },
+      "a b c d e",
+    );
+
+    expect(result.words).toEqual([
+      { start: 0, end: 1 / 3, text: "a" },
+      { start: 1 / 3, end: 2 / 3, text: "b" },
+      { start: 2 / 3, end: 1, text: "c" },
+      { start: 1, end: 1.5, text: "d" },
+      { start: 1.5, end: 2, text: "e" },
+    ]);
+  });
+
+  it("normalizes whitespace and safely handles empty or missing timings", () => {
+    expect(updateCueText(timedCue, "   ").words).toBeUndefined();
+    expect(
+      updateCueText({ start: 0, end: 1, text: "old" }, "  νέο   κείμενο  "),
+    ).toEqual({
+      start: 0,
+      end: 1,
+      text: "νέο κείμενο",
+      words: undefined,
     });
+  });
 });

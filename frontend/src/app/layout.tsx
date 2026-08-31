@@ -11,7 +11,6 @@ import { AdaptivePerformance } from "@/components/AdaptivePerformance";
 import { FeedbackWidgetLauncher } from "@/components/FeedbackWidgetLauncher";
 import { ObservabilityReporter } from "@/components/ObservabilityReporter";
 
-
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -32,10 +31,10 @@ export const metadata: Metadata = {
     apple: BRAND.assets.appleIcon,
   },
   openGraph: {
-    type: 'website',
-    url: '/',
+    type: "website",
+    url: "/",
     siteName: BRAND.name,
-    locale: 'el_GR',
+    locale: "el_GR",
     title: BRAND.social.title,
     description: BRAND.social.description,
     images: [
@@ -44,12 +43,12 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         alt: BRAND.social.imageAlt,
-        type: 'image/png',
+        type: "image/png",
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: "summary_large_image",
     title: BRAND.social.title,
     description: BRAND.social.description,
     images: [BRAND.assets.socialCard],
@@ -73,7 +72,12 @@ export default function RootLayout({
   const appEnv = normalizeAppEnv(process.env.APP_ENV ?? process.env.ENV);
 
   return (
-    <html lang="el" suppressHydrationWarning data-app-env={appEnv} data-scroll-behavior="smooth">
+    <html
+      lang="el"
+      suppressHydrationWarning
+      data-app-env={appEnv}
+      data-scroll-behavior="smooth"
+    >
       <body className={inter.className}>
         <I18nProvider>
           <AuthProvider>

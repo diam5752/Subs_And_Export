@@ -115,7 +115,9 @@ def test_create_limiter_selects_expected_implementation(monkeypatch) -> None:
 
     monkeypatch.setattr(ratelimit, "_use_db_rate_limiting", lambda: True)
     assert isinstance(ratelimit._create_limiter(1, 60, "login"), ratelimit.DbRateLimiter)
-    assert isinstance(ratelimit._create_limiter(1, 60, "login", authenticated=True), ratelimit.DbAuthenticatedRateLimiter)
+    assert isinstance(
+        ratelimit._create_limiter(1, 60, "login", authenticated=True), ratelimit.DbAuthenticatedRateLimiter
+    )
 
     monkeypatch.setattr(ratelimit, "_use_db_rate_limiting", lambda: False)
     assert isinstance(ratelimit._create_limiter(1, 60, "login"), ratelimit.RateLimiter)

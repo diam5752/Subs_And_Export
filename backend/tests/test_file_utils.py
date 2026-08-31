@@ -289,10 +289,13 @@ def test_second_render_reservation_cannot_overcommit_same_free_space(
 
     assert exc_info.value.status_code == 507
     assert observed_required_bytes == [600, 1_200]
-    assert file_utils.active_render_storage_reservation_bytes(
-        data_dir=tmp_path,
-        capacity=2,
-    ) == 0
+    assert (
+        file_utils.active_render_storage_reservation_bytes(
+            data_dir=tmp_path,
+            capacity=2,
+        )
+        == 0
+    )
 
 
 def test_link_or_copy_file_uses_hard_link_when_available(tmp_path: Path) -> None:
@@ -338,12 +341,18 @@ def test_link_or_copy_file_refuses_to_overwrite(tmp_path: Path) -> None:
 
 def test_sanitize_download_filename_preserves_unicode_and_real_extension() -> None:
     # REGRESSION: the static route exposed processed_*.mp4 instead of the requested export name.
-    assert file_utils.sanitize_download_filename(
-        "Ε Isous_subs.mp4",
-        "processed_1080x1920.mp4",
-    ) == "Ε Isous_subs.mp4"
-    assert file_utils.sanitize_download_filename(
-        "../../bad\r\nname.exe",
-        "processed.srt",
-    ) == "bad__name.srt"
+    assert (
+        file_utils.sanitize_download_filename(
+            "Ε Isous_subs.mp4",
+            "processed_1080x1920.mp4",
+        )
+        == "Ε Isous_subs.mp4"
+    )
+    assert (
+        file_utils.sanitize_download_filename(
+            "../../bad\r\nname.exe",
+            "processed.srt",
+        )
+        == "bad__name.srt"
+    )
     assert file_utils.sanitize_download_filename(None, "processed.vtt") == "processed.vtt"

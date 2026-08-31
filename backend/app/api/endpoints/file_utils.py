@@ -7,7 +7,7 @@ import os
 import re
 import shutil
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Protocol
@@ -124,6 +124,56 @@ def link_or_copy_file(source: Path, destination: Path) -> None:
     shutil.copy2(source, destination)
 
 
+def _upload_timeout_seconds(configured: float | None) -> float:
+    timeout_seconds = settings.upload_inactivity_timeout_seconds if configured is None else configured
+    if timeout_seconds <= 0:
+        raise ValueError("Upload inactivity timeout must be positive")
+    return timeout_seconds
+
+
+async def _next_upload_chunk(
+    stream: AsyncIterator[bytes],
+    *,
+    timeout_seconds: float,
+    total: int,
+    expected_size: int | None,
+) -> bytes:
+    try:
+        with anyio.fail_after(timeout_seconds):
+            return await anext(stream)
+    except TimeoutError as exc:
+        logger.warning(
+            "Upload stream stalled before completion",
+            extra={
+                "bytes_received": total,
+                "expected_bytes": expected_size,
+            },
+        )
+        raise HTTPException(
+            status_code=408,
+            detail="Upload stalled before completion",
+        ) from exc
+
+
+def _validate_completed_upload(
+    total: int,
+    *,
+    expected_size: int | None,
+    destination: Path,
+    cleanup_on_error: bool,
+) -> None:
+    detail = None
+    if total == 0:
+        detail = "Empty upload"
+    elif expected_size is not None and total != expected_size:
+        detail = "Incomplete upload"
+    if detail is None:
+        return
+    if cleanup_on_error:
+        destination.unlink(missing_ok=True)
+    raise HTTPException(status_code=400, detail=detail)
+
+
 async def save_request_stream_with_limit(
     request: Request,
     destination: Path,
@@ -141,13 +191,7 @@ async def save_request_stream_with_limit(
     provisional credit reservation.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
-    timeout_seconds = (
-        settings.upload_inactivity_timeout_seconds
-        if inactivity_timeout_seconds is None
-        else inactivity_timeout_seconds
-    )
-    if timeout_seconds <= 0:
-        raise ValueError("Upload inactivity timeout must be positive")
+    timeout_seconds = _upload_timeout_seconds(inactivity_timeout_seconds)
 
     total = 0
     stream = request.stream().__aiter__()
@@ -155,22 +199,14 @@ async def save_request_stream_with_limit(
         async with await anyio.open_file(destination, "wb") as buffer:
             while True:
                 try:
-                    with anyio.fail_after(timeout_seconds):
-                        chunk = await anext(stream)
+                    chunk = await _next_upload_chunk(
+                        stream,
+                        timeout_seconds=timeout_seconds,
+                        total=total,
+                        expected_size=expected_size,
+                    )
                 except StopAsyncIteration:
                     break
-                except TimeoutError as exc:
-                    logger.warning(
-                        "Upload stream stalled before completion",
-                        extra={
-                            "bytes_received": total,
-                            "expected_bytes": expected_size,
-                        },
-                    )
-                    raise HTTPException(
-                        status_code=408,
-                        detail="Upload stalled before completion",
-                    ) from exc
                 if not chunk:
                     continue
                 total += len(chunk)
@@ -185,14 +221,12 @@ async def save_request_stream_with_limit(
             destination.unlink(missing_ok=True)
         raise
 
-    if total == 0:
-        if cleanup_on_error:
-            destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail="Empty upload")
-    if expected_size is not None and total != expected_size:
-        if cleanup_on_error:
-            destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail="Incomplete upload")
+    _validate_completed_upload(
+        total,
+        expected_size=expected_size,
+        destination=destination,
+        cleanup_on_error=cleanup_on_error,
+    )
     return total
 
 

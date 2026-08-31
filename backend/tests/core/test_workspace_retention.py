@@ -508,11 +508,7 @@ def test_configured_retention_runs_media_and_billing_cleanup(
     )
     monkeypatch.setattr(
         "backend.app.services.erasure_reconciliation.reconcile_erasure_journal",
-        lambda **kwargs: (
-            calls.append("erasure")
-            if kwargs["journal"] is journal
-            else None
-        ),
+        lambda **kwargs: calls.append("erasure") if kwargs["journal"] is journal else None,
     )
     monkeypatch.setattr(
         UsageLedgerStore,
@@ -657,8 +653,7 @@ def test_retention_worker_does_not_log_provider_transcript_ids(
         *_args: object,
     ) -> None:
         provider_error = RuntimeError(
-            "503 Server Error for url: "
-            f"https://api.elevenlabs.io/transcripts/{transcript_id}",
+            f"503 Server Error for url: https://api.elevenlabs.io/transcripts/{transcript_id}",
         )
         raise RuntimeError("Provider transcript deletion failed") from provider_error
 

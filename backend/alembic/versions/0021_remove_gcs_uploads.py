@@ -49,8 +49,7 @@ def upgrade() -> None:
     )
     if upload_rows or job_references:
         raise RuntimeError(
-            "Refusing to remove retired cloud-storage evidence: "
-            "legacy GCS object references remain",
+            "Refusing to remove retired cloud-storage evidence: legacy GCS object references remain",
         )
 
     op.drop_table("gcs_uploads", if_exists=True)

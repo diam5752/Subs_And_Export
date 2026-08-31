@@ -20,6 +20,7 @@ from .workspace_deletion import (
     reclaim_abandoned_lifecycle_locks,
 )
 from .workspace_ownership import (
+    WorkspaceOwnershipMarker,
     get_workspace_owner,
     list_workspace_ownership_markers,
     remove_workspace_ownership_after_verified_cleanup,
@@ -104,10 +105,7 @@ def cleanup_expired_workspaces(
                     active_cutoff=active_cutoff,
                 ):
                     continue
-                if (
-                    latest_job.status in ACTIVE_JOB_STATUSES
-                    and before_delete_job is not None
-                ):
+                if latest_job.status in ACTIVE_JOB_STATUSES and before_delete_job is not None:
                     before_delete_job(latest_job)
                 erasure_journal.append(
                     kind="job",
@@ -149,16 +147,8 @@ def cleanup_expired_workspaces(
         job_store=job_store,
     )
 
-    deleted_orphan_items = (
-        deleted_orphan_uploads
-        + deleted_orphan_artifacts
-        + deleted_orphan_markers
-    )
-    failed_orphan_items = (
-        failed_orphan_uploads
-        + failed_orphan_artifacts
-        + failed_orphan_markers
-    )
+    deleted_orphan_items = deleted_orphan_uploads + deleted_orphan_artifacts + deleted_orphan_markers
+    failed_orphan_items = failed_orphan_uploads + failed_orphan_artifacts + failed_orphan_markers
 
     if deleted_job_ids or failed_job_ids or deleted_orphan_items or failed_orphan_items:
         logger.info(
@@ -240,9 +230,7 @@ def run_configured_retention(db: Database) -> CleanupReport:
         db=db,
         points_store=PointsStore(db=db),
     )
-    stale_before = int(time.time()) - (
-        settings.stale_job_retention_hours * 3600
-    )
+    stale_before = int(time.time()) - (settings.stale_job_retention_hours * 3600)
     reconciled = usage_ledger_store.reconcile_stale_reservations(
         stale_before=stale_before,
     )
@@ -398,47 +386,89 @@ def _cleanup_orphan_ownership_markers(
             limit=500,
             after=cursor,
         )
-        for marker in page.markers:
-            if marker.created_at >= cutoff_time:
-                continue
-            try:
-                with lock_job_workspace(data_dir=data_dir, job_id=marker.job_id):
-                    if job_store.get_job(marker.job_id) is not None:
-                        continue
-                    current_owner = get_workspace_owner(
-                        data_dir=data_dir,
-                        job_id=marker.job_id,
-                    )
-                    if current_owner is None:
-                        continue
-                    if current_owner != marker.user_id:
-                        raise RuntimeError(
-                            "Workspace ownership changed during retention",
-                        )
-                    artifact_path = artifacts_dir / marker.job_id
-                    expected_stem = f"{marker.job_id}_input"
-                    media_remains = artifact_path.exists() or artifact_path.is_symlink()
-                    if uploads_dir.exists():
-                        media_remains = media_remains or any(
-                            item.stem == expected_stem
-                            and item.suffix.lower() in UPLOAD_SUFFIXES
-                            for item in uploads_dir.iterdir()
-                        )
-                    if media_remains:
-                        continue
-                    if remove_workspace_ownership_after_verified_cleanup(
-                        data_dir=data_dir,
-                        job_id=marker.job_id,
-                        expected_user_id=marker.user_id,
-                    ):
-                        deleted += 1
-            except Exception:
-                failed += 1
-                logger.exception("Failed to delete orphan workspace ownership marker")
+        page_deleted, page_failed = _cleanup_orphan_ownership_page(
+            markers=page.markers,
+            data_dir=data_dir,
+            cutoff_time=cutoff_time,
+            job_store=job_store,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_dir,
+        )
+        deleted += page_deleted
+        failed += page_failed
         if page.next_cursor is None:
             break
         cursor = page.next_cursor
     return deleted, failed
+
+
+def _cleanup_orphan_ownership_page(
+    *,
+    markers: list[WorkspaceOwnershipMarker],
+    data_dir: Path,
+    cutoff_time: float,
+    job_store: RetentionJobStore,
+    uploads_dir: Path,
+    artifacts_dir: Path,
+) -> tuple[int, int]:
+    deleted = 0
+    failed = 0
+    for marker in markers:
+        if marker.created_at >= cutoff_time:
+            continue
+        try:
+            deleted += int(
+                _remove_orphan_ownership_marker(
+                    marker=marker,
+                    data_dir=data_dir,
+                    job_store=job_store,
+                    uploads_dir=uploads_dir,
+                    artifacts_dir=artifacts_dir,
+                )
+            )
+        except Exception:
+            failed += 1
+            logger.exception("Failed to delete orphan workspace ownership marker")
+    return deleted, failed
+
+
+def _remove_orphan_ownership_marker(
+    *,
+    marker: WorkspaceOwnershipMarker,
+    data_dir: Path,
+    job_store: RetentionJobStore,
+    uploads_dir: Path,
+    artifacts_dir: Path,
+) -> bool:
+    with lock_job_workspace(data_dir=data_dir, job_id=marker.job_id):
+        if job_store.get_job(marker.job_id) is not None:
+            return False
+        current_owner = get_workspace_owner(data_dir=data_dir, job_id=marker.job_id)
+        if current_owner is None:
+            return False
+        if current_owner != marker.user_id:
+            raise RuntimeError("Workspace ownership changed during retention")
+        if _ownership_marker_media_remains(
+            job_id=marker.job_id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_dir,
+        ):
+            return False
+        return remove_workspace_ownership_after_verified_cleanup(
+            data_dir=data_dir,
+            job_id=marker.job_id,
+            expected_user_id=marker.user_id,
+        )
+
+
+def _ownership_marker_media_remains(*, job_id: str, uploads_dir: Path, artifacts_dir: Path) -> bool:
+    artifact_path = artifacts_dir / job_id
+    if artifact_path.exists() or artifact_path.is_symlink():
+        return True
+    if not uploads_dir.exists():
+        return False
+    expected_stem = f"{job_id}_input"
+    return any(item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES for item in uploads_dir.iterdir())
 
 
 def _upload_job_id(path: Path) -> str | None:

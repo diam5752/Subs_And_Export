@@ -1,12 +1,12 @@
-import el from '@/i18n/el.json';
-import en from '@/i18n/en.json';
+import el from "@/i18n/el.json";
+import en from "@/i18n/en.json";
 
-export type Locale = 'el' | 'en';
+export type Locale = "el" | "en";
 
 type Messages = typeof en;
 export type MessageKey = keyof Messages;
 
-export const defaultLocale: Locale = 'el';
+export const defaultLocale: Locale = "el";
 
 export const messages: Record<Locale, Messages> = { el, en } as const;
 

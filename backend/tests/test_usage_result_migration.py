@@ -154,9 +154,7 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
         )
         assert before.returncode == 0, before.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT to_regclass('public.usage_results')"
-            ).fetchone() == (None,)
+            assert connection.execute("SELECT to_regclass('public.usage_results')").fetchone() == (None,)
 
         upgraded = _run_alembic(database_url, "upgrade", "head")
         assert upgraded.returncode == 0, upgraded.stderr
@@ -167,9 +165,9 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
         second_job_id = f"job-{uuid.uuid4().hex}"
         second_ledger_id = uuid.uuid4().hex
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0027_restore_beta_promo_cap",)
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+                "0027_restore_beta_promo_cap",
+            )
             assert connection.execute(
                 """
                 SELECT column_name, data_type, is_nullable
@@ -185,15 +183,18 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
                 ("created_at", "integer", "NO"),
                 ("updated_at", "integer", "NO"),
             ]
-            assert connection.execute(
-                """
+            assert (
+                connection.execute(
+                    """
                 SELECT indexdef
                 FROM pg_indexes
                 WHERE schemaname = 'public'
                   AND tablename = 'usage_results'
                   AND indexname = 'ix_usage_results_job_id'
                 """
-            ).fetchone() is not None
+                ).fetchone()
+                is not None
+            )
 
             _insert_user_job_and_ledger(
                 connection,
@@ -220,9 +221,7 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
                 "DELETE FROM usage_ledger WHERE id = %s",
                 (first_ledger_id,),
             )
-            assert connection.execute(
-                "SELECT COUNT(*) FROM usage_results"
-            ).fetchone() == (0,)
+            assert connection.execute("SELECT COUNT(*) FROM usage_results").fetchone() == (0,)
 
             _insert_user_job_and_ledger(
                 connection,
@@ -239,9 +238,7 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
                 "DELETE FROM jobs WHERE id = %s",
                 (second_job_id,),
             )
-            assert connection.execute(
-                "SELECT COUNT(*) FROM usage_results"
-            ).fetchone() == (0,)
+            assert connection.execute("SELECT COUNT(*) FROM usage_results").fetchone() == (0,)
             assert connection.execute(
                 "SELECT job_id FROM usage_ledger WHERE id = %s",
                 (second_ledger_id,),
@@ -254,6 +251,4 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
         )
         assert downgraded.returncode == 0, downgraded.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
-            assert connection.execute(
-                "SELECT to_regclass('public.usage_results')"
-            ).fetchone() == (None,)
+            assert connection.execute("SELECT to_regclass('public.usage_results')").fetchone() == (None,)

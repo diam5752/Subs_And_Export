@@ -18,6 +18,7 @@ def test_probe_media_timeout():
         assert "timeout" in kwargs, "subprocess.run in probe_media must have a timeout"
         assert kwargs["timeout"] >= 10, "timeout should be at least 10 seconds"
 
+
 def test_get_video_duration_timeout():
     """Verify get_video_duration enforces a timeout on subprocess.run."""
     with patch("subprocess.run") as mock_run:

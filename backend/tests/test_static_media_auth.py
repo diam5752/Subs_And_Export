@@ -153,9 +153,7 @@ def test_scoped_download_grant_survives_a_browser_session_handoff(
         assert download.headers["referrer-policy"] == "no-referrer"
         assert download.headers["x-robots-tag"] == "noindex, nofollow"
         assert "attachment" in download.headers["content-disposition"]
-        assert "%CE%94%CE%BF%CE%BA%CE%B9%CE%BC%CE%AE_subs.mp4" in download.headers[
-            "content-disposition"
-        ]
+        assert "%CE%94%CE%BF%CE%BA%CE%B9%CE%BC%CE%AE_subs.mp4" in download.headers["content-disposition"]
 
         ranged = client.get(
             grant["download_url"],
@@ -167,13 +165,8 @@ def test_scoped_download_grant_survives_a_browser_session_handoff(
 
         grant_prefix, grant_token = grant["download_url"].split("?grant=", 1)
         encoded_payload, encoded_signature = grant_token.split(".", 1)
-        tampered_signature = (
-            ("a" if encoded_signature[0] != "a" else "b")
-            + encoded_signature[1:]
-        )
-        tampered_url = (
-            f"{grant_prefix}?grant={encoded_payload}.{tampered_signature}"
-        )
+        tampered_signature = ("a" if encoded_signature[0] != "a" else "b") + encoded_signature[1:]
+        tampered_url = f"{grant_prefix}?grant={encoded_payload}.{tampered_signature}"
         assert client.get(tampered_url).status_code == 401
 
         wrong_path_url = grant["download_url"].replace(
