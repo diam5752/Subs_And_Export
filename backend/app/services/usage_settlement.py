@@ -102,6 +102,30 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
                 return None
             return dict(result_record.payload) if isinstance(result_record.payload, dict) else None
 
+    def get_finalized_result_by_idempotency(
+        self,
+        *,
+        user_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any] | None:
+        """Replay a finalized owner-bound result before mutable provider gates."""
+        with self.db.session() as session:
+            ledger = session.scalar(
+                select(DbUsageLedger)
+                .where(
+                    DbUsageLedger.user_id == user_id,
+                    DbUsageLedger.idempotency_key == idempotency_key,
+                    DbUsageLedger.status == "finalized",
+                )
+                .limit(1)
+            )
+            if ledger is None or not ledger.job_id:
+                return None
+            result_record = session.get(DbUsageResult, ledger.id)
+            if result_record is None or result_record.job_id != ledger.job_id:
+                return None
+            return dict(result_record.payload) if isinstance(result_record.payload, dict) else None
+
     @staticmethod
     def _prepare_finalize_plan(
         reservation: ChargeReservation,
@@ -219,6 +243,24 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
         if existing_result.job_id != result_job.id or existing_result.payload != result:
             raise RuntimeError("Replay-safe provider result conflict")
 
+    @staticmethod
+    def _complete_replay_job(
+        result_job: DbJob | None,
+        *,
+        job_status: str | None,
+        job_result_data: dict[str, Any] | None,
+        now: int,
+    ) -> None:
+        if job_status is None:
+            return
+        if result_job is None:
+            raise RuntimeError("Atomic result job is unavailable")
+        result_job.status = job_status
+        result_job.progress = 100
+        result_job.message = "Done!"
+        result_job.result_data = dict(job_result_data or {})
+        result_job.updated_at = now
+
     def _finalize_active_ledger(
         self,
         session: Session,
@@ -229,6 +271,8 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
         units: dict[str, Any] | None,
         result_job: DbJob | None,
         result: dict[str, Any] | None,
+        job_status: str | None,
+        job_result_data: dict[str, Any] | None,
         now: int,
     ) -> int | None:
         settled_balance = self._apply_finalize_adjustments(session, reservation, plan)
@@ -243,6 +287,12 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
             ledger=ledger,
             result_job=result_job,
             result=result,
+            now=now,
+        )
+        self._complete_replay_job(
+            result_job,
+            job_status=job_status,
+            job_result_data=job_result_data,
             now=now,
         )
         ledger.status = "finalized"
@@ -272,6 +322,17 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
             actual_usd=max(0.0, float(ledger.cost_usd)),
         )
 
+    @staticmethod
+    def _validate_replay_finalization(
+        *,
+        job_status: str | None,
+        result: dict[str, Any] | None,
+    ) -> None:
+        if job_status not in {None, "completed"}:
+            raise ValueError("Replay-safe finalization supports only completed jobs")
+        if job_status is not None and result is None:
+            raise ValueError("Atomic job finalization requires a replay-safe result")
+
     def finalize(
         self,
         reservation: ChargeReservation,
@@ -280,8 +341,11 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
         cost_usd: float,
         units: dict[str, Any] | None,
         result: dict[str, Any] | None = None,
+        job_status: str | None = None,
+        job_result_data: dict[str, Any] | None = None,
         status: str = "finalized",
     ) -> int:
+        self._validate_replay_finalization(job_status=job_status, result=result)
         plan = self._prepare_finalize_plan(
             reservation,
             credits_charged=credits_charged,
@@ -304,6 +368,8 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
                     units=units,
                     result_job=result_job,
                     result=result,
+                    job_status=job_status,
+                    job_result_data=job_result_data,
                     now=now,
                 )
             else:

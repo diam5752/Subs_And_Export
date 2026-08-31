@@ -14,6 +14,8 @@ Stripe-hosted Checkout for prepaid credits under fail-closed release guards.
 ## What is included
 
 - Next.js 16, React 19 and Tailwind CSS 4 responsive PWA.
+- Native SwiftUI iOS studio whose video preview, editing and final MP4 export stay
+  on the phone.
 - FastAPI processing API with authenticated jobs, history and exports.
 - FFmpeg/libass rendering for 9:16 video, SRT and animated subtitles.
 - Deterministic Greek mock transcription with per-word timing for local development.
@@ -50,7 +52,8 @@ environment and must never be committed.
 ## Local development
 
 Requirements: Python 3.11+, Node.js 20+, FFmpeg with libass, PostgreSQL, and JDK
-25 only when running the Java compatibility checks.
+25 only when running the Java compatibility checks. The native client additionally
+requires Xcode 16+; see `ios/README.md`.
 
 ```bash
 make install
@@ -134,6 +137,7 @@ Maven, Docker and GitHub Actions updates into weekly reviewable pull requests.
 
 - `backend/`: FastAPI API and media pipeline.
 - `frontend/`: Next.js PWA and editing workflow.
+- `ios/`: native SwiftUI/AVFoundation local-media client.
 - `src/main/java/`: Java 25/Spring compatibility surface.
 - `docs/architecture.md`: runtime boundaries and mock/live engine policy.
 - `docs/credits-usage.md`: points and usage-ledger semantics.

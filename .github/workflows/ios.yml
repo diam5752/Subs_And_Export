@@ -1,0 +1,118 @@
+name: ios
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ios.yml'
+      - 'ios/**'
+      - 'backend/app/**'
+      - 'backend/tests/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ios.yml'
+      - 'ios/**'
+      - 'backend/app/**'
+      - 'backend/tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify pinned Apple toolchain
+        run: |
+          test "$(xcodebuild -version | sed -n '1p')" = "Xcode 26.6"
+          test "$(xcodebuild -version | sed -n '2p')" = "Build version 17F113"
+          test "$(xcrun swift-format --version)" = "6.3.0"
+      - name: Install pinned XcodeGen
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/xcodegen.zip" \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.45.4/xcodegen.zip
+          echo "090ec29491aad50aec10631bf6e62253fed733c50f3aab0f5ffc86bc170bdbef  $RUNNER_TEMP/xcodegen.zip" \
+            | shasum -a 256 --check
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen-release"
+          echo "$RUNNER_TEMP/xcodegen-release/xcodegen/bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/xcodegen-release/xcodegen/bin:$PATH"
+          test "$(xcodegen --version)" = "Version: 2.45.4"
+      - name: Enforce canonical Swift format
+        run: >-
+          xcrun swift-format lint
+          --configuration ios/.swift-format
+          --recursive
+          --strict
+          ios/GSubs ios/GSubsTests ios/GSubsUITests
+      - name: Enforce Swift file-size policy
+        shell: bash
+        run: |
+          violations="$({ find ios -type f -name '*.swift' -print0 | xargs -0 wc -l; } | awk '$2 != "total" && $1 > 700')"
+          if [[ -n "$violations" ]]; then
+            echo "Swift files above 700 physical lines:"
+            echo "$violations"
+            exit 1
+          fi
+      - name: Verify generated Xcode project
+        run: |
+          xcodegen generate --spec ios/project.yml
+          git diff --exit-code -- ios/GSubs.xcodeproj
+      - name: Select an available iPhone simulator
+        shell: bash
+        run: |
+          runtime="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
+          device_type="com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation"
+          if ! xcrun simctl list runtimes --json | jq -e --arg runtime "$runtime" \
+            '.runtimes[] | select(.identifier == $runtime and .isAvailable == true)' >/dev/null; then
+            echo "Required iOS 26.5 runtime is unavailable."
+            xcrun simctl list runtimes
+            exit 1
+          fi
+          if ! xcrun simctl list devicetypes --json | jq -e --arg device_type "$device_type" \
+            '.devicetypes[] | select(.identifier == $device_type)' >/dev/null; then
+            echo "Required iPhone SE (3rd generation) device type is unavailable."
+            xcrun simctl list devicetypes
+            exit 1
+          fi
+          simulator_id="$(xcrun simctl create 'GSubs CI iPhone SE' "$device_type" "$runtime")"
+          echo "GSUBS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
+      - name: Run native unit and customer-path UI tests
+        run: >-
+          xcodebuild test
+          -project ios/GSubs.xcodeproj
+          -scheme GSubs
+          -destination "platform=iOS Simulator,id=$GSUBS_SIMULATOR_ID"
+          -derivedDataPath "$RUNNER_TEMP/gsubs-derived-data"
+          -resultBundlePath "$RUNNER_TEMP/GSubs.xcresult"
+          -retry-tests-on-failure
+          -test-iterations 2
+          -test-repetition-relaunch-enabled YES
+          CODE_SIGNING_ALLOWED=NO
+      - name: Verify unsigned Release build
+        run: >-
+          xcodebuild build
+          -project ios/GSubs.xcodeproj
+          -scheme GSubs
+          -configuration Release
+          -destination "generic/platform=iOS"
+          -derivedDataPath "$RUNNER_TEMP/gsubs-release-derived-data"
+          CODE_SIGNING_ALLOWED=NO
+      - name: Upload test result on failure
+        if: failure()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: GSubs-xcresult
+          path: ${{ runner.temp }}/GSubs.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

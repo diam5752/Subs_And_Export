@@ -143,6 +143,48 @@ def test_scribe_parses_word_timestamps_without_real_network(
     assert progress == [10.0, 90.0, 100.0]
 
 
+def test_scribe_accepts_memory_only_m4a_without_creating_local_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    provider_erasure_journal: MagicMock,
+) -> None:
+    monkeypatch.setattr(settings, "elevenlabs_enabled", True)
+    monkeypatch.setattr(settings, "mock_external_services", False)
+    monkeypatch.setattr(settings, "external_provider_monthly_budget_usd", 1.0)
+    monkeypatch.setattr(settings, "external_provider_per_request_budget_usd", 0.25)
+    captured: dict[str, Any] = {}
+
+    def transport(*args: Any, **kwargs: Any) -> FakeResponse:
+        captured.update(kwargs)
+        return FakeResponse(
+            {
+                "transcription_id": "memoryOnly123",
+                "words": [
+                    {"text": "Γεια", "start": 0.0, "end": 0.5, "type": "word"},
+                ],
+            }
+        )
+
+    cues = ElevenLabsScribeTranscriber(
+        api_key="test-key",
+        transport=transport,
+        delete_transport=lambda *args, **kwargs: FakeResponse(None),
+    ).transcribe_bytes(
+        b"in-memory-m4a",
+        filename="../../private-name.m4a",
+        content_type="audio/mp4",
+    )
+
+    upload = captured["files"]["file"]
+    assert upload == ("private-name.m4a", b"in-memory-m4a", "audio/mp4")
+    assert [cue.text for cue in cues] == ["ΓΕΙΑ"]
+    assert list(tmp_path.iterdir()) == []
+    provider_erasure_journal.append_provider_transcript.assert_called_once_with(
+        provider="elevenlabs",
+        transcript_id="memoryOnly123",
+    )
+
+
 @pytest.mark.parametrize(
     "api_base",
     (

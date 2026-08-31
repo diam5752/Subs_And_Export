@@ -211,6 +211,7 @@ app.add_middleware(
         "Content-Type",
         "Idempotency-Key",
         "Stripe-Signature",
+        "X-Gsubs-Authorized-Credits",
         "X-Gsubs-Upload-Metadata",
     ],
 )

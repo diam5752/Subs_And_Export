@@ -25,6 +25,14 @@
 		reverse_proxy backend:8080
 	}
 
+	@mobile_transcription path /videos/mobile-transcriptions
+	handle @mobile_transcription {
+		request_body {
+			max_size 16MB
+		}
+		reverse_proxy backend:8080
+	}
+
 	@feedback path /feedback
 	handle @feedback {
 		request_body {

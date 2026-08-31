@@ -1,0 +1,92 @@
+name: GSubs
+options:
+  bundleIdPrefix: gr.gsubs
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: 2AN35U3VSR
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.0
+    TARGETED_DEVICE_FAMILY: "1"
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+targets:
+  GSubs:
+    type: application
+    platform: iOS
+    sources:
+      - path: GSubs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: gr.gsubs.ios
+        PRODUCT_NAME: GSubs
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        Release:
+          EXCLUDED_SOURCE_FILE_NAMES: GSubsUITest.mp4
+    info:
+      path: GSubs/Info.plist
+      properties:
+        CFBundleDisplayName: GSubs
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        GSubsAPIBaseURL: https://gsubs.gr
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSPhotoLibraryUsageDescription: Το GSubs ανοίγει το βίντεο μόνο στη συσκευή για τοπική επεξεργασία.
+        NSPhotoLibraryAddUsageDescription: Το GSubs αποθηκεύει το τελικό βίντεο που εξάγεται τοπικά.
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+  GSubsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GSubsTests
+    dependencies:
+      - target: GSubs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: gr.gsubs.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+  GSubsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: GSubsUITests
+    dependencies:
+      - target: GSubs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: gr.gsubs.ios.ui-tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  GSubs:
+    build:
+      targets:
+        GSubs: all
+        GSubsTests: [test]
+        GSubsUITests: [test]
+    test:
+      targets:
+        - GSubsTests
+        - GSubsUITests
+  GSubs Local:
+    build:
+      targets:
+        GSubs: all
+    run:
+      config: Debug
+      environmentVariables:
+        GSUBS_API_BASE_URL: http://localhost:8080

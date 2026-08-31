@@ -147,6 +147,20 @@ verify_edge_and_endpoint_contracts() {
 
 
   public = block(source, ":8080")
+  mobile_matchers = re.findall(
+      r"^[ \t]*@mobile_transcription[ \t]+path[ \t]+/videos/mobile-transcriptions[ \t]*(?:#.*)?$",
+      public,
+      re.MULTILINE,
+  )
+  if len(mobile_matchers) != 1:
+      raise SystemExit("Mobile transcription must have one exact path matcher.")
+  mobile_handler = block(public, "handle @mobile_transcription")
+  if directives(block(mobile_handler, "request_body")) != ("max_size 16MB",):
+      raise SystemExit("Mobile transcription request-body cap must be exactly 16MB.")
+  if mobile_handler.count("reverse_proxy backend:8080") != 1:
+      raise SystemExit("Mobile transcription must have one backend upstream.")
+  if public.find("@mobile_transcription path") > public.find("@backend path"):
+      raise SystemExit("Mobile transcription body cap must precede the generic backend route.")
   feedback_matchers = re.findall(
       r"^[ \t]*@feedback[ \t]+path[ \t]+/feedback[ \t]*(?:#.*)?$",
       public,

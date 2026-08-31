@@ -6,7 +6,7 @@ import re
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from urllib.parse import urlsplit
 
 import requests
@@ -196,10 +196,12 @@ class ElevenLabsScribeTranscriber(Transcriber):
             raise RuntimeError("ElevenLabs API key is required for Scribe v2 transcription.")
         return api_key
 
-    def _request_transcript(
+    def _request_audio(
         self,
         *,
-        audio_path: Path,
+        upload: bytes | BinaryIO,
+        filename: str,
+        content_type: str,
         api_key: str,
         selected_model: str,
         language: str,
@@ -215,14 +217,13 @@ class ElevenLabsScribeTranscriber(Transcriber):
             form_data["language_code"] = language_code
 
         try:
-            with audio_path.open("rb") as audio_file:
-                response = self._transport(
-                    self._scribe_endpoint(),
-                    headers={"xi-api-key": api_key},
-                    data=form_data,
-                    files={"file": (audio_path.name, audio_file, "audio/wav")},
-                    timeout=(10.0, 300.0),
-                )
+            response = self._transport(
+                self._scribe_endpoint(),
+                headers={"xi-api-key": api_key},
+                data=form_data,
+                files={"file": (filename, upload, content_type)},
+                timeout=(10.0, 300.0),
+            )
             response.raise_for_status()
             raw_payload = response.json()
         except requests.RequestException as exc:
@@ -231,6 +232,24 @@ class ElevenLabsScribeTranscriber(Transcriber):
         if not isinstance(raw_payload, dict):
             raise RuntimeError("ElevenLabs Scribe v2 returned an invalid response.")
         return raw_payload
+
+    def _request_transcript(
+        self,
+        *,
+        audio_path: Path,
+        api_key: str,
+        selected_model: str,
+        language: str,
+    ) -> dict[str, Any]:
+        with audio_path.open("rb") as audio_file:
+            return self._request_audio(
+                upload=audio_file,
+                filename=audio_path.name,
+                content_type="audio/wav",
+                api_key=api_key,
+                selected_model=selected_model,
+                language=language,
+            )
 
     def _record_erasure_and_delete(
         self,
@@ -259,6 +278,12 @@ class ElevenLabsScribeTranscriber(Transcriber):
             api_key=api_key,
         )
 
+    def _cues_from_payload(self, raw_payload: dict[str, Any]) -> list[Cue]:
+        words = self._parse_words(raw_payload)
+        if not words:
+            raise RuntimeError("ElevenLabs Scribe v2 response did not include word timestamps.")
+        return self._build_cues(words)
+
     def _write_transcript_result(
         self,
         *,
@@ -266,10 +291,7 @@ class ElevenLabsScribeTranscriber(Transcriber):
         audio_path: Path,
         output_dir: Path,
     ) -> tuple[Path, list[Cue]]:
-        words = self._parse_words(raw_payload)
-        if not words:
-            raise RuntimeError("ElevenLabs Scribe v2 response did not include word timestamps.")
-        cues = self._build_cues(words)
+        cues = self._cues_from_payload(raw_payload)
         segments = [(cue.start, cue.end, cue.text) for cue in cues]
         output_dir.mkdir(parents=True, exist_ok=True)
         srt_path = write_srt_from_segments(
@@ -277,6 +299,37 @@ class ElevenLabsScribeTranscriber(Transcriber):
             output_dir / f"{audio_path.stem}.srt",
         )
         return srt_path, cues
+
+    def transcribe_bytes(
+        self,
+        audio_bytes: bytes,
+        *,
+        filename: str = "audio.m4a",
+        content_type: str = "audio/mp4",
+        language: str = "el",
+        model: str = "scribe_v2",
+    ) -> list[Cue]:
+        """Transcribe bounded audio from memory without retaining media."""
+        if not audio_bytes:
+            raise ValueError("Audio body is empty")
+        selected_model = (model or settings.elevenlabs_transcribe_model).strip()
+        self._validate_runtime(selected_model)
+        api_key = self._resolve_api_key()
+        safe_filename = Path(filename.replace("\\", "/")).name or "audio.m4a"
+        raw_payload = self._request_audio(
+            upload=audio_bytes,
+            filename=safe_filename,
+            content_type=content_type,
+            api_key=api_key,
+            selected_model=selected_model,
+            language=language,
+        )
+        transcription_id = self._transcription_id(raw_payload)
+        self._record_erasure_and_delete(
+            transcription_id=transcription_id,
+            api_key=api_key,
+        )
+        return self._cues_from_payload(raw_payload)
 
     def transcribe(
         self,

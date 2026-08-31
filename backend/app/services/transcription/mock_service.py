@@ -19,6 +19,30 @@ _PHRASES = (
 class MockTranscriber(Transcriber):
     """Produce deterministic cues with word timings and no network access."""
 
+    @staticmethod
+    def build_cues(total_duration: float) -> list[Cue]:
+        """Build the same zero-cost cues for file and memory-only clients."""
+        duration = max(1.0, float(total_duration))
+        cue_count = min(len(_PHRASES), max(1, round(duration / 3.0)))
+        cue_duration = duration / cue_count
+        cues: list[Cue] = []
+        for index, phrase in enumerate(_PHRASES[:cue_count]):
+            start = index * cue_duration
+            end = min(duration, (index + 1) * cue_duration)
+            normalized_phrase = normalize_text(phrase)
+            tokens = normalized_phrase.split()
+            word_duration = (end - start) / max(1, len(tokens))
+            words = [
+                WordTiming(
+                    start=start + token_index * word_duration,
+                    end=min(end, start + (token_index + 1) * word_duration),
+                    text=token,
+                )
+                for token_index, token in enumerate(tokens)
+            ]
+            cues.append(Cue(start=start, end=end, text=normalized_phrase, words=words))
+        return cues
+
     def transcribe(
         self,
         audio_path: Path,
@@ -40,27 +64,8 @@ class MockTranscriber(Transcriber):
             1.0,
             float(raw_duration) if isinstance(raw_duration, (int, float, str)) else 12.0,
         )
-        cue_count = min(len(_PHRASES), max(1, round(total_duration / 3.0)))
-        cue_duration = total_duration / cue_count
-        cues: list[Cue] = []
-        segments: list[tuple[float, float, str]] = []
-
-        for index, phrase in enumerate(_PHRASES[:cue_count]):
-            start = index * cue_duration
-            end = min(total_duration, (index + 1) * cue_duration)
-            normalized_phrase = normalize_text(phrase)
-            tokens = normalized_phrase.split()
-            word_duration = (end - start) / max(1, len(tokens))
-            words = [
-                WordTiming(
-                    start=start + token_index * word_duration,
-                    end=min(end, start + (token_index + 1) * word_duration),
-                    text=token,
-                )
-                for token_index, token in enumerate(tokens)
-            ]
-            cues.append(Cue(start=start, end=end, text=normalized_phrase, words=words))
-            segments.append((start, end, normalized_phrase))
+        cues = self.build_cues(total_duration)
+        segments = [(cue.start, cue.end, cue.text) for cue in cues]
 
         output_dir.mkdir(parents=True, exist_ok=True)
         srt_path = write_srt_from_segments(segments, output_dir / f"{audio_path.stem}.srt")
