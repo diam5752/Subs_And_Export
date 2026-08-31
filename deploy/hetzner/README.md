@@ -525,6 +525,20 @@ QUIC path after the 2026-08-25 incident: keep the outer HTTPS listener on
 both correct and at least 2 MiB/s. A loopback probe or a small initial range is
 not sufficient evidence to lift the quarantine.
 
+After a failed candidate, the next roll-forward may begin while the stable
+gateway is already returning the reviewed maintenance page. The deploy script
+accepts that HTTP/2 503 preflight only when the local `edge` is healthy, the
+private `app-edge` is stopped, the running gateway Caddyfile exactly matches
+the tracked release, and the public response has the reviewed HTML marker,
+`Retry-After: 5`, `Cache-Control: no-store, max-age=0`, and no HTTP/3
+advertisement. A generic 503, altered maintenance page, running application
+edge, or mismatched gateway configuration fails closed. Do not manually reopen
+the application edge to work around this guard. Once this exact state is
+accepted, roll-forward preparation revalidates it and keeps the failed
+candidate closed through the corrected release's build, retention, and erasure
+replay. Only the corrected candidate is then activated for candidate
+verification.
+
 ## Failure and rollback policy
 
 The backend applies `alembic upgrade head` before starting. For that reason the

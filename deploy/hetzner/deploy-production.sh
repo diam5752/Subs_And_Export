@@ -103,11 +103,23 @@ fi
 
 # REGRESSION: the shared public Caddy edge once advertised HTTP/3 even though
 # its QUIC path delivered private media about 25x slower than HTTP/2. Verify
-# the external transport contract before stopping or replacing any service.
-if [ -n "$previous_sha" ] && \
-  ! "$ROOT_DIR/deploy/hetzner/verify-public-edge.sh"; then
-  echo "Public download transport preflight failed; production was not changed." >&2
-  exit 1
+# the external transport contract before stopping or replacing any service. A
+# prior failed candidate may already have closed app-edge; recognize only the
+# exact reviewed fail-closed maintenance state so a corrected release can roll
+# forward without an unsafe manual edge restart.
+verified_maintenance_roll_forward=0
+if [ -n "$previous_sha" ]; then
+  if public_gateway_is_reviewed_maintenance; then
+    if ! "$ROOT_DIR/deploy/hetzner/verify-public-edge.sh" --maintenance; then
+      echo "Public maintenance transport preflight failed; production was not changed." >&2
+      exit 1
+    fi
+    verified_maintenance_roll_forward=1
+    echo "Verified the fail-closed maintenance gateway for this roll-forward release." >&2
+  elif ! "$ROOT_DIR/deploy/hetzner/verify-public-edge.sh"; then
+    echo "Public download transport preflight failed; production was not changed." >&2
+    exit 1
+  fi
 fi
 
 privacy_continuity_bootstrap=0
