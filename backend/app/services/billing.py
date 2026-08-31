@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 import secrets
@@ -74,6 +75,10 @@ _STRIPE_PERMISSION_PROBE_PAYMENT_INTENT_ID = (
 _STRIPE_PERMISSION_PROBE_IDEMPOTENCY_KEY = (
     "gsubs-permission-probe-payment-intent-write-v1"
 )
+_STRIPE_PENDING_WEBHOOKS_TOKEN_RE = re.compile(
+    rb'("pending_webhooks"\s*:\s*)([0-9]+)',
+)
+_LEGACY_STRIPE_PENDING_WEBHOOKS_MAX = 1024
 _CHECKOUT_EVENT_TYPES = frozenset(
     {
         "checkout.session.completed",
@@ -145,6 +150,68 @@ class BillingValidationError(BillingError):
 
 class BillingProviderError(BillingError):
     pass
+
+
+def _valid_pending_webhook_count(value: object) -> bool:
+    return (
+        value is None
+        or (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and value >= 0
+        )
+    )
+
+
+def _stripe_webhook_payload_fingerprint(payload: bytes) -> str:
+    try:
+        envelope = json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise BillingValidationError("Invalid Stripe webhook event") from exc
+    if not isinstance(envelope, dict):
+        raise BillingValidationError("Invalid Stripe webhook event")
+    pending_webhooks = envelope.pop("pending_webhooks", None)
+    if not _valid_pending_webhook_count(pending_webhooks):
+        raise BillingValidationError("Invalid Stripe pending webhook count")
+    try:
+        canonical_payload = json.dumps(
+            envelope,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+    except (TypeError, ValueError) as exc:
+        raise BillingValidationError("Invalid Stripe webhook event") from exc
+    return hashlib.sha256(canonical_payload).hexdigest()
+
+
+def _legacy_webhook_hash_matches_pending_count(
+    payload: bytes,
+    expected_hash: str,
+) -> bool:
+    if secrets.compare_digest(hashlib.sha256(payload).hexdigest(), expected_hash):
+        return True
+    try:
+        envelope = json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    pending_webhooks = envelope.get("pending_webhooks") if isinstance(envelope, dict) else None
+    if not _valid_pending_webhook_count(pending_webhooks):
+        return False
+    matches = list(_STRIPE_PENDING_WEBHOOKS_TOKEN_RE.finditer(payload))
+    if len(matches) != 1 or int(matches[0].group(2)) != pending_webhooks:
+        return False
+    match = matches[0]
+    prefix = payload[: match.start(2)]
+    suffix = payload[match.end(2) :]
+    return any(
+        secrets.compare_digest(
+            hashlib.sha256(prefix + str(candidate).encode() + suffix).hexdigest(),
+            expected_hash,
+        )
+        for candidate in range(_LEGACY_STRIPE_PENDING_WEBHOOKS_MAX + 1)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1021,7 +1088,7 @@ class BillingService:
                 self._stripe_id(event_object.get("id")),
             )
 
-        payload_hash = hashlib.sha256(payload).hexdigest()
+        payload_hash = _stripe_webhook_payload_fingerprint(payload)
         lock_key = int.from_bytes(
             hashlib.sha256(event_id.encode()).digest()[:8],
             byteorder="big",
@@ -1036,9 +1103,7 @@ class BillingService:
                 text("SELECT pg_advisory_xact_lock(:lock_key)"),
                 {"lock_key": lock_key},
             )
-            payment_intent_id = self._stripe_id(
-                event_object.get("payment_intent"),
-            )
+            payment_intent_id = self._stripe_id(event_object.get("payment_intent"))
             if payment_intent_id.startswith("pi_"):
                 payment_intent_lock_key = self._advisory_lock_key(
                     f"stripe-payment-intent:{payment_intent_id}",
@@ -1051,6 +1116,7 @@ class BillingService:
                 event_id=event_id,
                 event_type=event_type,
                 payload_hash=payload_hash,
+                payload=payload,
             )
             if duplicate:
                 return WebhookResult(
@@ -2445,6 +2511,7 @@ class BillingService:
         event_id: str,
         event_type: str,
         payload_hash: str,
+        payload: bytes,
     ) -> bool:
         now = int(time.time())
         with self.db.session() as session:
@@ -2466,8 +2533,15 @@ class BillingService:
             )
             if receipt is None:
                 raise BillingProviderError("Could not persist Stripe event")
-            if receipt.event_type != event_type or receipt.payload_sha256 != payload_hash:
+            if receipt.event_type != event_type:
                 raise BillingConflictError("Stripe event id was replayed with different data")
+            if receipt.payload_sha256 != payload_hash:
+                if not _legacy_webhook_hash_matches_pending_count(
+                    payload,
+                    receipt.payload_sha256,
+                ):
+                    raise BillingConflictError("Stripe event id was replayed with different data")
+                receipt.payload_sha256 = payload_hash
             if receipt.status in {"processed", "ignored"}:
                 return True
             receipt.status = "processing"
