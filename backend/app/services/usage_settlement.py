@@ -322,6 +322,17 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
             actual_usd=max(0.0, float(ledger.cost_usd)),
         )
 
+    @staticmethod
+    def _validate_replay_finalization(
+        *,
+        job_status: str | None,
+        result: dict[str, Any] | None,
+    ) -> None:
+        if job_status not in {None, "completed"}:
+            raise ValueError("Replay-safe finalization supports only completed jobs")
+        if job_status is not None and result is None:
+            raise ValueError("Atomic job finalization requires a replay-safe result")
+
     def finalize(
         self,
         reservation: ChargeReservation,
@@ -334,10 +345,7 @@ class UsageSettlementMixin(UsageLedgerMixinBase):
         job_result_data: dict[str, Any] | None = None,
         status: str = "finalized",
     ) -> int:
-        if job_status not in {None, "completed"}:
-            raise ValueError("Replay-safe finalization supports only completed jobs")
-        if job_status is not None and result is None:
-            raise ValueError("Atomic job finalization requires a replay-safe result")
+        self._validate_replay_finalization(job_status=job_status, result=result)
         plan = self._prepare_finalize_plan(
             reservation,
             credits_charged=credits_charged,

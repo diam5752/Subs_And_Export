@@ -142,9 +142,6 @@
       "backend/app/services/erasure_reconciliation.py::_replay_job_terminal_erasure": [
         12
       ],
-      "backend/app/services/ffmpeg_utils.py::probe_media": [
-        11
-      ],
       "backend/app/services/paid_wallet.py::_mutate_paid_wallet_once_in_session": [
         11
       ],

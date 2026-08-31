@@ -136,6 +136,61 @@ def test_usage_result_and_mobile_job_complete_in_one_transaction() -> None:
     assert ledger_store.get_finalized_result(reservation) == result
 
 
+@pytest.mark.parametrize(
+    ("job_status", "result", "message"),
+    [
+        (
+            "failed",
+            {"request_id": "invalid-status"},
+            "supports only completed jobs",
+        ),
+        (
+            "completed",
+            None,
+            "requires a replay-safe result",
+        ),
+    ],
+)
+def test_atomic_job_finalize_rejects_inconsistent_replay_evidence(
+    job_status: str,
+    result: dict[str, Any] | None,
+    message: str,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    job_id = f"mobile-invalid-finalize-{uuid.uuid4().hex[:8]}"
+    _seed_job(db, user_id, job_id)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id)
+    points_store.credit(user_id, 30, reason="mobile_validation_test")
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    reservation, reserved_balance = ledger_store.reserve(
+        user_id=user_id,
+        job_id=job_id,
+        action="transcription",
+        provider="mock",
+        model="mock-caption-v1",
+        tier="standard",
+        credits=30,
+        min_credits=30,
+        cost_estimate_usd=0.0,
+        units={"audio_seconds": 10.0},
+        idempotency_key=f"mobile-invalid-finalize-{uuid.uuid4().hex}",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        ledger_store.finalize(
+            reservation,
+            credits_charged=30,
+            cost_usd=0.0,
+            units={"client": "ios"},
+            result=result,
+            job_status=job_status,
+        )
+
+    assert points_store.get_balance(user_id) == reserved_balance
+
+
 def test_usage_ledger_reserve_is_idempotent() -> None:
     db = Database()
     user_id = _seed_user(db)
