@@ -587,7 +587,7 @@
         287
       ],
       "backend/app/services/billing.py::_capture_and_fulfill_checkout": [
-        111
+        109
       ],
       "backend/app/services/billing.py::_create_checkout_locked": [
         78

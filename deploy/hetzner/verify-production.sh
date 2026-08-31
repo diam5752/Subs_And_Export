@@ -596,6 +596,17 @@ settings.assert_download_grant_configuration()
   echo "Production provider or Stripe staging configuration is incomplete or unsafe." >&2
   exit 1
 fi
+if ! docker exec "$backend_id" python -c '
+from backend.app.services.billing import BillingError, StripeSdkGateway
+
+try:
+    StripeSdkGateway().assert_payment_intent_write_access()
+except BillingError as exc:
+    raise SystemExit(str(exc)) from None
+'; then
+  echo "Production Stripe Payment Intents Write access is unavailable." >&2
+  exit 1
+fi
 if ! docker exec "$backend_id" alembic current --check-heads >/dev/null; then
   echo "Production database is not at the Alembic head revision." >&2
   exit 1

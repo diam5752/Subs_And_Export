@@ -1656,6 +1656,39 @@ def test_manual_capture_replay_after_local_failure_captures_once_and_recovers(
     assert _purchase(db, purchase.id).status == "paid"
 
 
+def test_manual_capture_reconciles_provider_cancellation_without_credit(
+    billing_settings: None,
+) -> None:
+    # REGRESSION: an authorization canceled outside the webhook worker must
+    # become a terminal local failure instead of retrying the completed
+    # Checkout forever.
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    payment_intent_id = f"pi_{purchase.id}"
+    gateway.payment_intent_states[payment_intent_id] = replace(
+        gateway.payment_intent_states[payment_intent_id],
+        status="canceled",
+    )
+
+    assert _process(service, _checkout_event(purchase)) == "processed"
+
+    persisted = _purchase(db, purchase.id)
+    assert persisted.status == "failed"
+    assert persisted.error == "Payment authorization was canceled before capture"
+    assert persisted.checkout_url is None
+    assert persisted.fulfilled_at is None
+    assert persisted.payment_intent_id is None
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == []
+    assert points.get_balances(user_id).paid_balance == 0
+
+
 def test_manual_cancellation_replay_after_local_failure_cancels_once_and_recovers(
     billing_settings: None,
     monkeypatch: pytest.MonkeyPatch,
@@ -3964,6 +3997,90 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
 
     with pytest.raises(Exception, match="signature"):
         gateway.verify_webhook(payload, f"t={timestamp},v1={'0' * 64}")
+
+
+def test_stripe_sdk_payment_intent_write_probe_accepts_missing_resource(
+    billing_settings: None,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class _PaymentIntents:
+        def capture(
+            self,
+            payment_intent_id: str,
+            params: dict[str, Any],
+            options: dict[str, Any],
+        ) -> Any:
+            captured["payment_intent_id"] = payment_intent_id
+            captured["params"] = params
+            captured["options"] = options
+            raise stripe.InvalidRequestError(
+                "No such payment_intent",
+                param="id",
+                code="resource_missing",
+                http_status=404,
+            )
+
+    gateway = object.__new__(StripeSdkGateway)
+    gateway._stripe = stripe
+    gateway._client = type(
+        "Client",
+        (),
+        {
+            "v1": type(
+                "V1",
+                (),
+                {"payment_intents": _PaymentIntents()},
+            )(),
+        },
+    )()
+
+    gateway.assert_payment_intent_write_access()
+
+    assert captured == {
+        "payment_intent_id": "pi_gsubs_permission_probe_absent",
+        "params": {},
+        "options": {
+            "idempotency_key": "gsubs-permission-probe-payment-intent-write-v1",
+        },
+    }
+
+
+def test_stripe_sdk_payment_intent_write_probe_rejects_permission_error(
+    billing_settings: None,
+) -> None:
+    class _PaymentIntents:
+        def capture(
+            self,
+            payment_intent_id: str,
+            params: dict[str, Any],
+            options: dict[str, Any],
+        ) -> Any:
+            raise stripe.PermissionError(
+                "The provided key does not have the required permissions",
+                code="permission_denied",
+                http_status=403,
+            )
+
+    gateway = object.__new__(StripeSdkGateway)
+    gateway._stripe = stripe
+    gateway._client = type(
+        "Client",
+        (),
+        {
+            "v1": type(
+                "V1",
+                (),
+                {"payment_intents": _PaymentIntents()},
+            )(),
+        },
+    )()
+
+    with pytest.raises(
+        BillingDisabledError,
+        match="Payment Intents Write",
+    ):
+        gateway.assert_payment_intent_write_access()
 
 
 def test_stripe_sdk_refund_pagination_error_is_fail_closed(

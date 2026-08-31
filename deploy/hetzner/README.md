@@ -98,7 +98,10 @@ API traffic leaves the internal-only backend only through an edge relay limited
 to Checkout Session creation/expiry, PaymentIntent
 retrieval/capture/cancellation and Refund listing. Values placed only in
 `.env.production` cannot bypass the tracked Automatic Tax, legal publication,
-or approval contract.
+or approval contract. Candidate verification also makes a no-charge capture
+request for a deliberately impossible PaymentIntent ID and requires Stripe's
+authenticated `resource_missing` response, proving that the restricted key has
+Payment Intents Write access before cutover.
 
 Source videos and generated media live only in the dedicated local
 `subframe-app-data` Docker volume. Browser uploads go through the authenticated

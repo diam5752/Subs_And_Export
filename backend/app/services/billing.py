@@ -68,6 +68,12 @@ _IDEMPOTENCY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{15,63}$")
 _INTEGRATION_ALPHABET = string.ascii_lowercase
 _LOCAL_INTEGRATION_RE = re.compile(r"^gsubs_credits_[a-z]{8}$")
 _PURCHASE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+_STRIPE_PERMISSION_PROBE_PAYMENT_INTENT_ID = (
+    "pi_gsubs_permission_probe_absent"
+)
+_STRIPE_PERMISSION_PROBE_IDEMPOTENCY_KEY = (
+    "gsubs-permission-probe-payment-intent-write-v1"
+)
 _CHECKOUT_EVENT_TYPES = frozenset(
     {
         "checkout.session.completed",
@@ -383,6 +389,39 @@ class StripeSdkGateway:
         return self._normalize_payment_intent_state(
             payment_intent,
             expected_payment_intent_id=payment_intent_id,
+        )
+
+    def assert_payment_intent_write_access(self) -> None:
+        """Prove capture access with a provider ID that can never be real."""
+        try:
+            self._client.v1.payment_intents.capture(
+                _STRIPE_PERMISSION_PROBE_PAYMENT_INTENT_ID,
+                {},
+                {
+                    "idempotency_key": (
+                        _STRIPE_PERMISSION_PROBE_IDEMPOTENCY_KEY
+                    ),
+                },
+            )
+        except self._stripe.PermissionError as exc:
+            raise BillingDisabledError(
+                "Stripe restricted key lacks Payment Intents Write access",
+            ) from exc
+        except self._stripe.InvalidRequestError as exc:
+            if (
+                getattr(exc, "http_status", None) == 404
+                and getattr(exc, "code", None) == "resource_missing"
+            ):
+                return
+            raise BillingProviderError(
+                "Stripe Payment Intents Write access check failed",
+            ) from exc
+        except Exception as exc:
+            raise BillingProviderError(
+                "Stripe Payment Intents Write access check is temporarily unavailable",
+            ) from exc
+        raise BillingProviderError(
+            "Stripe Payment Intents permission probe unexpectedly resolved",
         )
 
     def capture_authorized_payment(
@@ -1412,10 +1451,8 @@ class BillingService:
         except ValueError as exc:
             raise BillingValidationError(str(exc)) from exc
 
-        if authorized.status == "canceled":
-            raise BillingProviderError(
-                "Stripe payment authorization was canceled before capture",
-            )
+        if self._reconcile_canceled_authorization(authorized, purchase_id=purchase.id):
+            return
         captured = gateway.capture_authorized_payment(
             payment_intent_id,
             idempotency_key=f"gsubs-capture-{purchase.id}",
@@ -2538,6 +2575,38 @@ class BillingService:
         self,
         purchase_id: str,
     ) -> None:
+        self._mark_canceled_authorization(
+            purchase_id,
+            error=(
+                "Payment authorization canceled: billing details are outside "
+                "the supported Greece-only payment flow"
+            ),
+        )
+
+    def _reconcile_canceled_authorization(
+        self,
+        payment_intent: StripePaymentIntentState,
+        *,
+        purchase_id: str,
+    ) -> bool:
+        if payment_intent.status != "canceled":
+            return False
+        if payment_intent.amount_received_cents != 0:
+            raise BillingProviderError(
+                "Canceled Stripe authorization reports received funds",
+            )
+        self._mark_canceled_authorization(
+            purchase_id,
+            error="Payment authorization was canceled before capture",
+        )
+        return True
+
+    def _mark_canceled_authorization(
+        self,
+        purchase_id: str,
+        *,
+        error: str,
+    ) -> None:
         with self.db.session() as session:
             purchase = session.scalar(
                 select(DbCreditPurchase).where(DbCreditPurchase.id == purchase_id).with_for_update().limit(1)
@@ -2560,9 +2629,7 @@ class BillingService:
                     "Canceled authorization conflicts with financial evidence",
                 )
             purchase.status = "failed"
-            purchase.error = (
-                "Payment authorization canceled: billing details are outside the supported Greece-only payment flow"
-            )
+            purchase.error = error
             purchase.checkout_url = None
             purchase.updated_at = int(time.time())
 
