@@ -81,9 +81,13 @@ def write_executable(path: Path, content: str) -> None:
 def run_public_edge_verifier(
     tmp_path: Path,
     *,
+    maintenance: bool = False,
     protocol: str = "2",
     status: str = "200",
     content_type: str = "application/json",
+    retry_after: str = "",
+    cache_control: str = "",
+    body: str = '{"status":"ok"}',
     alt_svc: str = "",
     curl_exit: str = "0",
 ) -> subprocess.CompletedProcess[str]:
@@ -93,22 +97,31 @@ def run_public_edge_verifier(
         """#!/bin/sh
 set -eu
 header_path=""
+output_path=""
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--dump-header" ]; then
-    shift
-    header_path=$1
-  fi
+  case "$1" in
+    --dump-header) shift; header_path=$1 ;;
+    --output) shift; output_path=$1 ;;
+  esac
   shift
 done
 [ -n "$header_path" ]
+[ -n "$output_path" ]
 {
-  printf 'HTTP/2 200\\r\\n'
+  printf 'HTTP/%s %s\\r\\n' "$FAKE_PROTOCOL" "$FAKE_STATUS"
   printf 'content-type: %s\\r\\n' "$FAKE_CONTENT_TYPE"
+  if [ -n "$FAKE_RETRY_AFTER" ]; then
+    printf 'retry-after: %s\\r\\n' "$FAKE_RETRY_AFTER"
+  fi
+  if [ -n "$FAKE_CACHE_CONTROL" ]; then
+    printf 'cache-control: %s\\r\\n' "$FAKE_CACHE_CONTROL"
+  fi
   if [ -n "$FAKE_ALT_SVC" ]; then
     printf 'alt-svc: %s\\r\\n' "$FAKE_ALT_SVC"
   fi
   printf '\\r\\n'
 } > "$header_path"
+printf '%s' "$FAKE_BODY" > "$output_path"
 if [ "$FAKE_CURL_EXIT" != 0 ]; then
   exit "$FAKE_CURL_EXIT"
 fi
@@ -122,12 +135,18 @@ printf '%s|%s' "$FAKE_PROTOCOL" "$FAKE_STATUS"
             "FAKE_PROTOCOL": protocol,
             "FAKE_STATUS": status,
             "FAKE_CONTENT_TYPE": content_type,
+            "FAKE_RETRY_AFTER": retry_after,
+            "FAKE_CACHE_CONTROL": cache_control,
+            "FAKE_BODY": body,
             "FAKE_ALT_SVC": alt_svc,
             "FAKE_CURL_EXIT": curl_exit,
         }
     )
     return subprocess.run(
-        [str(DEPLOYMENT_ROOT / "verify-public-edge.sh")],
+        [
+            str(DEPLOYMENT_ROOT / "verify-public-edge.sh"),
+            *(["--maintenance"] if maintenance else []),
+        ],
         check=False,
         capture_output=True,
         env=environment,
@@ -146,15 +165,18 @@ def install_passing_public_edge_fixture(
         """#!/bin/sh
 set -eu
 header_path=""
+output_path=""
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--dump-header" ]; then
-    shift
-    header_path=$1
-  fi
+  case "$1" in
+    --dump-header) shift; header_path=$1 ;;
+    --output) shift; output_path=$1 ;;
+  esac
   shift
 done
 [ -n "$header_path" ]
+[ -n "$output_path" ]
 printf 'HTTP/2 200\\r\\ncontent-type: application/json\\r\\n\\r\\n' > "$header_path"
+printf '{"status":"ok"}' > "$output_path"
 printf '2|200'
 """,
     )

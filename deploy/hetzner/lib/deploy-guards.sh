@@ -291,6 +291,37 @@ wait_for_service_health() {
   return 1
 }
 
+public_gateway_is_reviewed_maintenance() {
+  # A failed candidate deliberately leaves the data-blind gateway serving its
+  # reviewed maintenance page while app-edge remains closed. Permit the next
+  # roll-forward to recognize that state only from local runtime evidence; a
+  # generic public 503 must never become an accepted deployment preflight.
+  maintenance_edge_id=$(compose ps -q edge 2>/dev/null || true)
+  maintenance_app_edge_id=$(compose ps -a -q app-edge 2>/dev/null || true)
+  if [ -z "$maintenance_edge_id" ] || [ -z "$maintenance_app_edge_id" ]; then
+    return 1
+  fi
+  maintenance_app_edge_running=$(docker inspect --format '{{.State.Running}}' \
+    "$maintenance_app_edge_id" 2>/dev/null || true)
+  if [ "$maintenance_app_edge_running" != false ]; then
+    return 1
+  fi
+  maintenance_edge_health=$(docker inspect --format \
+    '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+    "$maintenance_edge_id" 2>/dev/null || true)
+  if [ "$maintenance_edge_health" != healthy ]; then
+    return 1
+  fi
+  expected_gateway_caddyfile_sha=$(sha256sum \
+    "$ROOT_DIR/deploy/hetzner/gateway/Caddyfile" | awk 'NR == 1 { print $1 }') || \
+    return 1
+  runtime_gateway_caddyfile_sha=$(docker exec "$maintenance_edge_id" \
+    sha256sum /etc/caddy/Caddyfile 2>/dev/null | awk 'NR == 1 { print $1 }') || \
+    return 1
+  [ -n "$expected_gateway_caddyfile_sha" ] && \
+    [ "$runtime_gateway_caddyfile_sha" = "$expected_gateway_caddyfile_sha" ]
+}
+
 reload_public_gateway() {
   edge_id=$(compose ps -q edge 2>/dev/null || true)
   if [ -z "$edge_id" ] ||
@@ -306,6 +337,18 @@ reload_public_gateway() {
 }
 
 prepare_public_gateway() {
+  if [ "${verified_maintenance_roll_forward:-0}" = 1 ]; then
+    # Do not republish the failed candidate merely to prepare a gateway that is
+    # already healthy and reviewed. Revalidate the local fail-closed state
+    # immediately before cutover and keep app-edge stopped until the corrected
+    # candidate is activated after retention and erasure replay.
+    if ! public_gateway_is_reviewed_maintenance; then
+      echo "The verified maintenance gateway changed before roll-forward cutover." >&2
+      return 1
+    fi
+    echo "Keeping the previous failed candidate closed during roll-forward preparation." >&2
+    return 0
+  fi
   # Existing releases used the application proxy itself as the public tunnel
   # target, so every privacy cutover surfaced a raw 502. Place a stable,
   # data-blind gateway in front while the old app is still healthy. All later

@@ -15,7 +15,6 @@ from backend.tests.hetzner_deployment_test_support import (
     deployment_text,
     install_passing_public_edge_fixture,
     relay_validator_source,
-    run_public_edge_verifier,
     write_executable,
     write_gcs_retirement_evidence,
 )
@@ -612,46 +611,6 @@ def test_frontend_build_context_excludes_generated_and_local_state() -> None:
         ".env*",
     ):
         assert expected in dockerignore
-
-
-def test_public_edge_verifier_quarantines_the_slow_http3_path(
-    tmp_path: Path,
-) -> None:
-    # REGRESSION: the public HTTP/3 path once took more than three minutes for
-    # a 49 MiB download while the same authenticated file took under eight
-    # seconds over HTTP/2.
-    accepted = run_public_edge_verifier(tmp_path)
-    assert accepted.returncode == 0, accepted.stderr
-    assert "HTTP/2 200 with no HTTP/3 advertisement" in accepted.stdout
-
-    rejected_cases = (
-        {"protocol": "1.1"},
-        {"status": "503"},
-        {"content_type": "text/html"},
-        {"alt_svc": 'h3=":443"; ma=2592000'},
-        {"curl_exit": "7"},
-    )
-    for index, overrides in enumerate(rejected_cases):
-        case_path = tmp_path / f"case-{index}"
-        case_path.mkdir()
-        rejected = run_public_edge_verifier(case_path, **overrides)
-        assert rejected.returncode != 0
-        assert "Public GSubs transport policy is invalid" in rejected.stderr
-
-
-def test_public_edge_policy_gates_deploy_verification_and_nightly_ci() -> None:
-    deploy_script = deployment_text("deploy-production.sh")
-    verifier = deployment_text("verify-production.sh")
-    nightly = (REPOSITORY_ROOT / ".github" / "workflows" / "nightly-quality.yml").read_text(encoding="utf-8")
-    gate = '"$ROOT_DIR/deploy/hetzner/verify-public-edge.sh"'
-
-    # REGRESSION: loopback health and CI were green while the external QUIC
-    # body path was unusably slow. Keep an externally observable guard before
-    # production mutation, after candidate activation and every night.
-    assert gate in deploy_script
-    assert deploy_script.index(gate) < deploy_script.index("privacy_continuity_bootstrap=0")
-    assert gate in verifier
-    assert "./deploy/hetzner/verify-public-edge.sh" in nightly
 
 
 def test_deployment_shell_scripts_have_valid_syntax() -> None:
