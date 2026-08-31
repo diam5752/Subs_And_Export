@@ -25,6 +25,7 @@
                 || arguments.contains("--gsubs-ui-test-editor")
                 || arguments.contains("--gsubs-ui-test-export-failure")
                 || arguments.contains("--gsubs-ui-test-slow-export")
+                || arguments.contains("--gsubs-ui-test-held-export")
                 || arguments.contains("--gsubs-ui-test-slow-delete-editor")
                 || arguments.contains("--gsubs-ui-test-transcription-failure")
         }
@@ -33,6 +34,7 @@
             arguments.contains("--gsubs-ui-test-editor")
                 || arguments.contains("--gsubs-ui-test-export-failure")
                 || arguments.contains("--gsubs-ui-test-slow-export")
+                || arguments.contains("--gsubs-ui-test-held-export")
                 || arguments.contains("--gsubs-ui-test-slow-delete-editor")
         }
 
@@ -59,6 +61,11 @@
 
         var delaysExport: Bool {
             arguments.contains("--gsubs-ui-test-slow-export")
+                || arguments.contains("--gsubs-ui-test-held-export")
+        }
+
+        var exportDelay: Duration {
+            arguments.contains("--gsubs-ui-test-held-export") ? .seconds(30) : .seconds(8)
         }
     }
 
@@ -74,12 +81,14 @@
     }
 
     struct UITestDelayedVideoExporter: VideoExporting {
+        let delay: Duration
+
         func export(
             videoURL: URL,
             cues: [SubtitleCue],
             style: SubtitleStyle
         ) async throws -> URL {
-            try await Task.sleep(for: .seconds(8))
+            try await Task.sleep(for: delay)
             let destination = try LocalMediaStore.directory(named: "Exports")
                 .appendingPathComponent("GSubs-UITest-\(UUID().uuidString)")
                 .appendingPathExtension("mp4")

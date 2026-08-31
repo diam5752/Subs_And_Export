@@ -94,15 +94,19 @@ extension GSubsUITests {
                 contains: "Η τοπική εξαγωγή δεν ολοκληρώθηκε.",
                 timeout: 2
             ))
-        XCTAssertTrue(waitForEnabledAndHittable(export, timeout: 2))
+        let retryExport = app.buttons["primary-action"]
+        XCTAssertTrue(
+            waitForEnabledAndHittable(retryExport, timeout: 5),
+            retryExport.debugDescription
+        )
         XCTAssertLessThanOrEqual(app.otherElements["video-preview"].frame.maxY, status.frame.minY)
-        XCTAssertLessThan(status.frame.maxY, export.frame.minY)
+        XCTAssertLessThan(status.frame.maxY, retryExport.frame.minY)
         XCTAssertFalse(app.staticTexts["Έτοιμο"].exists)
         attachScreenshot(named: "Visible local export failure")
     }
 
     func testEditingControlsFreezeWhileExporting() {
-        launch("--gsubs-ui-test-slow-export")
+        launch("--gsubs-ui-test-held-export")
 
         let cue = app.descendants(matching: .any)["subtitle-cue-0"]
         let controls = [

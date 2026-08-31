@@ -124,8 +124,9 @@ final class AppModel: ObservableObject {
             if UITestConfiguration.current.failsExport {
                 return UITestFailingVideoExporter()
             }
-            if UITestConfiguration.current.delaysExport {
-                return UITestDelayedVideoExporter()
+            let configuration = UITestConfiguration.current
+            if configuration.delaysExport {
+                return UITestDelayedVideoExporter(delay: configuration.exportDelay)
             }
         #endif
         return VideoExporter()
