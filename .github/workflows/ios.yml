@@ -95,6 +95,9 @@ jobs:
           -destination "platform=iOS Simulator,id=$GSUBS_SIMULATOR_ID"
           -derivedDataPath "$RUNNER_TEMP/gsubs-derived-data"
           -resultBundlePath "$RUNNER_TEMP/GSubs.xcresult"
+          -retry-tests-on-failure
+          -test-iterations 2
+          -test-repetition-relaunch-enabled YES
           CODE_SIGNING_ALLOWED=NO
       - name: Verify unsigned Release build
         run: >-

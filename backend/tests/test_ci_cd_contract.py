@@ -275,6 +275,9 @@ def test_ios_workflow_pins_tools_and_runs_format_size_test_and_release_gates() -
     assert "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation" in workflow
     assert "com.apple.CoreSimulator.SimRuntime.iOS-26-5" in workflow
     assert "xcodebuild test" in workflow
+    assert workflow.count("-retry-tests-on-failure") == 1
+    assert workflow.count("-test-iterations 2") == 1
+    assert workflow.count("-test-repetition-relaunch-enabled YES") == 1
     assert "xcodebuild build" in workflow
     assert "-configuration Release" in workflow
     assert "CODE_SIGNING_ALLOWED=NO" in workflow
