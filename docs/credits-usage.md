@@ -125,7 +125,12 @@ Current official references:
 6. The signed webhook's session ID, PaymentIntent, amount, currency, user,
    package, credits and catalog metadata must match the stored snapshot.
 7. Stripe event IDs are receipt-hashed and serialized with a PostgreSQL
-   advisory lock. Duplicate or conflicting payloads cannot grant twice.
+   advisory lock. The fingerprint excludes only Stripe's delivery-progress
+   counter, `pending_webhooks`; Stripe documents the event `data` snapshot as
+   immutable, and every other envelope and financial field remains inside the
+   conflict hash. Legacy raw-payload receipts are upgraded only when the signed
+   retry differs byte-for-byte solely in that counter. Duplicate or conflicting
+   financial payloads cannot grant twice.
 8. Every fulfillment, expiry, refund and dispute event affecting the same
    purchase is serialized under a second purchase lock. A PaymentIntent is
    database-unique, and refund/dispute wallet mutations remain event-idempotent,
