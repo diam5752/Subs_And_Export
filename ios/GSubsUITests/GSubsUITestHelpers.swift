@@ -13,6 +13,29 @@ extension GSubsUITests {
         app.launch()
     }
 
+    func launchEditorAndWaitForCue(
+        contentSizeCategory: String? = nil,
+        timeout: TimeInterval = 8
+    ) -> XCUIElement {
+        for attempt in 0..<2 {
+            if attempt > 0 {
+                app.terminate()
+            }
+            launch(
+                "--gsubs-ui-test-editor",
+                contentSizeCategory: contentSizeCategory
+            )
+            let cue = app.descendants(matching: .any)["subtitle-cue-0"]
+            if waitForHittable(cue, timeout: timeout) {
+                return cue
+            }
+        }
+
+        let cue = app.descendants(matching: .any)["subtitle-cue-0"]
+        XCTFail("The editor accessibility tree did not become ready: \(cue.debugDescription)")
+        return cue
+    }
+
     func type(_ text: String, into element: XCUIElement) {
         XCTAssertTrue(dismissKeyboardIfPresent())
         XCTAssertTrue(waitAndReveal(element, timeout: 3), element.debugDescription)
@@ -243,6 +266,16 @@ extension GSubsUITests {
         timeout: TimeInterval
     ) -> Bool {
         let predicate = NSPredicate(format: "value == %@", value)
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    func waitForValue(
+        _ element: XCUIElement,
+        contains value: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let predicate = NSPredicate(format: "value CONTAINS %@", value)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }

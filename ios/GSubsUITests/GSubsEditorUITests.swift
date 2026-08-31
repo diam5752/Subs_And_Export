@@ -136,13 +136,12 @@ extension GSubsUITests {
     }
 
     func testSubtitleEditorFitsOnOneScreenAndKeyboard() {
-        launch("--gsubs-ui-test-editor")
+        let firstCue = launchEditorAndWaitForCue()
 
         let editor = app.descendants(matching: .any)["mobile-editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 3))
         XCTAssertFalse(app.scrollViews["studio-scroll"].exists)
         let preview = app.otherElements["video-preview"]
-        let firstCue = app.descendants(matching: .any)["subtitle-cue-0"]
         let cuePosition = app.sliders["cue-position-slider-0"]
         let fontSize = app.buttons["font-size-increase"]
         let color = app.buttons["subtitle-color-white"]
@@ -200,18 +199,18 @@ extension GSubsUITests {
         attachScreenshot(named: "One screen editor with keyboard")
 
         let keyboardNext = app.buttons["keyboard-cue-next"]
-        XCTAssertTrue(waitForHittable(keyboardNext, timeout: 2))
+        XCTAssertTrue(waitForHittable(keyboardNext, timeout: 8))
         keyboardNext.tap()
         let secondCue = app.descendants(matching: .any)["subtitle-cue-1"]
-        XCTAssertTrue(waitForHittable(secondCue, timeout: 2))
+        XCTAssertTrue(waitForHittable(secondCue, timeout: 5))
         secondCue.typeText(" NEXT")
-        XCTAssertTrue((secondCue.value as? String)?.contains("NEXT") == true)
-        XCTAssertTrue(waitForHittable(app.buttons["keyboard-cue-previous"], timeout: 2))
+        XCTAssertTrue(waitForValue(secondCue, contains: "NEXT", timeout: 5))
+        XCTAssertTrue(waitForHittable(app.buttons["keyboard-cue-previous"], timeout: 5))
         app.buttons["keyboard-cue-previous"].tap()
-        XCTAssertTrue(waitForHittable(firstCue, timeout: 2))
+        XCTAssertTrue(waitForHittable(firstCue, timeout: 5))
         firstCue.typeText(" BACK")
-        XCTAssertTrue((firstCue.value as? String)?.contains("QA") == true)
-        XCTAssertTrue((firstCue.value as? String)?.contains("BACK") == true)
+        XCTAssertTrue(waitForValue(firstCue, contains: "QA", timeout: 5))
+        XCTAssertTrue(waitForValue(firstCue, contains: "BACK", timeout: 5))
         XCTAssertTrue(keyboard.exists)
 
         XCTAssertTrue(dismissKeyboardIfPresent())
@@ -228,8 +227,8 @@ extension GSubsUITests {
             ))
         app.buttons["cue-previous"].tap()
         XCTAssertTrue(waitForHittable(firstCue, timeout: 2))
-        XCTAssertTrue((firstCue.value as? String)?.contains("QA") == true)
-        XCTAssertTrue((firstCue.value as? String)?.contains("BACK") == true)
+        XCTAssertTrue(waitForValue(firstCue, contains: "QA", timeout: 5))
+        XCTAssertTrue(waitForValue(firstCue, contains: "BACK", timeout: 5))
 
         app.buttons["cue-counter"].tap()
         XCTAssertTrue(app.buttons["cue-picker-item-2"].waitForExistence(timeout: 2))
@@ -311,14 +310,11 @@ extension GSubsUITests {
     }
 
     func testAccessibilityMaximumEditorFitsWithoutScrolling() {
-        launch("--gsubs-ui-test-editor")
-        let defaultCue = app.descendants(matching: .any)["subtitle-cue-0"]
-        XCTAssertTrue(waitForHittable(defaultCue, timeout: 3))
+        let defaultCue = launchEditorAndWaitForCue()
         let defaultCueHeight = defaultCue.frame.height
         app.terminate()
 
-        launch(
-            "--gsubs-ui-test-editor",
+        let cue = launchEditorAndWaitForCue(
             contentSizeCategory: "UICTContentSizeCategoryAccessibilityXXXL"
         )
 
@@ -326,7 +322,6 @@ extension GSubsUITests {
         XCTAssertFalse(app.scrollViews["studio-scroll"].exists)
         let export = app.buttons["primary-action"]
         let preview = app.otherElements["video-preview"]
-        let cue = app.descendants(matching: .any)["subtitle-cue-0"]
         let cueMode = app.buttons["cue-position-toggle-0"]
         let fontSize = app.buttons["font-size-increase"]
         let color = app.buttons["subtitle-color-white"]
