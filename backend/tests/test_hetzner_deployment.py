@@ -1223,6 +1223,17 @@ def test_deploy_and_verifier_reject_open_stripe_rows_without_consumer_contract_e
     assert "Open Stripe purchase invariant failed after database migration." in verifier
 
 
+def test_production_verifier_requires_payment_intent_write_access() -> None:
+    verifier = deployment_text("verify-production.sh")
+    permission_probe = "StripeSdkGateway().assert_payment_intent_write_access()"
+
+    # REGRESSION: Checkout creation used to pass every release gate even when
+    # the live restricted key could only read, not capture, PaymentIntents.
+    assert permission_probe in verifier
+    assert "Payment Intents Write access is unavailable" in verifier
+    assert verifier.index(permission_probe) < verifier.index('health_json=""')
+
+
 def test_deploy_aborts_before_cutover_when_current_database_preflight_is_unavailable(
     tmp_path: Path,
 ) -> None:

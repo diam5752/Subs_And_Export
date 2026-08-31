@@ -241,7 +241,9 @@ integration must never infer that a Stripe payment already has a MARK.
   file alone cannot activate or approve sales.
 - The live restricted key must retain only Checkout Sessions Write,
   PaymentIntents Write and Refunds Read. The signed webhook must stay active for
-  the exact 13-event set above.
+  the exact 13-event set above. Every production candidate performs a no-charge
+  capture-permission probe against a deliberately impossible PaymentIntent ID;
+  only Stripe's authenticated `resource_missing` response passes the gate.
 - The billing-admin allowlist remains empty until an immutable internal
   `users.id` is separately reviewed. Customer-facing actions never issue AADE
   documents or execute refunds.
