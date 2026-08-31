@@ -29,22 +29,24 @@ struct VideoExporter {
         }
         try Task.checkCancellation()
         let renderer = SubtitleFrameRenderer(cues: cues, style: style)
-        let videoComposition = AVVideoComposition(asset: sourceAsset, applyingCIFiltersWithHandler: { request in
-            let source = request.sourceImage
-            let time = request.compositionTime.seconds
-            let caption = renderer.caption(
-                at: time,
-                frameExtent: source.extent
-            )
-            guard let caption else {
-                request.finish(with: source, context: nil)
-                return
-            }
-            request.finish(
-                with: caption.composited(over: source).cropped(to: source.extent),
-                context: nil
-            )
-        })
+        let videoComposition = AVVideoComposition(
+            asset: sourceAsset,
+            applyingCIFiltersWithHandler: { request in
+                let source = request.sourceImage
+                let time = request.compositionTime.seconds
+                let caption = renderer.caption(
+                    at: time,
+                    frameExtent: source.extent
+                )
+                guard let caption else {
+                    request.finish(with: source, context: nil)
+                    return
+                }
+                request.finish(
+                    with: caption.composited(over: source).cropped(to: source.extent),
+                    context: nil
+                )
+            })
         return try await exportAndVerify(
             sourceAsset: sourceAsset,
             videoComposition: videoComposition
@@ -55,10 +57,21 @@ struct VideoExporter {
         sourceAsset: AVAsset,
         videoComposition: AVVideoComposition
     ) async throws -> URL {
-        guard let exporter = AVAssetExportSession(
-            asset: sourceAsset,
-            presetName: AVAssetExportPresetHighestQuality
-        ) else { throw LocalMediaError.cannotExport }
+        let is1080pCompatible = await AVAssetExportSession.compatibility(
+            ofExportPreset: AVAssetExportPreset1920x1080,
+            with: sourceAsset,
+            outputFileType: .mp4
+        )
+        let preset =
+            is1080pCompatible
+            ? AVAssetExportPreset1920x1080
+            : AVAssetExportPresetHighestQuality
+        guard
+            let exporter = AVAssetExportSession(
+                asset: sourceAsset,
+                presetName: preset
+            )
+        else { throw LocalMediaError.cannotExport }
         let destination = exportURL()
         try? FileManager.default.removeItem(at: destination)
         exporter.outputURL = destination
@@ -74,20 +87,33 @@ struct VideoExporter {
             try? FileManager.default.removeItem(at: destination)
             throw exporter.error ?? LocalMediaError.cannotExport
         }
+        return try await Self.validatedExport(at: destination)
+    }
+
+    static func validatedExport(at destination: URL) async throws -> URL {
+        var retainsExport = false
+        defer {
+            if !retainsExport {
+                try? FileManager.default.removeItem(at: destination)
+            }
+        }
+
+        try Task.checkCancellation()
         let verification = AVURLAsset(url: destination)
         let tracks = try await verification.loadTracks(withMediaType: .video)
         let duration = try await verification.load(.duration).seconds
+        try Task.checkCancellation()
         guard !tracks.isEmpty, duration.isFinite, duration > 0 else {
-            try? FileManager.default.removeItem(at: destination)
             throw LocalMediaError.cannotDecodeExport
         }
+        retainsExport = true
         return destination
     }
 
     private func exportURL() -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("GSubs/Exports", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory =
+            (try? LocalMediaStore.temporaryDirectory(named: "Exports"))
+            ?? FileManager.default.temporaryDirectory
         return directory.appendingPathComponent("GSubs-\(UUID().uuidString).mp4")
     }
 }
@@ -95,23 +121,25 @@ struct VideoExporter {
 extension VideoExporter: VideoExporting {}
 
 final class SubtitleFrameRenderer: @unchecked Sendable {
-    private let cues: [SubtitleCue]
+    private let timeline: SubtitleTimeline
     private let style: SubtitleStyle
     private let cache = NSCache<NSString, CaptionImage>()
 
     init(cues: [SubtitleCue], style: SubtitleStyle) {
-        self.cues = cues.sorted { $0.start < $1.start }
+        timeline = SubtitleTimeline(cues: cues)
         self.style = style
         cache.totalCostLimit = 24 * 1_024 * 1_024
     }
 
     func caption(at time: Double, frameExtent: CGRect) -> CIImage? {
         guard let cue = activeCue(at: time),
-              !cue.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              frameExtent.width > 0,
-              frameExtent.height > 0 else { return nil }
+            !cue.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            frameExtent.width > 0,
+            frameExtent.height > 0
+        else { return nil }
         let key = NSString(
-            string: "\(cue.id)|\(cue.text)|\(Int(frameExtent.width.rounded()))|\(style.foreground.rawValue)|\(style.fontScale)"
+            string:
+                "\(cue.id)|\(cue.text)|\(Int(frameExtent.width.rounded()))|\(style.foreground.rawValue)|\(style.fontScale)"
         )
         let image: CIImage
         if let cached = cache.object(forKey: key) {
@@ -124,52 +152,100 @@ final class SubtitleFrameRenderer: @unchecked Sendable {
             let cost = Int(rendered.extent.width * rendered.extent.height * 4)
             cache.setObject(CaptionImage(rendered), forKey: key, cost: cost)
         }
-        let maxWidth = frameExtent.width * 0.88
+        let maxWidth = SubtitleLayout.maximumCaptionWidth(frameWidth: frameExtent.width)
         let scale = min(1, maxWidth / max(image.extent.width, 1))
-        let normalized = image.transformed(by: CGAffineTransform(
-            translationX: -image.extent.minX,
-            y: -image.extent.minY
-        ))
+        let normalized = image.transformed(
+            by: CGAffineTransform(
+                translationX: -image.extent.minX,
+                y: -image.extent.minY
+            ))
         let scaled = normalized.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        return scaled.transformed(by: CGAffineTransform(
-            translationX: frameExtent.midX - scaled.extent.width / 2,
-            y: frameExtent.minY + frameExtent.height * style.bottomOffset
-        ))
+        let bottomEdge = SubtitlePlacement.bottomEdgeFromBottom(
+            frameHeight: frameExtent.height,
+            captionHeight: scaled.extent.height,
+            bottomOffset: style.resolvedBottomOffset(for: cue)
+        )
+        return scaled.transformed(
+            by: CGAffineTransform(
+                translationX: frameExtent.midX - scaled.extent.width / 2,
+                y: frameExtent.minY + bottomEdge
+            ))
     }
 
     private func activeCue(at time: Double) -> SubtitleCue? {
-        var lower = 0
-        var upper = cues.count
-        while lower < upper {
-            let middle = (lower + upper) / 2
-            if cues[middle].start <= time {
-                lower = middle + 1
-            } else {
-                upper = middle
-            }
-        }
-        guard lower > 0 else { return nil }
-        let candidate = cues[lower - 1]
-        return candidate.contains(time) ? candidate : nil
+        timeline.activeCue(at: time)
     }
 
     private func makeCaption(text: String, frameWidth: CGFloat) -> CIImage? {
-        let attributed = NSAttributedString(
-            string: text.uppercased(),
-            attributes: [
-                .font: UIFont.systemFont(
-                    ofSize: max(18, frameWidth * 0.058 * style.fontScale),
-                    weight: .black
+        let normalizedText = SubtitleLayout.normalizedText(text)
+        guard !normalizedText.isEmpty else { return nil }
+
+        let maximumTextWidth = SubtitleLayout.maximumTextWidth(frameWidth: frameWidth)
+        let fontSize = SubtitleLayout.resolvedFontSize(
+            text: normalizedText,
+            frameWidth: frameWidth,
+            scale: style.fontScale
+        )
+        let layout = captionLayout(
+            text: normalizedText,
+            fontSize: fontSize,
+            maximumWidth: maximumTextWidth
+        )
+
+        let padding = SubtitleLayout.verticalPadding(frameWidth: frameWidth)
+        let canvasSize = CGSize(
+            width: ceil(min(maximumTextWidth, layout.bounds.width)) + padding * 2,
+            height: ceil(
+                min(
+                    layout.bounds.height,
+                    layout.font.lineHeight * SubtitleLayout.maximumLineHeightMultiplier
+                )) + padding * 2
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
+        let bitmap = renderer.image { _ in
+            layout.text.draw(
+                with: CGRect(
+                    x: padding,
+                    y: padding,
+                    width: canvasSize.width - padding * 2,
+                    height: canvasSize.height - padding * 2
                 ),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            )
+        }
+        guard let cgImage = bitmap.cgImage else { return nil }
+        return CIImage(cgImage: cgImage)
+    }
+
+    private func captionLayout(
+        text: String,
+        fontSize: CGFloat,
+        maximumWidth: CGFloat
+    ) -> (text: NSAttributedString, font: UIFont, bounds: CGRect) {
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .black)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        let attributed = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: font,
                 .foregroundColor: style.foreground.uiColor,
                 .strokeColor: UIColor.black,
-                .strokeWidth: -4.0
+                .strokeWidth: -4.0,
+                .paragraphStyle: paragraph,
             ]
         )
-        guard let filter = CIFilter(name: "CIAttributedTextImageGenerator") else { return nil }
-        filter.setValue(attributed, forKey: "inputText")
-        filter.setValue(1.0, forKey: "inputScaleFactor")
-        return filter.outputImage
+        let bounds = attributed.boundingRect(
+            with: CGSize(width: maximumWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).integral
+        return (attributed, font, bounds)
     }
 }
 
@@ -181,8 +257,8 @@ private final class CaptionImage: NSObject {
     }
 }
 
-private extension SubtitleColor {
-    var uiColor: UIColor {
+extension SubtitleColor {
+    fileprivate var uiColor: UIColor {
         switch self {
         case .yellow: .systemYellow
         case .white: .white

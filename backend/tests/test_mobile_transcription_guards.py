@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.app.core.config import settings
@@ -52,14 +53,78 @@ def test_mobile_replay_validates_body_but_precedes_credit_and_live_provider_gate
     replay = client.post(
         "/videos/mobile-transcriptions",
         headers=_headers(funded_user_auth_headers, key=key),
-        content=b"validated-replay-audio",
+        content=b"first-bounded-audio",
     )
 
     assert replay.status_code == 200, replay.text
     assert replay.json() == first.json()
-    probe.assert_called_once_with(b"validated-replay-audio")
+    probe.assert_called_once_with(b"first-bounded-audio")
     provider_gate.assert_not_called()
     credit_gate.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("case", "second_body", "second_duration", "authorized_credits"),
+    [
+        ("audio", b"different-bounded-audio", 10.0, "30"),
+        ("duration", b"first-bounded-audio", 11.0, "30"),
+        ("authorization", b"first-bounded-audio", 10.0, "60"),
+    ],
+)
+def test_mobile_replay_rejects_idempotency_key_reuse_for_a_different_request(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    second_body: bytes,
+    second_duration: float,
+    authorized_credits: str,
+) -> None:
+    from backend.app.api.endpoints import mobile_transcriptions as endpoint
+    from backend.app.core.database import Database
+    from backend.app.services import mobile_transcriptions as service
+    from backend.app.services.jobs import JobStore
+    from backend.app.services.points import PointsStore
+
+    key = f"mobile-replay-conflict-{case}"
+    monkeypatch.setattr(
+        endpoint,
+        "probe_media_bytes",
+        lambda _body: MediaProbe(duration_s=10.0, audio_codec="aac"),
+    )
+    first = client.post(
+        "/videos/mobile-transcriptions",
+        headers=_headers(funded_user_auth_headers, key=key),
+        content=b"first-bounded-audio",
+    )
+    assert first.status_code == 200, first.text
+
+    user = client.get("/auth/me", headers=funded_user_auth_headers)
+    assert user.status_code == 200
+    user_id = str(user.json()["id"])
+    points = PointsStore(Database())
+    balance_after_first = points.get_balance(user_id)
+    dispatch = MagicMock(side_effect=AssertionError("conflicting replay must not dispatch"))
+    monkeypatch.setattr(service, "_dispatch_audio", dispatch)
+    monkeypatch.setattr(
+        endpoint,
+        "probe_media_bytes",
+        lambda _body: MediaProbe(duration_s=second_duration, audio_codec="aac"),
+    )
+    headers = _headers(funded_user_auth_headers, key=key)
+    headers["X-Gsubs-Authorized-Credits"] = authorized_credits
+
+    replay = client.post(
+        "/videos/mobile-transcriptions",
+        headers=headers,
+        content=second_body,
+    )
+
+    assert replay.status_code == 409
+    assert replay.json() == {"detail": "Idempotency key conflict"}
+    dispatch.assert_not_called()
+    assert points.get_balance(user_id) == balance_after_first
+    assert len(JobStore(Database()).list_jobs_for_user(user_id)) == 1
 
 
 def test_zero_credit_mobile_request_is_rejected_before_body_read_or_probe(
@@ -184,3 +249,80 @@ def test_mobile_probe_capacity_timeout_is_retryable(
     assert response.json() == {
         "detail": "Audio validation capacity is temporarily busy",
     }
+
+
+def test_mobile_request_rejects_oversized_declared_body_before_reading(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.app.api.endpoints import mobile_transcriptions as endpoint
+
+    body_reader = AsyncMock(side_effect=AssertionError("body must not be read"))
+    monkeypatch.setattr(endpoint, "_read_audio_body", body_reader)
+    headers = _headers(funded_user_auth_headers, key="mobile-oversized-length")
+    headers["Content-Length"] = str(endpoint.MOBILE_AUDIO_MAX_BYTES + 1)
+
+    response = client.post(
+        "/videos/mobile-transcriptions",
+        headers=headers,
+        content=b"bounded-audio",
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {"detail": "Mobile audio is too large"}
+    body_reader.assert_not_awaited()
+
+
+def test_mobile_request_rejects_body_shorter_than_declared_length(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+) -> None:
+    headers = _headers(funded_user_auth_headers, key="mobile-incomplete-body")
+    headers["Content-Length"] = "100"
+
+    response = client.post(
+        "/videos/mobile-transcriptions",
+        headers=headers,
+        content=b"bounded-audio",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Incomplete mobile audio body"}
+
+
+@pytest.mark.anyio
+async def test_mobile_streaming_limit_applies_without_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.app.api.endpoints import mobile_transcriptions as endpoint
+
+    class ChunkedRequest:
+        async def stream(self):
+            yield b"123"
+            yield b"456"
+
+    monkeypatch.setattr(endpoint, "MOBILE_AUDIO_MAX_BYTES", 5)
+
+    with pytest.raises(HTTPException) as raised:
+        await endpoint._read_audio_body(ChunkedRequest(), expected_length=None)  # type: ignore[arg-type]
+
+    assert getattr(raised.value, "status_code", None) == 413
+    assert getattr(raised.value, "detail", None) == "Mobile audio is too large"
+
+
+def test_mobile_live_engine_is_server_pinned_to_elevenlabs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.app.services import mobile_transcriptions as service
+
+    provider = MagicMock(return_value="elevenlabs")
+    monkeypatch.setattr(settings, "mock_external_services", False)
+    monkeypatch.setattr(service, "resolve_runtime_transcribe_provider", provider)
+
+    engine = service.resolve_mobile_transcription_engine()
+
+    assert engine.tier == "pro"
+    assert engine.provider == "elevenlabs"
+    assert engine.model == settings.elevenlabs_transcribe_model
+    provider.assert_called_once_with("elevenlabs")

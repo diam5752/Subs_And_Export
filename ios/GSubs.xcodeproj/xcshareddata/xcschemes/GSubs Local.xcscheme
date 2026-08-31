@@ -21,34 +21,6 @@
                ReferencedContainer = "container:GSubs.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "99352024544C28CEF5DE8162"
-               BuildableName = "GSubsTests.xctest"
-               BlueprintName = "GSubsTests"
-               ReferencedContainer = "container:GSubs.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "43AEEF89D075DE93243EC7F9"
-               BuildableName = "GSubsUITests.xctest"
-               BlueprintName = "GSubsUITests"
-               ReferencedContainer = "container:GSubs.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -67,31 +39,7 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "99352024544C28CEF5DE8162"
-               BuildableName = "GSubsTests.xctest"
-               BlueprintName = "GSubsTests"
-               ReferencedContainer = "container:GSubs.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "43AEEF89D075DE93243EC7F9"
-               BuildableName = "GSubsUITests.xctest"
-               BlueprintName = "GSubsUITests"
-               ReferencedContainer = "container:GSubs.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -113,6 +61,15 @@
             ReferencedContainer = "container:GSubs.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "GSUBS_API_BASE_URL"
+            value = "http://localhost:8080"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

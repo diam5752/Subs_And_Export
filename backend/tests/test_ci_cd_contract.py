@@ -257,6 +257,28 @@ def test_canonical_tools_and_structural_checks_are_wired_into_fast_ci() -> None:
     assert '<property name="reportLevel" value="16" />' in pmd_ruleset
 
 
+def test_ios_workflow_pins_tools_and_runs_format_size_test_and_release_gates() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "ios.yml").read_text(encoding="utf-8")
+
+    assert "runs-on: macos-26" in workflow
+    assert "DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer" in workflow
+    assert 'test "$(xcodebuild -version | sed -n \'1p\')" = "Xcode 26.6"' in workflow
+    assert 'test "$(xcodegen --version)" = "Version: 2.45.4"' in workflow
+    assert "swift-format lint" in workflow
+    assert "--configuration ios/.swift-format" in workflow
+    assert "--strict" in workflow
+    assert "$1 > 700" in workflow
+    assert "xcodegen generate --spec ios/project.yml" in workflow
+    assert "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation" in workflow
+    assert "com.apple.CoreSimulator.SimRuntime.iOS-26-5" in workflow
+    assert "xcodebuild test" in workflow
+    assert "xcodebuild build" in workflow
+    assert "-configuration Release" in workflow
+    assert "CODE_SIGNING_ALLOWED=NO" in workflow
+    assert "- 'backend/app/**'" in workflow
+    assert "- 'backend/tests/**'" in workflow
+
+
 def test_coverage_gate_enforces_lines_and_branches_independently(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

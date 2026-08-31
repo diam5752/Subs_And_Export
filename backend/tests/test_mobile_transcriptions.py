@@ -64,7 +64,14 @@ def test_mobile_transcription_keeps_video_and_audio_out_of_server_storage(
     assert payload["video_uploaded"] is False
     assert payload["server_media_retained"] is False
     assert payload["cues"]
-    assert points.get_balance(user_id) == starting_balance - 30
+    assert "_mobile_request_fingerprint" not in payload
+    wallet = points.get_balances(user_id)
+    assert wallet.balance == starting_balance - 30
+    assert payload["balance"] == wallet.balance
+    assert payload["paid_balance"] == wallet.paid_balance
+    assert payload["promotional_balance"] == wallet.promotional_balance
+    assert payload["reversal_debt"] == wallet.reversal_debt
+    assert payload["ai_spendable_balance"] == wallet.ai_spendable_balance
     jobs = JobStore(Database()).list_jobs_for_user(user_id)
     assert len(jobs) == 1
     assert jobs[0].status == "completed"
@@ -73,6 +80,103 @@ def test_mobile_transcription_keeps_video_and_audio_out_of_server_storage(
     artifacts = settings.data_dir / "artifacts"
     assert not uploads.exists() or list(uploads.iterdir()) == []
     assert not artifacts.exists() or list(artifacts.iterdir()) == []
+
+
+def test_wallet_snapshot_failure_after_finalize_never_refunds_or_loses_replay(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import mobile_transcriptions as endpoint
+    from backend.app.services import mobile_transcriptions as service
+
+    monkeypatch.setattr(settings, "mock_external_services", True)
+    monkeypatch.setattr(
+        endpoint,
+        "probe_media_bytes",
+        lambda _body: MediaProbe(duration_s=10.0, audio_codec="aac"),
+    )
+    user_id = _user_id(client, funded_user_auth_headers)
+    points = PointsStore(Database())
+    starting_balance = points.get_balance(user_id)
+    headers = _headers(
+        funded_user_auth_headers,
+        key="mobile-finalized-wallet-read-failure",
+    )
+    original_snapshot = service._wallet_snapshot
+
+    def fail_snapshot_once(**_kwargs):
+        raise RuntimeError("wallet snapshot unavailable")
+
+    monkeypatch.setattr(service, "_wallet_snapshot", fail_snapshot_once)
+    with pytest.raises(RuntimeError, match="wallet snapshot unavailable"):
+        client.post(
+            "/videos/mobile-transcriptions",
+            headers=headers,
+            content=b"bounded-aac-audio",
+        )
+
+    assert points.get_balance(user_id) == starting_balance - 30
+    jobs = JobStore(Database()).list_jobs_for_user(user_id)
+    assert len(jobs) == 1
+    assert jobs[0].status == "completed"
+
+    monkeypatch.setattr(service, "_wallet_snapshot", original_snapshot)
+    replay = client.post(
+        "/videos/mobile-transcriptions",
+        headers=headers,
+        content=b"bounded-aac-audio",
+    )
+
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["request_id"] == jobs[0].id
+    assert replay.json()["balance"] == starting_balance - 30
+    assert points.get_balance(user_id) == starting_balance - 30
+
+
+def test_mobile_transcription_replay_returns_the_current_full_wallet_snapshot(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import mobile_transcriptions as endpoint
+
+    monkeypatch.setattr(settings, "mock_external_services", True)
+    monkeypatch.setattr(
+        endpoint,
+        "probe_media_bytes",
+        lambda _body: MediaProbe(duration_s=10.0, audio_codec="aac"),
+    )
+    user_id = _user_id(client, funded_user_auth_headers)
+    points = PointsStore(Database())
+    headers = _headers(
+        funded_user_auth_headers,
+        key="mobile-current-wallet-replay",
+    )
+    first = client.post(
+        "/videos/mobile-transcriptions",
+        headers=headers,
+        content=b"bounded-aac-audio",
+    )
+    assert first.status_code == 200, first.text
+
+    points.credit(user_id, 17, reason="test_replay_wallet_refresh")
+    wallet = points.get_balances(user_id)
+    replay = client.post(
+        "/videos/mobile-transcriptions",
+        headers=headers,
+        content=b"bounded-aac-audio",
+    )
+
+    assert replay.status_code == 200, replay.text
+    payload = replay.json()
+    assert payload["request_id"] == first.json()["request_id"]
+    assert payload["balance"] == wallet.balance
+    assert payload["paid_balance"] == wallet.paid_balance
+    assert payload["promotional_balance"] == wallet.promotional_balance
+    assert payload["reversal_debt"] == wallet.reversal_debt
+    assert payload["ai_spendable_balance"] == wallet.ai_spendable_balance
+    assert payload["balance"] == first.json()["balance"] + 17
 
 
 def test_mobile_transcription_uses_authoritative_audio_duration_before_charging(

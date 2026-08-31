@@ -21,9 +21,12 @@ from ...services import pricing
 from ...services.ffmpeg_utils import probe_media_bytes
 from ...services.jobs import JobStore
 from ...services.mobile_transcriptions import (
+    MobileTranscriptionIdempotencyConflictError,
     MobileTranscriptionInProgressError,
     MobileTranscriptionTerminalError,
+    assert_mobile_transcription_replay_matches,
     get_mobile_transcription_replay,
+    mobile_transcription_request_fingerprint,
     process_mobile_transcription,
 )
 from ...services.usage_ledger import UsageLedgerStore
@@ -61,6 +64,10 @@ class MobileTranscriptionResponse(BaseModel):
     duration_seconds: float
     credits_charged: int
     balance: int
+    paid_balance: int
+    promotional_balance: int
+    reversal_debt: int
+    ai_spendable_balance: int
     video_uploaded: bool
     server_media_retained: bool
     cues: list[MobileCueResponse]
@@ -152,6 +159,28 @@ def _response_payload(
     return MobileTranscriptionResponse.model_validate(payload)
 
 
+async def _load_replay_or_assert_balance(
+    user_id: str,
+    idempotency_key: str,
+    ledger_store: UsageLedgerStore,
+) -> dict[str, object] | None:
+    replay = await run_in_threadpool(
+        get_mobile_transcription_replay,
+        user_id=user_id,
+        idempotency_key=idempotency_key,
+        ledger_store=ledger_store,
+    )
+    if replay is not None:
+        return replay
+    await run_in_threadpool(
+        ledger_store.points_store.assert_can_spend,
+        user_id,
+        pricing.VIDEO_CREDIT_BRACKETS[0].credits,
+        require_paid=not settings.mock_external_services,
+    )
+    return None
+
+
 @router.post(
     "/mobile-transcriptions",
     response_model=MobileTranscriptionResponse,
@@ -166,28 +195,27 @@ async def mobile_transcription(
 ) -> MobileTranscriptionResponse:
     """Return subtitles from audio while keeping all video work on the iPhone."""
     idempotency_key, content_type, credits, content_length = _request_metadata(request)
-    replay = await run_in_threadpool(
-        get_mobile_transcription_replay,
-        user_id=current_user.id,
-        idempotency_key=idempotency_key,
-        ledger_store=ledger_store,
-    )
-    if replay is None:
-        await run_in_threadpool(
-            ledger_store.points_store.assert_can_spend,
-            current_user.id,
-            pricing.VIDEO_CREDIT_BRACKETS[0].credits,
-            require_paid=not settings.mock_external_services,
-        )
+    replay = await _load_replay_or_assert_balance(current_user.id, idempotency_key, ledger_store)
     audio_bytes = await _read_audio_body(request, content_length)
     duration = await run_in_threadpool(
         _authoritative_duration,
         audio_bytes,
         credits,
     )
-    if replay is not None:
-        return _response_payload(replay, response)
+    request_fingerprint = mobile_transcription_request_fingerprint(
+        user_id=current_user.id,
+        audio_bytes=audio_bytes,
+        content_type=content_type,
+        duration_seconds=duration,
+        authorized_credits=credits,
+    )
     try:
+        if replay is not None:
+            assert_mobile_transcription_replay_matches(
+                replay,
+                request_fingerprint=request_fingerprint,
+            )
+            return _response_payload(replay, response)
         payload = await run_in_threadpool(
             process_mobile_transcription,
             user_id=current_user.id,
@@ -195,9 +223,12 @@ async def mobile_transcription(
             audio_bytes=audio_bytes,
             content_type=content_type,
             duration_seconds=duration,
+            request_fingerprint=request_fingerprint,
             job_store=job_store,
             ledger_store=ledger_store,
         )
+    except MobileTranscriptionIdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail="Idempotency key conflict") from exc
     except MobileTranscriptionInProgressError as exc:
         raise HTTPException(status_code=409, detail="Transcription is already in progress") from exc
     except MobileTranscriptionTerminalError as exc:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,6 +39,50 @@ class MobileTranscriptionInProgressError(RuntimeError):
 
 class MobileTranscriptionTerminalError(RuntimeError):
     """The same idempotency key belongs to a failed terminal request."""
+
+
+class MobileTranscriptionIdempotencyConflictError(RuntimeError):
+    """The same idempotency key belongs to a different audio request."""
+
+
+_REQUEST_FINGERPRINT_FIELD = "_mobile_request_fingerprint"
+
+
+def mobile_transcription_request_fingerprint(
+    *,
+    user_id: str,
+    audio_bytes: bytes,
+    content_type: str,
+    duration_seconds: float,
+    authorized_credits: int,
+) -> str:
+    """Return an owner-bound digest without retaining the uploaded audio."""
+    normalized_metadata = (
+        "gsubs-mobile-transcription-v1\n"
+        f"owner={user_id}\n"
+        f"content-type={content_type.strip().lower()}\n"
+        f"duration={float(duration_seconds):.6f}\n"
+        f"authorized-credits={int(authorized_credits)}\n"
+    ).encode("utf-8")
+    digest = hashlib.sha256(normalized_metadata)
+    digest.update(audio_bytes)
+    return digest.hexdigest()
+
+
+def assert_mobile_transcription_replay_matches(
+    replay: dict[str, Any],
+    *,
+    request_fingerprint: str,
+) -> None:
+    """Reject reuse of a fingerprinted key for a different request."""
+    stored_fingerprint = replay.get(_REQUEST_FINGERPRINT_FIELD)
+    if not isinstance(stored_fingerprint, str) or not hmac.compare_digest(
+        stored_fingerprint,
+        request_fingerprint,
+    ):
+        raise MobileTranscriptionIdempotencyConflictError(
+            "Idempotency key conflicts with a different mobile transcription request",
+        )
 
 
 def resolve_mobile_transcription_engine() -> MobileTranscriptionEngine:
@@ -77,6 +123,21 @@ def _usage_idempotency_key(user_id: str, job_id: str) -> str:
     return make_idempotency_id("usage", "transcription", user_id, job_id)
 
 
+def _wallet_snapshot(
+    *,
+    user_id: str,
+    ledger_store: UsageLedgerStore,
+) -> dict[str, int]:
+    wallet = ledger_store.points_store.get_balances(user_id)
+    return {
+        "balance": wallet.balance,
+        "paid_balance": wallet.paid_balance,
+        "promotional_balance": wallet.promotional_balance,
+        "reversal_debt": wallet.reversal_debt,
+        "ai_spendable_balance": wallet.ai_spendable_balance,
+    }
+
+
 def get_mobile_transcription_replay(
     *,
     user_id: str,
@@ -93,7 +154,7 @@ def get_mobile_transcription_replay(
         return None
     return {
         **result,
-        "balance": ledger_store.points_store.get_balance(user_id),
+        **_wallet_snapshot(user_id=user_id, ledger_store=ledger_store),
     }
 
 
@@ -165,8 +226,10 @@ def _result_payload(
     duration_seconds: float,
     credits_charged: int,
     cues: list[Cue],
+    request_fingerprint: str,
 ) -> dict[str, Any]:
     return {
+        _REQUEST_FINGERPRINT_FIELD: request_fingerprint,
         "request_id": job_id,
         "duration_seconds": duration_seconds,
         "credits_charged": credits_charged,
@@ -222,8 +285,14 @@ def _claim_request(
         raise
     replay = ledger_store.get_finalized_result(reservation)
     if replay is not None:
-        replay["balance"] = ledger_store.points_store.get_balance(user_id)
-        return job, reservation, replay
+        return (
+            job,
+            reservation,
+            {
+                **replay,
+                **_wallet_snapshot(user_id=user_id, ledger_store=ledger_store),
+            },
+        )
     if job.status in {"failed", "cancelled"}:
         raise MobileTranscriptionTerminalError("Use a new idempotency key")
     if not ledger_store.mark_dispatched(reservation):
@@ -245,6 +314,7 @@ def _finalize_request(
     engine: MobileTranscriptionEngine,
     duration_seconds: float,
     cues: list[Cue],
+    request_fingerprint: str,
     ledger_store: UsageLedgerStore,
 ) -> dict[str, Any]:
     credits = pricing.credits_for_video_duration(duration_seconds)
@@ -253,8 +323,9 @@ def _finalize_request(
         duration_seconds=duration_seconds,
         credits_charged=credits,
         cues=cues,
+        request_fingerprint=request_fingerprint,
     )
-    balance = ledger_store.finalize(
+    ledger_store.finalize(
         reservation,
         credits_charged=credits,
         cost_usd=pricing.stt_provider_cost_usd(
@@ -272,7 +343,7 @@ def _finalize_request(
             "duration_seconds": duration_seconds,
         },
     )
-    return {**result, "balance": balance}
+    return result
 
 
 def _execute_mobile_transcription(
@@ -282,6 +353,7 @@ def _execute_mobile_transcription(
     audio_bytes: bytes,
     content_type: str,
     duration_seconds: float,
+    request_fingerprint: str,
     job_store: JobStore,
     ledger_store: UsageLedgerStore,
 ) -> dict[str, Any]:
@@ -303,12 +375,13 @@ def _execute_mobile_transcription(
             content_type=content_type,
             duration_seconds=duration_seconds,
         )
-        return _finalize_request(
+        result = _finalize_request(
             job=job,
             reservation=reservation,
             engine=engine,
             duration_seconds=duration_seconds,
             cues=cues,
+            request_fingerprint=request_fingerprint,
             ledger_store=ledger_store,
         )
     except Exception as exc:
@@ -319,6 +392,10 @@ def _execute_mobile_transcription(
             error=exc,
         )
         raise
+    return {
+        **result,
+        **_wallet_snapshot(user_id=user_id, ledger_store=ledger_store),
+    }
 
 
 def process_mobile_transcription(
@@ -328,6 +405,7 @@ def process_mobile_transcription(
     audio_bytes: bytes,
     content_type: str,
     duration_seconds: float,
+    request_fingerprint: str,
     job_store: JobStore,
     ledger_store: UsageLedgerStore,
 ) -> dict[str, Any]:
@@ -337,6 +415,10 @@ def process_mobile_transcription(
         ledger_store=ledger_store,
     )
     if replay is not None:
+        assert_mobile_transcription_replay_matches(
+            replay,
+            request_fingerprint=request_fingerprint,
+        )
         return replay
     return _execute_mobile_transcription(
         user_id=user_id,
@@ -344,6 +426,7 @@ def process_mobile_transcription(
         audio_bytes=audio_bytes,
         content_type=content_type,
         duration_seconds=duration_seconds,
+        request_fingerprint=request_fingerprint,
         job_store=job_store,
         ledger_store=ledger_store,
     )

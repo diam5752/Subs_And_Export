@@ -28,7 +28,7 @@ The default mock services still exercise the real product boundaries:
 | Surface | Responsibility | Persistent state |
 | --- | --- | --- |
 | Next.js PWA | Authentication UI, upload, timeline edit, styling, preview, installable shell | browser token and selected job only |
-| iOS app | Photos selection, local preview/editing, local AAC extraction and local MP4 subtitle burn-in | Keychain session plus temporary device-local media |
+| iOS app | Photos selection, local preview/editing, local AAC extraction and local MP4 subtitle burn-in | Keychain session plus one owner-bound, device-local draft |
 | FastAPI | Auth, jobs, capability discovery, orchestration, exports | PostgreSQL plus artifact volume |
 | FFmpeg/libass | Probe, normalize, crop, subtitle burn-in and final encode | generated artifacts |
 | Usage ledger | Idempotent points reservations and provider-cost audit | PostgreSQL |
@@ -41,6 +41,15 @@ The native iOS flow deliberately does not reuse the web video-upload endpoint.
 audio track, and `POST /videos/mobile-transcriptions` returns word-timed cue JSON.
 The client then previews, edits and burns those cues into a new MP4 with
 AVFoundation/Core Image on the phone.
+
+The current source, optional preview proxy, cues, style and transcription
+idempotency key are kept as one versioned draft under Application Support. The
+manifest is committed atomically, contains only validated relative paths, is
+excluded from backup and is restored only after `/auth/me` confirms the exact
+owner. Audio extraction and rendered exports remain scratch files. Reset,
+replacement, sign-out, invalid authentication and confirmed or ambiguous account
+deletion purge the private draft; transient network/server failures leave it
+locked for a later authenticated retry.
 
 The route accepts at most 16 MiB of AAC audio, probes every stream from memory with
 `ffprobe pipe:0`, rejects any container carrying a video stream, and never creates

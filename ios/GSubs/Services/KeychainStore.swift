@@ -10,12 +10,12 @@ enum KeychainStore {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
         let attributes: [String: Any] = query.merging([
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]) { _, new in new }
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else {
@@ -29,11 +29,12 @@ enum KeychainStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
+            let data = result as? Data
+        else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
@@ -41,7 +42,7 @@ enum KeychainStore {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
     }

@@ -52,10 +52,12 @@ struct AudioExtractor {
             throw LocalMediaError.missingAudio
         }
         try Task.checkCancellation()
-        guard let exporter = AVAssetExportSession(
-            asset: asset,
-            presetName: AVAssetExportPresetAppleM4A
-        ) else { throw LocalMediaError.cannotExport }
+        guard
+            let exporter = AVAssetExportSession(
+                asset: asset,
+                presetName: AVAssetExportPresetAppleM4A
+            )
+        else { throw LocalMediaError.cannotExport }
         let destination = temporaryURL(extension: "m4a", folder: "Audio")
         try? FileManager.default.removeItem(at: destination)
         exporter.outputURL = destination
@@ -74,9 +76,9 @@ struct AudioExtractor {
     }
 
     private func temporaryURL(extension extensionName: String, folder: String) -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("GSubs/\(folder)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory =
+            (try? LocalMediaStore.temporaryDirectory(named: folder))
+            ?? FileManager.default.temporaryDirectory
         return directory.appendingPathComponent(UUID().uuidString).appendingPathExtension(extensionName)
     }
 }
@@ -85,12 +87,21 @@ extension AudioExtractor: AudioExtracting {}
 
 extension AVAssetExportSession {
     func run() async {
+        let box = ExportSessionBox(self)
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                exportAsynchronously { continuation.resume() }
+                box.session.exportAsynchronously { continuation.resume() }
             }
         } onCancel: {
-            cancelExport()
+            box.session.cancelExport()
         }
+    }
+}
+
+private final class ExportSessionBox: @unchecked Sendable {
+    let session: AVAssetExportSession
+
+    init(_ session: AVAssetExportSession) {
+        self.session = session
     }
 }
