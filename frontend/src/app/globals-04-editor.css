@@ -73,6 +73,108 @@
   filter: drop-shadow(0 22px 30px rgb(31 38 45 / 0.18));
 }
 
+.subtitle-position-scope-overlay {
+  position: absolute;
+  z-index: 35;
+  top: 52px;
+  right: 10px;
+  left: 10px;
+  pointer-events: none;
+}
+
+.subtitle-position-scope-control {
+  width: 100%;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 999px;
+  background: rgb(8 10 14 / 82%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+  pointer-events: auto;
+  transition:
+    border-color 150ms,
+    background-color 150ms;
+}
+
+.subtitle-position-scope-control[data-scope="cue"] {
+  border-color: rgb(103 232 249 / 80%);
+  background: rgb(8 35 43 / 88%);
+}
+
+.subtitle-position-scope-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  text-align: left;
+}
+
+.subtitle-position-scope-toggle:focus-visible {
+  border-radius: 999px;
+  outline: 2px solid rgb(103 232 249);
+  outline-offset: 2px;
+}
+
+.subtitle-position-scope-toggle:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.subtitle-position-scope-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex: none;
+  border-radius: 999px;
+  background: rgb(203 213 225);
+  transition: background-color 150ms;
+}
+
+.subtitle-position-scope-switch::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
+  content: "";
+  transition: transform 150ms;
+}
+
+.subtitle-position-scope-control[data-scope="cue"]
+  .subtitle-position-scope-switch {
+  background: rgb(6 182 212);
+}
+
+.subtitle-position-scope-control[data-scope="cue"]
+  .subtitle-position-scope-switch::after {
+  transform: translateX(18px);
+}
+
+.subtitle-position-scope-label {
+  min-width: 0;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.subtitle-position-scope-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+  white-space: nowrap;
+}
+
 .preview-video::-webkit-media-controls,
 .preview-video::-webkit-media-controls-enclosure,
 .preview-video::-webkit-media-controls-panel {

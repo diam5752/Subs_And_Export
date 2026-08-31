@@ -100,6 +100,27 @@ def test_transcript_parser_skips_blank_cues_and_words() -> None:
     assert [word.text for word in cues[0].words] == ["word"]
 
 
+def test_transcript_parser_preserves_optional_cue_position() -> None:
+    cues = subtitle_exports.cues_from_transcript_payload(
+        [
+            {"start": 0, "end": 1, "text": "custom", "position": 73},
+            {"start": 1, "end": 2, "text": "global fallback"},
+        ]
+    )
+
+    assert [cue.position for cue in cues] == [73, None]
+
+
+@pytest.mark.parametrize("position", [4, 96, True, 22.5, "22"])
+def test_transcript_parser_rejects_invalid_cue_position(position) -> None:
+    with pytest.raises(subtitle_exports.MalformedTranscriptError, match="invalid position"):
+        subtitle_exports.cues_from_transcript_payload(
+            [
+                {"start": 0, "end": 1, "text": "bad", "position": position},
+            ]
+        )
+
+
 def test_delivery_can_preserve_normalized_cues_without_resegmentation() -> None:
     cues = subtitle_exports.cues_from_transcript_payload(
         [

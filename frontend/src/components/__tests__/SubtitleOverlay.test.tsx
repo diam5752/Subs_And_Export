@@ -220,6 +220,7 @@ describe("SubtitleOverlay", () => {
     // REGRESSION: desktop users need to manipulate the subtitle directly on
     // the preview without a drag accidentally opening the text editor.
     const onPositionChange = jest.fn();
+    const onPositionCommit = jest.fn();
     const onBeginEdit = jest.fn();
     const onInteractionStart = jest.fn();
 
@@ -272,6 +273,7 @@ describe("SubtitleOverlay", () => {
             resize: "Resize subtitles",
           },
           onPositionChange,
+          onPositionCommit,
           onSizeChange: jest.fn(),
           onInteractionStart,
         }}
@@ -318,7 +320,8 @@ describe("SubtitleOverlay", () => {
     fireEvent.click(editTrigger);
 
     expect(onInteractionStart).toHaveBeenCalledTimes(1);
-    expect(onPositionChange).toHaveBeenLastCalledWith(30);
+    expect(onPositionChange).toHaveBeenLastCalledWith(0, 30);
+    expect(onPositionCommit).toHaveBeenCalledWith(0);
     expect(onBeginEdit).not.toHaveBeenCalled();
   });
 
@@ -401,8 +404,8 @@ describe("SubtitleOverlay", () => {
 
     fireEvent.keyDown(moveHandle, { key: "ArrowUp" });
     fireEvent.keyDown(moveHandle, { key: "End" });
-    expect(onPositionChange).toHaveBeenNthCalledWith(1, 21);
-    expect(onPositionChange).toHaveBeenLastCalledWith(95);
+    expect(onPositionChange).toHaveBeenNthCalledWith(1, 0, 21);
+    expect(onPositionChange).toHaveBeenLastCalledWith(0, 95);
 
     fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" });
     fireEvent.keyDown(resizeHandle, { key: "Home" });

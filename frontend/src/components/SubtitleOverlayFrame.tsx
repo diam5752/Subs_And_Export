@@ -27,6 +27,8 @@ type SubtitleOverlayFrameProps = {
   textStyle: React.CSSProperties;
   inlineTrigger?: InlineSubtitleTrigger;
   transformControls?: SubtitleTransformControls;
+  hasCustomPosition: boolean;
+  sourceCueIndex: number;
   overlayRef: TransformGestureResult[0];
   handlers: TransformHandlers;
 };
@@ -49,10 +51,12 @@ function PositionHandle({
   position,
   controls,
   handlers,
+  hasCustomPosition,
 }: {
   position: number;
   controls: SubtitleTransformControls;
   handlers: TransformHandlers;
+  hasCustomPosition: boolean;
 }) {
   return (
     <button
@@ -64,13 +68,46 @@ function PositionHandle({
       aria-valuemin={SUBTITLE_POSITION_MIN}
       aria-valuemax={SUBTITLE_POSITION_MAX}
       aria-valuenow={position}
-      aria-valuetext={`${position}%`}
+      aria-valuetext={`${position}% · ${
+        hasCustomPosition
+          ? (controls.labels.customPosition ?? "custom position")
+          : (controls.labels.sharedPosition ?? "shared position")
+      }`}
       title={controls.labels.move}
       onPointerDown={handlers.handlePositionHandlePointerDown}
       onKeyDown={handlers.handlePositionKeyDown}
       className="subtitle-desktop-transform-handle absolute left-0 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-sm font-black text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
     >
       <span aria-hidden="true">↕</span>
+    </button>
+  );
+}
+
+function PositionResetButton({
+  sourceCueIndex,
+  controls,
+}: {
+  sourceCueIndex: number;
+  controls: SubtitleTransformControls;
+}) {
+  if (!controls.onPositionReset) return null;
+  const label = controls.labels.resetPosition ?? "Use shared position";
+  return (
+    <button
+      type="button"
+      data-testid="subtitle-position-reset"
+      aria-label={label}
+      title={label}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        controls.onInteractionStart?.();
+        controls.onPositionReset?.(sourceCueIndex);
+      }}
+      className="subtitle-desktop-transform-handle absolute left-0 top-1/2 mt-10 grid min-h-8 min-w-8 -translate-x-1/2 place-items-center rounded-full border border-white/25 bg-black/85 px-2 text-[10px] font-bold text-white shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm hover:border-cyan-300/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+    >
+      <span aria-hidden="true">↺</span>
     </button>
   );
 }
@@ -111,11 +148,15 @@ function TransformHandles({
   fontSize,
   controls,
   handlers,
+  hasCustomPosition,
+  sourceCueIndex,
 }: {
   position: number;
   fontSize: number;
   controls: SubtitleTransformControls;
   handlers: TransformHandlers;
+  hasCustomPosition: boolean;
+  sourceCueIndex: number;
 }) {
   return (
     <>
@@ -123,7 +164,14 @@ function TransformHandles({
         position={position}
         controls={controls}
         handlers={handlers}
+        hasCustomPosition={hasCustomPosition}
       />
+      {hasCustomPosition && (
+        <PositionResetButton
+          sourceCueIndex={sourceCueIndex}
+          controls={controls}
+        />
+      )}
       <SizeHandle fontSize={fontSize} controls={controls} handlers={handlers} />
     </>
   );
@@ -171,6 +219,8 @@ export function SubtitleOverlayFrame({
   textStyle,
   inlineTrigger,
   transformControls,
+  hasCustomPosition,
+  sourceCueIndex,
   overlayRef,
   handlers,
 }: SubtitleOverlayFrameProps) {
@@ -191,6 +241,8 @@ export function SubtitleOverlayFrame({
       data-testid="subtitle-overlay"
       data-line-count={lineCount}
       data-position={position}
+      data-position-mode={hasCustomPosition ? "custom" : "shared"}
+      data-source-cue-index={sourceCueIndex}
       data-font-size={fontSize}
       className={overlayClassName(
         Boolean(inlineTrigger),
@@ -212,6 +264,8 @@ export function SubtitleOverlayFrame({
           fontSize={fontSize}
           controls={transformControls}
           handlers={handlers}
+          hasCustomPosition={hasCustomPosition}
+          sourceCueIndex={sourceCueIndex}
         />
       )}
     </div>

@@ -39,3 +39,16 @@ def normalize_subtitle_position(position_value: object) -> int:
     if isinstance(position_value, int) and not isinstance(position_value, bool):
         return max(SUBTITLE_POSITION_MIN, min(SUBTITLE_POSITION_MAX, position_value))
     return DEFAULT_SUBTITLE_POSITION
+
+
+def parse_optional_subtitle_position(position_value: object) -> int | None:
+    """Validate an optional persisted cue position without inventing an override."""
+    if position_value is None:
+        return None
+    if (
+        isinstance(position_value, int)
+        and not isinstance(position_value, bool)
+        and SUBTITLE_POSITION_MIN <= position_value <= SUBTITLE_POSITION_MAX
+    ):
+        return position_value
+    raise ValueError(f"subtitle position must be an integer from {SUBTITLE_POSITION_MIN} to {SUBTITLE_POSITION_MAX}")

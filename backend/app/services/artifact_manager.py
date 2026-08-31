@@ -49,18 +49,22 @@ def _persist_social_copy(artifact_dir: Path, social_copy: SocialCopy) -> None:
     )
 
 
+def _serialize_cue(cue: Cue) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "start": cue.start,
+        "end": cue.end,
+        "text": cue.text,
+        "words": (
+            [{"start": word.start, "end": word.end, "text": word.text} for word in cue.words] if cue.words else None
+        ),
+    }
+    if cue.position is not None:
+        payload["position"] = cue.position
+    return payload
+
+
 def _serialize_cues(cues: list[Cue]) -> list[dict[str, Any]]:
-    return [
-        {
-            "start": cue.start,
-            "end": cue.end,
-            "text": cue.text,
-            "words": (
-                [{"start": word.start, "end": word.end, "text": word.text} for word in cue.words] if cue.words else None
-            ),
-        }
-        for cue in cues
-    ]
+    return [_serialize_cue(cue) for cue in cues]
 
 
 def _prepare_cues_for_delivery(

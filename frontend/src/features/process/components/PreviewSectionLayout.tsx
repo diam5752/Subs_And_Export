@@ -4,7 +4,6 @@ import {
   PreviewPlayer,
   type InlineSubtitleEditorConfig,
   type PreviewPlayerHandle,
-  type SubtitleTransformConfig,
 } from "@/components/PreviewPlayer";
 import { Spinner } from "@/components/Spinner";
 import type { JobResponse } from "@/lib/api";
@@ -15,6 +14,7 @@ import {
   type PreviewTranslate,
 } from "./PreviewExportControls";
 import { Sidebar } from "./Sidebar";
+import type { LiveSubtitlePositioning } from "./usePreviewSectionConfig";
 
 interface PreviewSectionLayoutProps {
   selectedJob: JobResponse | null;
@@ -25,7 +25,7 @@ interface PreviewSectionLayoutProps {
   videoUrl: string | null;
   playerSettings: React.ComponentProps<typeof PreviewPlayer>["settings"];
   subtitleEditor: InlineSubtitleEditorConfig;
-  subtitleTransformControls: SubtitleTransformConfig;
+  subtitlePositioning: LiveSubtitlePositioning;
   handlePlayerTimeUpdate: (time: number) => void;
   handleExport: (resolution: string) => Promise<void>;
   exportingResolutions: Record<string, boolean>;
@@ -41,6 +41,52 @@ interface PreviewSectionLayoutProps {
 }
 
 type PreviewContentProps = Omit<PreviewSectionLayoutProps, "playerRef">;
+
+const SubtitlePositionScopeToggle = memo(
+  ({
+    positioning,
+    t,
+  }: {
+    positioning: LiveSubtitlePositioning;
+    t: PreviewTranslate;
+  }) => {
+    const hintId = React.useId();
+    const currentCueOnly = positioning.scope === "cue";
+    return (
+      <div
+        className="subtitle-position-scope-control"
+        data-scope={positioning.scope}
+        data-testid="subtitle-position-scope"
+      >
+        <button
+          type="button"
+          role="switch"
+          aria-checked={currentCueOnly}
+          aria-describedby={hintId}
+          aria-label={t("subtitlePositionScopeLabel")}
+          disabled={positioning.disabled}
+          onClick={() =>
+            positioning.onScopeChange(currentCueOnly ? "all" : "cue")
+          }
+          className="subtitle-position-scope-toggle"
+        >
+          <span aria-hidden="true" className="subtitle-position-scope-switch" />
+          <span className="subtitle-position-scope-label">
+            {t("subtitlePositionScopeLabel")}
+          </span>
+        </button>
+        <p id={hintId} className="subtitle-position-scope-hint">
+          {t(
+            currentCueOnly
+              ? "subtitleDragHandleLabel"
+              : "subtitleDragAllHandleLabel",
+          )}
+        </p>
+      </div>
+    );
+  },
+);
+SubtitlePositionScopeToggle.displayName = "SubtitlePositionScopeToggle";
 
 function PreviewEmptyState({ t }: { t: PreviewTranslate }) {
   return (
@@ -60,6 +106,31 @@ function PreviewEmptyState({ t }: { t: PreviewTranslate }) {
       </svg>
       <p>{t("resultPreviewTitle")}</p>
       <span>{t("resultPreviewDescription")}</span>
+    </div>
+  );
+}
+
+function PreviewPlaceholder({ t }: { t: PreviewTranslate }) {
+  return (
+    <div className="editor-preview-placeholder">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M8.5 6.9a1 1 0 011.52-.85l7.3 4.6a1 1 0 010 1.7l-7.3 4.6a1 1 0 01-1.52-.85V6.9z" />
+      </svg>
+      <span>{t("clickToPreview")}</span>
+    </div>
+  );
+}
+
+function PositionScopeOverlay({
+  positioning,
+  t,
+}: {
+  positioning: LiveSubtitlePositioning;
+  t: PreviewTranslate;
+}) {
+  return (
+    <div className="subtitle-position-scope-overlay">
+      <SubtitlePositionScopeToggle positioning={positioning} t={t} />
     </div>
   );
 }
@@ -157,24 +228,29 @@ function PreviewPlayerPanel({
         <div className="editor-phone" data-testid="editor-phone">
           <PhoneFrame className="h-full w-full" showSocialOverlays={false}>
             {props.videoUrl ? (
-              <PreviewPlayer
-                ref={playerRef}
-                videoUrl={props.videoUrl}
-                cues={props.processedCues || []}
-                settings={props.playerSettings}
-                subtitleEditor={props.subtitleEditor}
-                subtitleTransformControls={props.subtitleTransformControls}
-                onTimeUpdate={props.handlePlayerTimeUpdate}
-                playbackToggleLabel={props.t("previewVideoToggle")}
-                initialTime={initialTime}
-              />
+              <>
+                <PreviewPlayer
+                  ref={playerRef}
+                  videoUrl={props.videoUrl}
+                  cues={props.processedCues || []}
+                  settings={props.playerSettings}
+                  subtitleEditor={props.subtitleEditor}
+                  subtitleTransformControls={
+                    props.subtitlePositioning.transformControls
+                  }
+                  onTimeUpdate={props.handlePlayerTimeUpdate}
+                  playbackToggleLabel={props.t("previewVideoToggle")}
+                  initialTime={initialTime}
+                />
+                {props.processedCues.length > 0 && (
+                  <PositionScopeOverlay
+                    positioning={props.subtitlePositioning}
+                    t={props.t}
+                  />
+                )}
+              </>
             ) : (
-              <div className="editor-preview-placeholder">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8.5 6.9a1 1 0 011.52-.85l7.3 4.6a1 1 0 010 1.7l-7.3 4.6a1 1 0 01-1.52-.85V6.9z" />
-                </svg>
-                <span>{props.t("clickToPreview")}</span>
-              </div>
+              <PreviewPlaceholder t={props.t} />
             )}
           </PhoneFrame>
         </div>

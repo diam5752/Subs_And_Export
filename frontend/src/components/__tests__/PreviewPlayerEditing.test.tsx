@@ -119,9 +119,9 @@ describe("PreviewPlayer editing gestures", () => {
     expect(onBeginEdit).toHaveBeenCalledWith(0);
   });
 
-  it("pauses playback before direct subtitle positioning", () => {
-    // REGRESSION: the active cue must not disappear while the user is
-    // dragging it on the preview.
+  it("keeps playback running during direct subtitle positioning", () => {
+    // VEED-style direct manipulation stays on the live canvas. The overlay
+    // pins the gesture to its source cue instead of pausing the player.
     const onPositionChange = jest.fn();
     const { container } = render(
       <PreviewPlayer
@@ -140,6 +140,7 @@ describe("PreviewPlayer editing gestures", () => {
 
     const video = container.querySelector("video") as HTMLVideoElement;
     (video.play as jest.Mock).mockClear();
+    (video.pause as jest.Mock).mockClear();
     const overlay = screen.getByTestId("subtitle-overlay");
     fireEvent.pointerDown(overlay, {
       button: 0,
@@ -153,8 +154,8 @@ describe("PreviewPlayer editing gestures", () => {
       clientY: 800,
     });
 
-    expect(video.pause).toHaveBeenCalled();
+    expect(video.pause).not.toHaveBeenCalled();
     expect(video.play).not.toHaveBeenCalled();
-    expect(onPositionChange).toHaveBeenCalled();
+    expect(onPositionChange).toHaveBeenCalledWith(0, expect.any(Number));
   });
 });

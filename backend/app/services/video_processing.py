@@ -141,6 +141,7 @@ def _parse_persisted_cue(raw_cue: object) -> Cue:
         ),
         text=text,
         words=_parse_persisted_words(raw_cue.get("words")),
+        position=settings_utils.parse_optional_subtitle_position(raw_cue.get("position")),
     )
 
 

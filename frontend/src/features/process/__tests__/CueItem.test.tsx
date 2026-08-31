@@ -104,6 +104,28 @@ describe("CueItem", () => {
     expect(defaultProps.onEdit).toHaveBeenCalledWith(0);
   });
 
+  it("offers a reset only when this phrase has its own position", () => {
+    const onResetPosition = jest.fn();
+    const { rerender } = render(
+      <CueItem {...defaultProps} onResetPosition={onResetPosition} />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "subtitleResetPosition" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <CueItem
+        {...defaultProps}
+        cue={{ ...mockCue, position: 74 }}
+        onResetPosition={onResetPosition}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "subtitleResetPosition" }),
+    );
+    expect(onResetPosition).toHaveBeenCalledWith(0);
+  });
+
   it("calls onUpdateDraft when typing", () => {
     render(<CueItem {...defaultProps} isEditing={true} />);
 

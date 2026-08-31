@@ -7,7 +7,7 @@ import { PreviewSectionLayout } from "./PreviewSectionLayout";
 import {
   usePreviewPlayerSettings,
   usePreviewSubtitleEditor,
-  usePreviewSubtitleTransforms,
+  useLiveSubtitlePositioning,
 } from "./usePreviewSectionConfig";
 
 export function PreviewSection() {
@@ -32,7 +32,7 @@ export function PreviewSection() {
   const [showExportMenu, setShowExportMenu] = React.useState(false);
   const playerSettings = usePreviewPlayerSettings();
   const subtitleEditor = usePreviewSubtitleEditor();
-  const subtitleTransformControls = usePreviewSubtitleTransforms();
+  const subtitlePositioning = useLiveSubtitlePositioning();
   const exportFilenamePreview = useMemo(
     () =>
       buildSubtitleExportFilename(
@@ -61,7 +61,7 @@ export function PreviewSection() {
       videoUrl={videoUrl}
       playerSettings={playerSettings}
       subtitleEditor={subtitleEditor}
-      subtitleTransformControls={subtitleTransformControls}
+      subtitlePositioning={subtitlePositioning}
       handlePlayerTimeUpdate={handlePlayerTimeUpdate}
       handleExport={handleExport}
       exportingResolutions={exportingResolutions}

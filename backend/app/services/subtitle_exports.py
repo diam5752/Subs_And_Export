@@ -48,6 +48,13 @@ def _coerce_float(value: Any, *, field: str, cue_index: int) -> float:
     return number
 
 
+def _coerce_position(value: Any, *, cue_index: int) -> int | None:
+    try:
+        return settings_utils.parse_optional_subtitle_position(value)
+    except ValueError as exc:
+        raise MalformedTranscriptError(f"Transcript cue {cue_index} has invalid position") from exc
+
+
 def _coerce_words(payload: Any, *, cue_index: int) -> list[WordTiming] | None:
     if payload is None:
         return None
@@ -94,6 +101,7 @@ def cues_from_transcript_payload(payload: Any) -> list[Cue]:
                 end=end,
                 text=text,
                 words=_coerce_words(cue_payload.get("words"), cue_index=cue_index),
+                position=_coerce_position(cue_payload.get("position"), cue_index=cue_index),
             )
         )
 

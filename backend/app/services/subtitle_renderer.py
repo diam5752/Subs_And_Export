@@ -361,6 +361,7 @@ def _clone_cues(cues: Sequence[Cue]) -> List[Cue]:
                 if cue.words
                 else None
             ),
+            position=cue.position,
         )
         for cue in cues
     ]
@@ -487,6 +488,7 @@ def _sanitize_render_cues(cues: Sequence[Cue]) -> List[Cue]:
                 if cue.words
                 else None
             ),
+            position=cue.position,
         )
         for cue in cues
     ]
@@ -557,6 +559,7 @@ def _render_cue_events(
                 end=cue.end,
                 text=active_text,
                 words=cue.words,
+                position=cue.position,
             ),
             max_lines=max_lines,
             primary_color=primary_color,
@@ -576,6 +579,12 @@ def _render_cue_events(
         play_res_x=play_res_x,
         play_res_y=play_res_y,
     )
+
+
+def _cue_position(cue: Cue, shared_position: int) -> int:
+    if cue.position is None:
+        return shared_position
+    return settings_utils.normalize_subtitle_position(cue.position)
 
 
 def create_styled_subtitle_file(
@@ -654,7 +663,7 @@ def create_styled_subtitle_file(
                 effective_chars=effective_chars,
                 primary_color=primary_color,
                 secondary_color=secondary_color,
-                subtitle_position=position_pct,
+                subtitle_position=_cue_position(cue, position_pct),
                 font_size=render_font_size,
                 play_res_x=play_res_x,
                 play_res_y=play_res_y,

@@ -39,10 +39,19 @@ type MockHistoryEvent = {
   data: Record<string, unknown>;
 };
 
+type MockTranscriptionCue = {
+  start: number;
+  end: number;
+  text: string;
+  words?: Array<{ start: number; end: number; text: string }>;
+  position?: number;
+};
+
 type MockApiOptions = {
   authenticated?: boolean;
   googleNonceExpiresIn?: number;
   checkoutEnabled?: boolean;
+  transcription?: MockTranscriptionCue[];
 };
 
 const corsHeaders = {
@@ -256,14 +265,17 @@ export async function mockApi(
     authenticated = true,
     googleNonceExpiresIn = 600,
     checkoutEnabled = true,
+    transcription = mockTranscription,
   } = options;
   let signedIn = authenticated;
   let downloadGrantSequence = 0;
   const downloadGrantFilenames = new Map<string, string>();
-  let currentTranscription = mockTranscription.map((cue) => ({
-    ...cue,
-    words: cue.words.map((word) => ({ ...word })),
-  }));
+  let currentTranscription: MockTranscriptionCue[] = transcription.map(
+    (cue) => ({
+      ...cue,
+      words: cue.words?.map((word) => ({ ...word })) ?? [],
+    }),
+  );
 
   // Pre-set locale to avoid hydration flicker.
   await page.addInitScript(
@@ -547,7 +559,7 @@ export async function mockApi(
       url.pathname.endsWith("/transcription")
     ) {
       const payload = route.request().postDataJSON() as {
-        cues?: typeof mockTranscription;
+        cues?: MockTranscriptionCue[];
       };
       currentTranscription = (payload.cues ?? []).map((cue) => ({
         ...cue,

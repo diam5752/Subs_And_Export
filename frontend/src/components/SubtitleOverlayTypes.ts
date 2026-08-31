@@ -1,11 +1,19 @@
 import type { InlineSubtitleEditorLabels } from "./InlineSubtitleEditor";
 
+export type SubtitlePositionScope = "all" | "cue";
+
 export interface SubtitleTransformControls {
   labels: {
     move: string;
     resize: string;
+    customPosition?: string;
+    sharedPosition?: string;
+    resetPosition?: string;
   };
-  onPositionChange: (position: number) => void;
+  onPositionChange: (cueIndex: number, position: number) => void;
+  onPositionCommit?: (cueIndex: number) => void;
+  onPositionCancel?: (cueIndex: number) => void;
+  onPositionReset?: (cueIndex: number) => void;
   onSizeChange: (size: number) => void;
   onInteractionStart?: () => void;
 }

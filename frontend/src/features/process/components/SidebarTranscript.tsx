@@ -19,6 +19,7 @@ interface CueListProps {
   onCancel: () => void;
   onUpdateDraft: (text: string) => void;
   autoFocusEditor: boolean;
+  onResetPosition: (index: number) => void;
 }
 
 function CueListEntry({
@@ -46,6 +47,7 @@ function CueListEntry({
       onCancel={props.onCancel}
       onUpdateDraft={props.onUpdateDraft}
       autoFocusEditor={props.autoFocusEditor}
+      onResetPosition={props.onResetPosition}
     />
   );
 }
@@ -201,6 +203,7 @@ function TranscriptPanelView({
     transcriptLoadError,
     transcriptSaveError,
     isProcessing,
+    resetCuePosition,
   } = useProcessContext();
   return (
     <TranscriptContent
@@ -214,6 +217,9 @@ function TranscriptPanelView({
       onSave={saveEditingCue}
       onCancel={cancelEditingCue}
       onUpdateDraft={handleUpdateDraft}
+      onResetPosition={(index) => {
+        void resetCuePosition(index);
+      }}
       autoFocusEditor={editingCueSurface !== "video"}
       ref={transcriptContainerRef}
       transcriptLoadError={transcriptLoadError}

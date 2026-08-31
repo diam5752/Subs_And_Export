@@ -323,6 +323,7 @@ def test_persist_artifacts_resegments_transcription_json(tmp_path: Path):
         end=words[-1].end,
         text=" ".join(word.text for word in words),
         words=words,
+        position=74,
     )
 
     artifact_manager.persist_artifacts(
@@ -341,6 +342,7 @@ def test_persist_artifacts_resegments_transcription_json(tmp_path: Path):
     assert len(transcription) >= 2
     assert transcription[0]["end"] < cue.end
     assert transcription[0]["words"]
+    assert all(entry["position"] == 74 for entry in transcription)
     assert any("ΘΡΑΚΗ" in entry["text"] for entry in transcription)
 
 

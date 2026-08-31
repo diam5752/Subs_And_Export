@@ -1,5 +1,5 @@
 import type React from "react";
-import type { Cue } from "@/components/SubtitleOverlay";
+import type { Cue, SubtitlePositionScope } from "@/components/SubtitleOverlay";
 import type { PreviewPlayerHandle } from "@/components/PreviewPlayer";
 import type { JobResponse } from "@/lib/api";
 import type { TranscribeMode, TranscribeProvider } from "./processTypes";
@@ -110,6 +110,20 @@ export interface ProcessContextType {
   saveEditingCue: () => Promise<void>;
   updateCueText: (cue: Cue, nextText: string) => Cue;
   handleUpdateDraft: (text: string) => void;
+  changeCuePosition: (
+    sourceCueIndex: number,
+    position: number,
+    scope?: SubtitlePositionScope,
+  ) => void;
+  commitCuePosition: (
+    sourceCueIndex: number,
+    scope?: SubtitlePositionScope,
+  ) => Promise<void>;
+  cancelCuePosition: (
+    sourceCueIndex: number,
+    scope?: SubtitlePositionScope,
+  ) => void;
+  resetCuePosition: (sourceCueIndex: number) => Promise<void>;
 
   // Constants
   SUBTITLE_COLORS: Array<{ label: string; value: string; ass: string }>;
