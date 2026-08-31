@@ -50,8 +50,13 @@ def copy_release_script(filename: str, deployment_root: Path) -> None:
 
 
 def relay_validator_source(verifier: str) -> str:
-    marker = 'docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c \'\n'
-    validator = textwrap.dedent(verifier.split(marker, 1)[1].split("\n  '; then", 1)[0])
+    marker = (
+        'docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | '
+        'docker exec -i "$backend_id" python -c '
+        '\'import textwrap; exec(compile(textwrap.dedent("""\\\n'
+    )
+    terminator = '\n  """), "<gsubs-production-verifier>", "exec"))\'; then'
+    validator = textwrap.dedent(verifier.split(marker, 1)[1].split(terminator, 1)[0])
     assert validator.startswith("from __future__ import annotations\n")
     return validator
 
