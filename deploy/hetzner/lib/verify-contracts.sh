@@ -405,7 +405,7 @@ verify_storage_and_provider_contracts() {
     echo "Backend erasure journal must use its dedicated writable volume." >&2
     exit 1
   fi
-  if ! docker exec "$backend_id" python -c '
+  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   import os
   from pathlib import Path
 
@@ -418,7 +418,7 @@ verify_storage_and_provider_contracts() {
   if marker.read_text(encoding="ascii").strip() != expected:
       raise SystemExit("Live erasure journal continuity marker does not match.")
   configured_erasure_journal().read_all()
-  '; then
+  """), "<gsubs-production-verifier>", "exec"))'; then
     echo "Erasure-journal integrity validation failed in the running backend." >&2
     exit 1
   fi
@@ -443,7 +443,7 @@ verify_storage_and_provider_contracts() {
     echo "Backend Google client ID does not match the release environment." >&2
     exit 1
   }
-  if ! docker exec "$backend_id" python -c '
+  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   from urllib.parse import urlsplit
 
   from backend.app.core.config import settings
@@ -492,18 +492,18 @@ verify_storage_and_provider_contracts() {
       raise SystemExit("Production Scribe API key is unavailable.")
   settings.assert_paid_credits_configuration()
   settings.assert_download_grant_configuration()
-  '; then
+  """), "<gsubs-production-verifier>", "exec"))'; then
     echo "Production provider or Stripe staging configuration is incomplete or unsafe." >&2
     exit 1
   fi
-  if ! docker exec "$backend_id" python -c '
+  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
   from backend.app.services.billing import BillingError, StripeSdkGateway
 
   try:
       StripeSdkGateway().assert_payment_intent_write_access()
   except BillingError as exc:
       raise SystemExit(str(exc)) from None
-  '; then
+  """), "<gsubs-production-verifier>", "exec"))'; then
     echo "Production Stripe Payment Intents Write access is unavailable." >&2
     exit 1
   fi

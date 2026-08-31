@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import textwrap
 from decimal import Decimal
 from pathlib import Path
 
@@ -578,3 +579,41 @@ def test_production_verifier_requires_payment_intent_write_access() -> None:
     assert permission_probe in verifier
     assert "Payment Intents Write access is unavailable" in verifier
     assert verifier.index(permission_probe) < verifier.index('health_json=""')
+
+
+def test_production_verifier_multiline_python_is_dedented_and_compiles() -> None:
+    opening = 'python -c \'import textwrap; exec(compile(textwrap.dedent("""\\'
+    closing = '"""), "<gsubs-production-verifier>", "exec"))\''
+    scripts = (
+        DEPLOYMENT_ROOT / "lib" / "verify-contracts.sh",
+        DEPLOYMENT_ROOT / "lib" / "verify-edge.sh",
+    )
+
+    discovered = 0
+    compiled = 0
+    for script in scripts:
+        lines = script.read_text(encoding="utf-8").splitlines()
+        index = 0
+        while index < len(lines):
+            line = lines[index]
+            if "python -c '" not in line:
+                index += 1
+                continue
+            discovered += 1
+            assert opening in line, f"{script}:{index + 1} does not dedent inline Python"
+            source_lines: list[str] = []
+            index += 1
+            while index < len(lines) and closing not in lines[index]:
+                source_lines.append(lines[index])
+                index += 1
+            assert index < len(lines), f"{script} has an unterminated inline Python block"
+            compile(
+                textwrap.dedent("\n".join(source_lines)),
+                f"{script}:{index + 1}",
+                "exec",
+            )
+            compiled += 1
+            index += 1
+
+    assert discovered == 9
+    assert compiled == discovered
