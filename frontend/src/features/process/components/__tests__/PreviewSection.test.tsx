@@ -233,6 +233,7 @@ describe("PreviewSection", () => {
       name: "subtitlePositionScopeLabel",
     });
     expect(screen.getByTestId("editor-phone")).toContainElement(positionScope);
+    expect(positionScope).toHaveTextContent("subtitlePositionScopeShortLabel");
     expect(positionScope).toBeChecked();
     expect(screen.getByText("subtitleDragHandleLabel")).toBeInTheDocument();
     fireEvent.click(positionScope);
