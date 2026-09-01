@@ -86,7 +86,7 @@
 
 .subtitle-position-scope-control {
   width: fit-content;
-  max-width: 168px;
+  max-width: 112px;
   margin: 0;
   padding: 0;
   pointer-events: auto;
@@ -100,15 +100,15 @@
   max-width: 100%;
   min-height: 44px;
   align-items: center;
-  gap: 6px;
-  padding: 0 9px;
+  gap: 4px;
+  padding: 0 7px;
   text-align: left;
 }
 
 .subtitle-position-scope-toggle::before {
   position: absolute;
   z-index: -1;
-  inset: 6px 0;
+  inset: 9px 0;
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 999px;
   background: rgb(8 10 14 / 82%);
@@ -126,7 +126,10 @@
 }
 
 .subtitle-position-scope-toggle:focus-visible {
-  border-radius: 999px;
+  outline: none;
+}
+
+.subtitle-position-scope-toggle:focus-visible::before {
   outline: 2px solid rgb(103 232 249);
   outline-offset: 2px;
 }
@@ -138,8 +141,8 @@
 
 .subtitle-position-scope-switch {
   position: relative;
-  width: 30px;
-  height: 18px;
+  width: 24px;
+  height: 14px;
   flex: none;
   border-radius: 999px;
   background: rgb(203 213 225);
@@ -150,8 +153,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
@@ -166,7 +169,7 @@
 
 .subtitle-position-scope-control[data-scope="cue"]
   .subtitle-position-scope-switch::after {
-  transform: translateX(12px);
+  transform: translateX(10px);
 }
 
 .subtitle-position-scope-label {

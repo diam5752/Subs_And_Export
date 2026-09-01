@@ -72,7 +72,7 @@ const SubtitlePositionScopeToggle = memo(
         >
           <span aria-hidden="true" className="subtitle-position-scope-switch" />
           <span className="subtitle-position-scope-label">
-            {t("subtitlePositionScopeLabel")}
+            {t("subtitlePositionScopeShortLabel")}
           </span>
         </button>
         <p id={hintId} className="subtitle-position-scope-hint">
