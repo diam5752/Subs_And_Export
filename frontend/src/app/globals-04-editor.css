@@ -79,36 +79,50 @@
   top: 52px;
   right: 10px;
   left: 10px;
+  display: flex;
+  justify-content: center;
   pointer-events: none;
 }
 
 .subtitle-position-scope-control {
-  width: 100%;
+  width: fit-content;
+  max-width: 168px;
   margin: 0;
-  padding: 2px 6px;
+  padding: 0;
+  pointer-events: auto;
+}
+
+.subtitle-position-scope-toggle {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  text-align: left;
+}
+
+.subtitle-position-scope-toggle::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 999px;
   background: rgb(8 10 14 / 82%);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
-  pointer-events: auto;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 24%);
+  content: "";
   transition:
     border-color 150ms,
     background-color 150ms;
 }
 
-.subtitle-position-scope-control[data-scope="cue"] {
+.subtitle-position-scope-control[data-scope="cue"]
+  .subtitle-position-scope-toggle::before {
   border-color: rgb(103 232 249 / 80%);
   background: rgb(8 35 43 / 88%);
-}
-
-.subtitle-position-scope-toggle {
-  display: flex;
-  width: 100%;
-  min-height: 44px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px;
-  text-align: left;
 }
 
 .subtitle-position-scope-toggle:focus-visible {
@@ -124,8 +138,8 @@
 
 .subtitle-position-scope-switch {
   position: relative;
-  width: 36px;
-  height: 20px;
+  width: 30px;
+  height: 18px;
   flex: none;
   border-radius: 999px;
   background: rgb(203 213 225);
@@ -136,8 +150,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
@@ -152,7 +166,7 @@
 
 .subtitle-position-scope-control[data-scope="cue"]
   .subtitle-position-scope-switch::after {
-  transform: translateX(18px);
+  transform: translateX(12px);
 }
 
 .subtitle-position-scope-label {
