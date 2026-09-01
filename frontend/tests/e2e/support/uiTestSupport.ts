@@ -95,25 +95,19 @@ async function readEditorMetrics(page: Page) {
         .length,
       preview: bounds('[data-testid="editor-preview-panel"]'),
       phone: bounds('[data-testid="editor-phone"]'),
-      positionScope: bounds(".subtitle-position-scope-toggle"),
-      positionScopeInsidePhone: Boolean(
+      cuePositionHandle: bounds('[data-testid="subtitle-cue-drag-handle"]'),
+      cuePositionHandleInsidePhone: Boolean(
         document
           .querySelector<HTMLElement>('[data-testid="editor-phone"]')
           ?.contains(
             document.querySelector<HTMLElement>(
-              ".subtitle-position-scope-toggle",
+              '[data-testid="subtitle-cue-drag-handle"]',
             ) ?? null,
           ),
       ),
-      positionScopeInsideActiveCue: Boolean(
-        document
-          .querySelector<HTMLElement>('.cue-item[data-active="true"]')
-          ?.contains(
-            document.querySelector<HTMLElement>(
-              ".subtitle-position-scope-toggle",
-            ) ?? null,
-          ),
-      ),
+      positionScopeCount: document.querySelectorAll(
+        ".subtitle-position-scope-toggle",
+      ).length,
       sidebar: bounds('[data-testid="editor-sidebar"]'),
       tabsSticky: bounds(".editor-tabs-sticky"),
       transcriptList: bounds(".editor-transcript-list"),
@@ -212,29 +206,21 @@ function expectBaseEditorMetrics(
     `${viewport.width}px phone width`,
   ).toBeLessThanOrEqual(280);
   expect(
-    metrics.positionScopeInsidePhone,
-    `${viewport.width}px scope toggle placement`,
-  ).toBe(false);
-  expect(
-    metrics.positionScopeInsideActiveCue,
-    `${viewport.width}px active cue scope toggle placement`,
+    metrics.cuePositionHandleInsidePhone,
+    `${viewport.width}px cue movement handle placement`,
   ).toBe(true);
   expect(
-    metrics.positionScope.height,
-    `${viewport.width}px scope toggle touch target`,
+    metrics.positionScopeCount,
+    `${viewport.width}px legacy scope toggle count`,
+  ).toBe(0);
+  expect(
+    metrics.cuePositionHandle.height,
+    `${viewport.width}px cue movement touch target height`,
   ).toBeGreaterThanOrEqual(44);
   expect(
-    metrics.positionScope.width,
-    `${viewport.width}px scope toggle width`,
-  ).toBeLessThanOrEqual(112);
-  expect(
-    metrics.positionScope.x,
-    `${viewport.width}px scope toggle left containment`,
-  ).toBeGreaterThanOrEqual(metrics.sidebar.x - 1);
-  expect(
-    metrics.positionScope.right,
-    `${viewport.width}px scope toggle right containment`,
-  ).toBeLessThanOrEqual(metrics.sidebar.right + 1);
+    metrics.cuePositionHandle.width,
+    `${viewport.width}px cue movement touch target width`,
+  ).toBeGreaterThanOrEqual(44);
   expect(
     metrics.transcriptList.y,
     `${viewport.width}px transcript below sticky tabs`,

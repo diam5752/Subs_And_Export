@@ -21,6 +21,77 @@ function firePointer(
 }
 
 describe("SubtitleOverlay phrase positioning", () => {
+  it("uses a separate handle for the active phrase while normal dragging moves all", () => {
+    const onPositionChange = jest.fn();
+    const onPositionCommit = jest.fn();
+    const onCuePositionChange = jest.fn();
+    const onCuePositionCommit = jest.fn();
+
+    render(
+      <SubtitleOverlay
+        currentTime={0.5}
+        cues={[{ start: 0, end: 2, text: "first", sourceCueIndex: 3 }]}
+        settings={{
+          position: 20,
+          color: "#FFFF00",
+          fontSize: 100,
+          karaoke: false,
+          maxLines: 2,
+          shadowStrength: 4,
+        }}
+        videoWidth={500}
+        videoHeight={1000}
+        transformControls={{
+          labels: {
+            move: "Move all subtitles",
+            moveCue: "Move only this phrase",
+            resize: "Resize subtitles",
+          },
+          onPositionChange,
+          onPositionCommit,
+          onCuePositionChange,
+          onCuePositionCommit,
+          onSizeChange: jest.fn(),
+        }}
+      />,
+    );
+
+    const overlay = screen.getByTestId("subtitle-overlay");
+    const cueHandle = screen.getByRole("slider", {
+      name: "Move only this phrase",
+    });
+    const allHandle = screen.getByRole("slider", {
+      name: "Move all subtitles",
+    });
+    expect(cueHandle).toHaveTextContent("1");
+    expect(cueHandle).toHaveClass("subtitle-cue-transform-handle");
+
+    firePointer(cueHandle, "pointerdown", {
+      button: 0,
+      pointerId: 60,
+      clientX: 100,
+      clientY: 600,
+    });
+    firePointer(overlay, "pointermove", {
+      pointerId: 60,
+      clientX: 100,
+      clientY: 500,
+    });
+    firePointer(overlay, "pointerup", {
+      pointerId: 60,
+      clientX: 100,
+      clientY: 500,
+    });
+
+    expect(onCuePositionChange).toHaveBeenCalledWith(3, 30);
+    expect(onCuePositionCommit).toHaveBeenCalledWith(3);
+    expect(onPositionChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(allHandle, { key: "ArrowUp" });
+    expect(onPositionChange).toHaveBeenCalledWith(3, 21);
+    expect(onPositionCommit).toHaveBeenCalledWith(3);
+  });
+
   it("pins a live drag to the phrase active when playback advanced", () => {
     const onPositionChange = jest.fn();
     const onPositionCommit = jest.fn();

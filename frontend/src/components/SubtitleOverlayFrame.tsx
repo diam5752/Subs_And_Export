@@ -83,6 +83,69 @@ function PositionHandle({
   );
 }
 
+function CuePositionIcon() {
+  return (
+    <span className="relative grid h-8 w-8 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform group-hover:scale-110 group-focus-visible:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-cyan-300">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      >
+        <path d="M10 2.5v15M6.8 5.7 10 2.5l3.2 3.2M6.8 14.3 10 17.5l3.2-3.2" />
+      </svg>
+      <span
+        aria-hidden="true"
+        className="absolute -bottom-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full border border-black/70 bg-cyan-200 px-0.5 text-[8px] font-black leading-none text-black"
+      >
+        1
+      </span>
+    </span>
+  );
+}
+
+function CuePositionHandle({
+  position,
+  controls,
+  handlers,
+  hasCustomPosition,
+}: {
+  position: number;
+  controls: SubtitleTransformControls;
+  handlers: TransformHandlers;
+  hasCustomPosition: boolean;
+}) {
+  const label = controls.labels.moveCue;
+  if (!label || !controls.onCuePositionChange) return null;
+  return (
+    <button
+      type="button"
+      role="slider"
+      data-testid="subtitle-cue-drag-handle"
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={SUBTITLE_POSITION_MIN}
+      aria-valuemax={SUBTITLE_POSITION_MAX}
+      aria-valuenow={position}
+      aria-valuetext={`${position}% · ${
+        hasCustomPosition
+          ? (controls.labels.customPosition ?? "custom position")
+          : (controls.labels.sharedPosition ?? "shared position")
+      }`}
+      title={label}
+      onPointerDown={handlers.handleCuePositionHandlePointerDown}
+      onKeyDown={handlers.handleCuePositionKeyDown}
+      className="subtitle-desktop-transform-handle subtitle-cue-transform-handle group absolute left-0 top-1/2 z-10 mt-8 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full bg-transparent touch-none focus-visible:outline-none"
+    >
+      <CuePositionIcon />
+    </button>
+  );
+}
+
 function SizeHandle({
   fontSize,
   controls,
@@ -130,6 +193,12 @@ function TransformHandles({
   return (
     <>
       <PositionHandle
+        position={position}
+        controls={controls}
+        handlers={handlers}
+        hasCustomPosition={hasCustomPosition}
+      />
+      <CuePositionHandle
         position={position}
         controls={controls}
         handlers={handlers}

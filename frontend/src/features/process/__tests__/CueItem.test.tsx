@@ -126,52 +126,8 @@ describe("CueItem", () => {
     expect(onResetPosition).toHaveBeenCalledWith(0);
   });
 
-  it("puts one explicit ON/OFF scope switch above the active phrase", () => {
-    const onPositionScopeChange = jest.fn();
-    const { rerender } = render(
-      <CueItem
-        {...defaultProps}
-        isActive
-        positionScope="cue"
-        onPositionScopeChange={onPositionScopeChange}
-      />,
-    );
-
-    const scopeSwitch = screen.getByRole("switch", {
-      name: "subtitlePositionScopeLabel",
-    });
-    const phrase = screen.getByRole("button", { name: "jumpToCue" });
-    expect(scopeSwitch).toBeChecked();
-    expect(screen.getByText("subtitlePositionScopeOn")).toBeInTheDocument();
-    expect(
-      scopeSwitch.closest(".subtitle-position-scope-control")
-        ?.nextElementSibling,
-    ).toBe(phrase);
-
-    fireEvent.click(scopeSwitch);
-    expect(onPositionScopeChange).toHaveBeenCalledWith("all");
-
-    rerender(
-      <CueItem
-        {...defaultProps}
-        isActive
-        positionScope="all"
-        onPositionScopeChange={onPositionScopeChange}
-      />,
-    );
-    expect(scopeSwitch).not.toBeChecked();
-    expect(screen.getByText("subtitlePositionScopeOff")).toBeInTheDocument();
-  });
-
-  it("does not duplicate the scope switch on inactive phrases", () => {
-    render(
-      <CueItem
-        {...defaultProps}
-        positionScope="cue"
-        onPositionScopeChange={jest.fn()}
-      />,
-    );
-
+  it("keeps movement scope controls out of transcript phrases", () => {
+    render(<CueItem {...defaultProps} isActive />);
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 

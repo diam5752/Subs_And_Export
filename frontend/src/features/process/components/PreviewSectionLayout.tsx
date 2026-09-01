@@ -207,7 +207,7 @@ function CompletedEditor({ playerRef, ...props }: PreviewSectionLayoutProps) {
         data-testid="editor-workspace"
       >
         <PreviewPlayerPanel playerRef={playerRef} {...props} />
-        <Sidebar subtitlePositioning={props.subtitlePositioning} />
+        <Sidebar />
       </div>
     </div>
   );

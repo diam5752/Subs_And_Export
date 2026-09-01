@@ -130,8 +130,7 @@ describe("Sidebar Tabs", () => {
     expect(container.querySelectorAll("#cue-0")).toHaveLength(1);
   });
 
-  it("renders the scope switch only above the active transcript phrase", () => {
-    const onScopeChange = jest.fn();
+  it("keeps movement scope controls on the video instead of the transcript", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
       value: jest.fn(),
@@ -144,30 +143,14 @@ describe("Sidebar Tabs", () => {
       ],
     });
 
-    const { container } = render(
+    render(
       <I18nProvider initialLocale="en">
         <PlaybackProvider>
-          <Sidebar
-            subtitlePositioning={{
-              scope: "cue",
-              disabled: false,
-              onScopeChange,
-            }}
-          />
+          <Sidebar />
         </PlaybackProvider>
       </I18nProvider>,
     );
-
-    const scopeSwitch = screen.getByRole("switch", {
-      name: "Only this phrase",
-    });
-    expect(scopeSwitch).toBeChecked();
-    expect(scopeSwitch).toHaveTextContent("ON");
-    expect(container.querySelector("#cue-0")).toContainElement(scopeSwitch);
-    expect(container.querySelector("#cue-1")).not.toContainElement(scopeSwitch);
-
-    fireEvent.click(scopeSwitch);
-    expect(onScopeChange).toHaveBeenCalledWith("all");
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
   it("keeps completed-job actions above the mobile style scroll target", () => {

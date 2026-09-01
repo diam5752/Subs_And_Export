@@ -5,6 +5,7 @@ export type SubtitlePositionScope = "all" | "cue";
 export interface SubtitleTransformControls {
   labels: {
     move: string;
+    moveCue?: string;
     resize: string;
     customPosition?: string;
     sharedPosition?: string;
@@ -12,6 +13,9 @@ export interface SubtitleTransformControls {
   onPositionChange: (cueIndex: number, position: number) => void;
   onPositionCommit?: (cueIndex: number) => void;
   onPositionCancel?: (cueIndex: number) => void;
+  onCuePositionChange?: (cueIndex: number, position: number) => void;
+  onCuePositionCommit?: (cueIndex: number) => void;
+  onCuePositionCancel?: (cueIndex: number) => void;
   onSizeChange: (size: number) => void;
   onInteractionStart?: () => void;
 }

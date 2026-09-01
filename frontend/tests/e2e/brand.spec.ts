@@ -111,15 +111,13 @@ test("the editor keeps advanced output toggles out of the style workspace", asyn
   await page.goto("/");
   await page.getByTestId("completed-editor").waitFor({ timeout: 30_000 });
   await expect(
-    page.getByTestId("editor-phone").getByRole("switch", {
-      name: el.subtitlePositionScopeLabel,
+    page.getByTestId("editor-phone").getByRole("slider", {
+      name: el.subtitleDragHandleLabel,
     }),
-  ).toHaveCount(0);
-  await expect(
-    page
-      .locator('.cue-item[data-active="true"]')
-      .getByRole("switch", { name: el.subtitlePositionScopeLabel }),
   ).toBeVisible();
+  await expect(
+    page.locator('.cue-item[data-active="true"]').getByRole("switch"),
+  ).toHaveCount(0);
   await page.getByRole("tab", { name: el.tabStyles }).click();
   await expect(
     page.getByTestId("editor-style-panel").getByRole("switch"),
