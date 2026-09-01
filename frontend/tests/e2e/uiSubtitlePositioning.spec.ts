@@ -183,14 +183,17 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
   expect(exportPayload.subtitle_position).toBe(sharedMovedPosition);
   expect(exportPayload.subtitle_size).toBe(finalSize);
 
+  await expect(
+    phone.getByRole("button", { name: el.subtitleResetPosition }),
+  ).toHaveCount(0);
   const resetRequest = page.waitForRequest(
     (request) =>
       request.method() === "PUT" &&
       request.url().endsWith("/videos/jobs/job-futurist/transcription"),
   );
   await page
+    .locator('.cue-item[data-active="true"]')
     .getByRole("button", { name: el.subtitleResetPosition })
-    .first()
     .click();
   const resetPayload = (await resetRequest).postDataJSON() as {
     cues: Array<{ position?: number }>;

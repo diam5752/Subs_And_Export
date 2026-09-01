@@ -8,12 +8,10 @@ export interface SubtitleTransformControls {
     resize: string;
     customPosition?: string;
     sharedPosition?: string;
-    resetPosition?: string;
   };
   onPositionChange: (cueIndex: number, position: number) => void;
   onPositionCommit?: (cueIndex: number) => void;
   onPositionCancel?: (cueIndex: number) => void;
-  onPositionReset?: (cueIndex: number) => void;
   onSizeChange: (size: number) => void;
   onInteractionStart?: () => void;
 }

@@ -80,7 +80,6 @@ interface SubtitlePositionActions {
     scope: SubtitlePositionScope,
   ) => Promise<void>;
   cancel: (sourceCueIndex: number, scope: SubtitlePositionScope) => void;
-  reset: (sourceCueIndex: number) => Promise<void>;
   resize: (size: number) => void;
 }
 
@@ -99,7 +98,6 @@ function buildSubtitleTransformControls(
       resize: t("subtitleResizeHandleLabel"),
       customPosition: t("subtitleCustomPosition"),
       sharedPosition: t("subtitleSharedPosition"),
-      resetPosition: t("subtitleResetPosition"),
     },
     onPositionChange: (sourceCueIndex, position) => {
       actions.change(sourceCueIndex, position, scope);
@@ -110,12 +108,6 @@ function buildSubtitleTransformControls(
     onPositionCancel: (sourceCueIndex) => {
       actions.cancel(sourceCueIndex, scope);
     },
-    onPositionReset:
-      scope === "cue"
-        ? (sourceCueIndex: number) => {
-            void actions.reset(sourceCueIndex);
-          }
-        : undefined,
     onSizeChange: actions.resize,
   };
 }
@@ -127,7 +119,6 @@ export function useLiveSubtitlePositioning(): LiveSubtitlePositioning {
     changeCuePosition,
     commitCuePosition,
     isSavingTranscript,
-    resetCuePosition,
     setSubtitleSize,
   } = useProcessContext();
   const [scope, setScope] = useState<SubtitlePositionScope>("cue");
@@ -139,7 +130,6 @@ export function useLiveSubtitlePositioning(): LiveSubtitlePositioning {
             change: changeCuePosition,
             commit: commitCuePosition,
             cancel: cancelCuePosition,
-            reset: resetCuePosition,
             resize: setSubtitleSize,
           }),
     [
@@ -147,7 +137,6 @@ export function useLiveSubtitlePositioning(): LiveSubtitlePositioning {
       changeCuePosition,
       commitCuePosition,
       isSavingTranscript,
-      resetCuePosition,
       setSubtitleSize,
       scope,
       t,

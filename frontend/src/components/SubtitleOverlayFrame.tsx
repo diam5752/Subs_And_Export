@@ -83,35 +83,6 @@ function PositionHandle({
   );
 }
 
-function PositionResetButton({
-  sourceCueIndex,
-  controls,
-}: {
-  sourceCueIndex: number;
-  controls: SubtitleTransformControls;
-}) {
-  if (!controls.onPositionReset) return null;
-  const label = controls.labels.resetPosition ?? "Use shared position";
-  return (
-    <button
-      type="button"
-      data-testid="subtitle-position-reset"
-      aria-label={label}
-      title={label}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        controls.onInteractionStart?.();
-        controls.onPositionReset?.(sourceCueIndex);
-      }}
-      className="subtitle-desktop-transform-handle absolute left-0 top-1/2 mt-10 grid min-h-8 min-w-8 -translate-x-1/2 place-items-center rounded-full border border-white/25 bg-black/85 px-2 text-[10px] font-bold text-white shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm hover:border-cyan-300/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-    >
-      <span aria-hidden="true">↺</span>
-    </button>
-  );
-}
-
 function SizeHandle({
   fontSize,
   controls,
@@ -149,14 +120,12 @@ function TransformHandles({
   controls,
   handlers,
   hasCustomPosition,
-  sourceCueIndex,
 }: {
   position: number;
   fontSize: number;
   controls: SubtitleTransformControls;
   handlers: TransformHandlers;
   hasCustomPosition: boolean;
-  sourceCueIndex: number;
 }) {
   return (
     <>
@@ -166,12 +135,6 @@ function TransformHandles({
         handlers={handlers}
         hasCustomPosition={hasCustomPosition}
       />
-      {hasCustomPosition && (
-        <PositionResetButton
-          sourceCueIndex={sourceCueIndex}
-          controls={controls}
-        />
-      )}
       <SizeHandle fontSize={fontSize} controls={controls} handlers={handlers} />
     </>
   );
@@ -265,7 +228,6 @@ export function SubtitleOverlayFrame({
           controls={transformControls}
           handlers={handlers}
           hasCustomPosition={hasCustomPosition}
-          sourceCueIndex={sourceCueIndex}
         />
       )}
     </div>

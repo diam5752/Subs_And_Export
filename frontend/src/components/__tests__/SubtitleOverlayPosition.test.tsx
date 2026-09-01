@@ -87,8 +87,7 @@ describe("SubtitleOverlay phrase positioning", () => {
     expect(onPositionCommit).toHaveBeenCalledWith(3);
   });
 
-  it("renders a cue-local position and can reset only that phrase", () => {
-    const onPositionReset = jest.fn();
+  it("renders a cue-local position without an in-video reset button", () => {
     render(
       <SubtitleOverlay
         currentTime={2.5}
@@ -115,10 +114,8 @@ describe("SubtitleOverlay phrase positioning", () => {
             move: "Move phrase",
             resize: "Resize subtitles",
             customPosition: "custom phrase position",
-            resetPosition: "Use shared position",
           },
           onPositionChange: jest.fn(),
-          onPositionReset,
           onSizeChange: jest.fn(),
         }}
       />,
@@ -133,9 +130,8 @@ describe("SubtitleOverlay phrase positioning", () => {
       "aria-valuetext",
       "77% · custom phrase position",
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Use shared position" }),
-    );
-    expect(onPositionReset).toHaveBeenCalledWith(8);
+    expect(
+      screen.queryByTestId("subtitle-position-reset"),
+    ).not.toBeInTheDocument();
   });
 });
