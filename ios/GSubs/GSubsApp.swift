@@ -8,6 +8,7 @@ struct GSubsApp: App {
         WindowGroup {
             RootView(model: model)
                 .preferredColorScheme(.light)
+                .statusBarHidden(model.videoURL != nil && !model.cues.isEmpty)
         }
     }
 }

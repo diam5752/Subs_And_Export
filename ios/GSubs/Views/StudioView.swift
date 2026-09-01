@@ -12,6 +12,7 @@ struct StudioView: View {
     @State private var confirmsAccountDeletion = false
     @State var selectedCueID: UUID?
     @State var keyboardIsVisible = false
+    @State var immersiveToolsPresented = false
     @FocusState var focusedCueID: UUID?
 
     var body: some View {
@@ -75,7 +76,7 @@ struct StudioView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if model.videoURL != nil, !keyboardIsVisible {
+                if model.videoURL != nil, model.cues.isEmpty, !keyboardIsVisible {
                     stickyAction
                 }
             }
@@ -96,10 +97,24 @@ struct StudioView: View {
             .onChange(of: model.videoURL) { _, _ in
                 selectedCueID = nil
                 focusedCueID = nil
+                immersiveToolsPresented = false
             }
-            .onChange(of: model.cues.map(\.id)) { _, cueIDs in
-                guard let selectedCueID, !cueIDs.contains(selectedCueID) else { return }
-                self.selectedCueID = cueIDs.first
+            .onChange(of: model.cues.map(\.id), initial: true) { _, cueIDs in
+                guard !cueIDs.isEmpty else {
+                    selectedCueID = nil
+                    focusedCueID = nil
+                    immersiveToolsPresented = false
+                    return
+                }
+                guard let selectedCueID, cueIDs.contains(selectedCueID) else {
+                    self.selectedCueID = cueIDs.first
+                    return
+                }
+            }
+            .onChange(of: focusedCueID) { _, cueID in
+                if cueID != nil {
+                    immersiveToolsPresented = false
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
                 keyboardIsVisible = true

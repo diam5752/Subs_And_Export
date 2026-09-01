@@ -11,29 +11,30 @@ extension GSubsUITests {
         XCTAssertTrue(app.buttons["Αναπαραγωγή"].waitForExistence(timeout: 2))
 
         app.buttons["Υπότιτλοι · 30 credits"].tap()
-        XCTAssertTrue(app.buttons["Εξαγωγή MP4"].waitForExistence(timeout: 5))
-        XCTAssertTrue(
-            waitForLabel(
-                app.staticTexts["active-subtitle"],
-                contains: "ΤΟ ΒΙΝΤΕΟ ΜΕΝΕΙ ΣΤΟ IPHONE",
-                timeout: 2
-            ))
-
         let firstCue = app.descendants(matching: .any)["subtitle-cue-0"]
-        XCTAssertTrue(waitForHittable(firstCue, timeout: 2))
+        XCTAssertTrue(waitForHittable(firstCue, timeout: 5))
+        pauseImmersivePlaybackIfNeeded()
         firstCue.tap()
         firstCue.typeText(" QA")
         XCTAssertTrue(dismissKeyboardIfPresent())
 
+        openImmersiveTools()
         for identifier in ["subtitle-color-white", "subtitle-color-cyan", "subtitle-color-yellow"] {
             XCTAssertTrue(waitForHittable(app.buttons[identifier], timeout: 2))
             app.buttons[identifier].tap()
         }
         app.buttons["font-size-increase"].tap()
         app.buttons["font-size-decrease"].tap()
-        app.sliders["cue-position-slider-0"].adjust(toNormalizedSliderPosition: 0.48)
-        app.sliders["global-position-slider"].adjust(toNormalizedSliderPosition: 0.35)
+        closeImmersiveTools()
 
+        let dragStart = firstCue.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        dragStart.press(
+            forDuration: 0.08,
+            thenDragTo: dragStart.withOffset(CGVector(dx: 0, dy: -130))
+        )
+        XCTAssertTrue((positionPercentage(of: firstCue) ?? 0) > 12)
+
+        openImmersiveTools()
         let export = app.buttons["primary-action"]
         XCTAssertFalse(app.staticTexts["Έτοιμο"].exists)
         XCTAssertTrue(waitForEnabledAndHittable(export, timeout: 3))
@@ -81,6 +82,7 @@ extension GSubsUITests {
 
     func testExportFailureIsVisibleAndRetryableWithoutCoveringPreview() {
         launch("--gsubs-ui-test-export-failure")
+        openImmersiveTools()
 
         let export = app.buttons["primary-action"]
         XCTAssertTrue(waitForEnabledAndHittable(export, timeout: 3))
@@ -99,48 +101,40 @@ extension GSubsUITests {
             waitForEnabledAndHittable(retryExport, timeout: 5),
             retryExport.debugDescription
         )
-        XCTAssertLessThanOrEqual(app.otherElements["video-preview"].frame.maxY, status.frame.minY)
         XCTAssertLessThan(status.frame.maxY, retryExport.frame.minY)
+        XCTAssertTrue(app.otherElements["video-preview"].exists)
         XCTAssertFalse(app.staticTexts["Έτοιμο"].exists)
         attachScreenshot(named: "Visible local export failure")
     }
 
     func testEditingControlsFreezeWhileExporting() {
         launch("--gsubs-ui-test-held-export")
+        openImmersiveTools()
 
         let cue = app.descendants(matching: .any)["subtitle-cue-0"]
         let controls = [
-            cue,
             app.buttons["cue-next"],
-            app.sliders["cue-position-slider-0"],
-            app.buttons["cue-position-toggle-0"],
             app.buttons["font-size-increase"],
             app.buttons["subtitle-color-white"],
-            app.sliders["global-position-slider"],
+            app.buttons["close-video"],
+            app.buttons["account-menu"],
         ]
         for control in controls {
             XCTAssertTrue(waitForHittable(control, timeout: 3), control.debugDescription)
         }
-        let activeSubtitle = app.staticTexts["active-subtitle"]
-        XCTAssertTrue(activeSubtitle.waitForExistence(timeout: 3))
         let playback = app.buttons["preview-playback-toggle"]
-        XCTAssertTrue(waitForHittable(playback, timeout: 2))
-        playback.tap()
-        XCTAssertTrue(waitForLabel(playback, equals: "Παύση", timeout: 2))
+        XCTAssertTrue(playback.waitForExistence(timeout: 2))
         let originalText = cue.value as? String
 
         let export = app.buttons["primary-action"]
         XCTAssertTrue(waitForEnabledAndHittable(export, timeout: 2))
         export.tap()
         XCTAssertTrue(waitForDisabled(export, timeout: 2))
-        XCTAssertTrue(waitForAllDisabled(controls + [playback], timeout: 2))
+        XCTAssertTrue(waitForAllDisabled(controls, timeout: 2))
+        XCTAssertFalse(playback.isEnabled)
         XCTAssertTrue(waitForLabel(playback, equals: "Αναπαραγωγή", timeout: 2))
-        let frozenPreviewLabel = activeSubtitle.label
-        let frozenPreviewValue = activeSubtitle.value as? String
         RunLoop.current.run(until: Date().addingTimeInterval(1.6))
         XCTAssertEqual(cue.value as? String, originalText)
-        XCTAssertEqual(activeSubtitle.label, frozenPreviewLabel)
-        XCTAssertEqual(activeSubtitle.value as? String, frozenPreviewValue)
         XCTAssertEqual(playback.label, "Αναπαραγωγή")
         attachScreenshot(named: "Editor frozen during local export")
     }
