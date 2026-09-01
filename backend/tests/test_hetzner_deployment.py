@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import os
 import shutil
 import subprocess
@@ -582,7 +583,7 @@ def test_production_verifier_requires_payment_intent_write_access() -> None:
 
 
 def test_production_verifier_multiline_python_is_dedented_and_compiles() -> None:
-    opening = 'python -c \'import textwrap; exec(compile(textwrap.dedent("""\\'
+    opening = 'python -c \'import textwrap; exec(compile(textwrap.dedent(r"""'
     closing = '"""), "<gsubs-production-verifier>", "exec"))\''
     scripts = (
         DEPLOYMENT_ROOT / "lib" / "verify-contracts.sh",
@@ -601,16 +602,29 @@ def test_production_verifier_multiline_python_is_dedented_and_compiles() -> None
                 continue
             discovered += 1
             assert opening in line, f"{script}:{index + 1} does not dedent inline Python"
+            outer_lines = [line.split("python -c '", 1)[1]]
             source_lines: list[str] = []
             index += 1
             while index < len(lines) and closing not in lines[index]:
                 source_lines.append(lines[index])
                 index += 1
             assert index < len(lines), f"{script} has an unterminated inline Python block"
+            outer_lines.extend(source_lines)
+            outer_lines.append(lines[index].split(closing, 1)[0] + closing[:-1])
             compile(
                 textwrap.dedent("\n".join(source_lines)),
                 f"{script}:{index + 1}",
                 "exec",
+            )
+            verifier_builtins = vars(builtins).copy()
+            verifier_builtins["exec"] = lambda *_args, **_kwargs: None
+            exec(
+                compile(
+                    "\n".join(outer_lines),
+                    f"{script}:{index + 1}:outer",
+                    "exec",
+                ),
+                {"__builtins__": verifier_builtins},
             )
             compiled += 1
             index += 1
