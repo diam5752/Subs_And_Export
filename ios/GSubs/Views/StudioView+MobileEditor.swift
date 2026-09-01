@@ -2,22 +2,16 @@ import SwiftUI
 
 extension StudioView {
     func mobileSubtitleEditor(videoURL: URL) -> some View {
-        GeometryReader { proxy in
-            if proxy.size.width > 500 {
-                mobileLandscapeEditor(videoURL: videoURL, size: proxy.size)
-            } else {
-                mobilePortraitEditor(videoURL: videoURL, size: proxy.size)
+        immersiveMobileSubtitleEditor(videoURL: videoURL)
+            .overlay(alignment: .topLeading) {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityLabel("Editor υποτίτλων")
+                    .accessibilityIdentifier("mobile-editor")
+                    .allowsHitTesting(false)
             }
-        }
-        .overlay(alignment: .topLeading) {
-            Color.clear
-                .frame(width: 1, height: 1)
-                .accessibilityElement()
-                .accessibilityLabel("Editor υποτίτλων")
-                .accessibilityIdentifier("mobile-editor")
-                .allowsHitTesting(false)
-        }
-        .disabled(model.isProjectOperationInFlight)
+            .disabled(model.isProjectOperationInFlight)
     }
 
     private func mobilePortraitEditor(videoURL: URL, size: CGSize) -> some View {
@@ -125,7 +119,7 @@ extension StudioView {
             .overlay(Capsule().stroke(tint.opacity(0.35)))
     }
 
-    private var cueNavigation: some View {
+    var cueNavigation: some View {
         HStack(spacing: 10) {
             Button(action: selectPreviousCue) {
                 Image(systemName: "chevron.left")
@@ -282,7 +276,7 @@ extension StudioView {
     }
 
     @ViewBuilder
-    private var globalSizeAndColorControls: some View {
+    var globalSizeAndColorControls: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
@@ -504,7 +498,7 @@ extension StudioView {
         return "\(mode), \(Int((offset * 100).rounded()))%"
     }
 
-    private var mobileExportResult: some View {
+    var mobileExportResult: some View {
         VStack(spacing: 9) {
             HStack(spacing: 9) {
                 Image(systemName: "checkmark.circle.fill")
@@ -598,8 +592,13 @@ extension StudioView {
     private func focusCue(at index: Int) {
         guard model.cues.indices.contains(index) else { return }
         let cueID = model.cues[index].id
+        focusedCueID = nil
         selectedCueID = cueID
-        focusedCueID = cueID
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard selectedCueID == cueID else { return }
+            focusedCueID = cueID
+        }
     }
 
     private func adjustFontScale(by change: Double) {

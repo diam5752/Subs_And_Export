@@ -36,6 +36,46 @@ extension GSubsUITests {
         return cue
     }
 
+    func pauseImmersivePlaybackIfNeeded(timeout: TimeInterval = 3) {
+        let playback = app.buttons["preview-playback-toggle"]
+        XCTAssertTrue(playback.waitForExistence(timeout: timeout), playback.debugDescription)
+        if waitForLabel(playback, equals: "Παύση", timeout: min(timeout, 0.6)) {
+            playback.tap()
+            XCTAssertTrue(waitForLabel(playback, equals: "Αναπαραγωγή", timeout: timeout))
+        }
+    }
+
+    func openImmersiveTools(timeout: TimeInterval = 3) {
+        XCTAssertTrue(dismissKeyboardIfPresent())
+        let drawer = app.descendants(matching: .any)["immersive-tools-drawer"]
+        if drawer.exists { return }
+        let handle = app.buttons["immersive-tools-handle"]
+        XCTAssertTrue(waitForHittable(handle, timeout: timeout), handle.debugDescription)
+        handle.tap()
+        XCTAssertTrue(drawer.waitForExistence(timeout: timeout), drawer.debugDescription)
+    }
+
+    func closeImmersiveTools(timeout: TimeInterval = 3) {
+        let drawer = app.descendants(matching: .any)["immersive-tools-drawer"]
+        guard drawer.exists else { return }
+        let close = app.buttons["immersive-tools-close"]
+        XCTAssertTrue(waitForHittable(close, timeout: timeout), close.debugDescription)
+        close.tap()
+        XCTAssertTrue(drawer.waitForNonExistence(timeout: timeout), drawer.debugDescription)
+    }
+
+    func positionPercentage(of cue: XCUIElement) -> Int? {
+        guard let value = cue.value as? String,
+            let range = value.range(
+                of: #"(?i)(?<=θέση )\d+(?=%)"#,
+                options: .regularExpression
+            )
+        else {
+            return nil
+        }
+        return Int(value[range])
+    }
+
     func type(_ text: String, into element: XCUIElement) {
         XCTAssertTrue(dismissKeyboardIfPresent())
         XCTAssertTrue(waitAndReveal(element, timeout: 3), element.debugDescription)

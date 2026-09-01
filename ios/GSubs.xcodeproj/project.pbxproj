@@ -19,6 +19,7 @@
 		3FF3FF294F6EF6589F0E37D5 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D33583D97A47E2EE4A2A074 /* LoginView.swift */; };
 		42DAC9A6907C19B38892734B /* StudioView+MobileEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373EA1341AFDF5664C6D0B44 /* StudioView+MobileEditor.swift */; };
 		465FE9720C1305A97201B5E9 /* VideoPreviewPreparer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31F444429A5D773C7F35B21 /* VideoPreviewPreparer.swift */; };
+		4716C718EB6C44B60C3532FF /* StudioView+ImmersiveEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 555D774EEBFF306855BBDA1F /* StudioView+ImmersiveEditor.swift */; };
 		499051B35BD955A27E5D4480 /* ProjectDraftStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E01FFC8976CCC0C195C354 /* ProjectDraftStoreTests.swift */; };
 		579A12C07AE5C790F73862C0 /* VideoExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D3ECE97F0446F635E60766 /* VideoExporterTests.swift */; };
 		5AD2EC6617B1B5B277961C25 /* PickedVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3107D3071F6E400775FFDA /* PickedVideo.swift */; };
@@ -34,6 +35,7 @@
 		9E913386126112F96DEF5C16 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6991C4C8C75052ECC93BD5CB /* APIClientTests.swift */; };
 		A0B529F46CC366408979B23E /* SubtitleCue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A65D7168BBAF6C304BB0F57 /* SubtitleCue.swift */; };
 		A54D0B51D545193F31551C92 /* GSubsAuthenticationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7927052B3F846497A5933F6C /* GSubsAuthenticationUITests.swift */; };
+		A54ED7753E03FDA39266D2E6 /* ImmersiveVideoCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFEB39DC7B1941B6F0A71F4 /* ImmersiveVideoCanvas.swift */; };
 		AD199F66037023568F9E9C8E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2909B0F76CAE4D475DA1507F /* PrivacyInfo.xcprivacy */; };
 		BA8604A906ECDAF9AFA5FFF0 /* ProjectDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0AA7685102097E6B1450038 /* ProjectDraft.swift */; };
 		CDF6B4BA67C02A0580B0C87A /* LocalMediaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09F230D429CA1398C4A9D9AA /* LocalMediaStore.swift */; };
@@ -81,6 +83,7 @@
 		4997BFF005A035B7F5196EB2 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		4A6CE9D24ED7D9B7ACC389F4 /* StudioView+Workspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioView+Workspace.swift"; sourceTree = "<group>"; };
 		4E3DD04929E024D1B05535C0 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
+		555D774EEBFF306855BBDA1F /* StudioView+ImmersiveEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioView+ImmersiveEditor.swift"; sourceTree = "<group>"; };
 		5F3107D3071F6E400775FFDA /* PickedVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickedVideo.swift; sourceTree = "<group>"; };
 		6991C4C8C75052ECC93BD5CB /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 		7927052B3F846497A5933F6C /* GSubsAuthenticationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GSubsAuthenticationUITests.swift; sourceTree = "<group>"; };
@@ -89,6 +92,7 @@
 		8BFC142433F9D23E237E2EFF /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		8E3D23E4AFF7192E3BD6EB3D /* AppModelDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelDraftTests.swift; sourceTree = "<group>"; };
 		9797C249035D6AB54896C627 /* VideoPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPreview.swift; sourceTree = "<group>"; };
+		9AFEB39DC7B1941B6F0A71F4 /* ImmersiveVideoCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveVideoCanvas.swift; sourceTree = "<group>"; };
 		9D33583D97A47E2EE4A2A074 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		A0AA7685102097E6B1450038 /* ProjectDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDraft.swift; sourceTree = "<group>"; };
 		A27A4E9E953288DCEE814854 /* GSubsEditorUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GSubsEditorUITests.swift; sourceTree = "<group>"; };
@@ -185,8 +189,10 @@
 			isa = PBXGroup;
 			children = (
 				4997BFF005A035B7F5196EB2 /* DesignSystem.swift */,
+				9AFEB39DC7B1941B6F0A71F4 /* ImmersiveVideoCanvas.swift */,
 				9D33583D97A47E2EE4A2A074 /* LoginView.swift */,
 				C4F3B4B9AACD861671723E99 /* StudioView.swift */,
+				555D774EEBFF306855BBDA1F /* StudioView+ImmersiveEditor.swift */,
 				373EA1341AFDF5664C6D0B44 /* StudioView+MobileEditor.swift */,
 				4A6CE9D24ED7D9B7ACC389F4 /* StudioView+Workspace.swift */,
 				9797C249035D6AB54896C627 /* VideoPreview.swift */,
@@ -368,6 +374,7 @@
 				E24F91D9385DB8273F963855 /* AudioExtractor.swift in Sources */,
 				1856BF45C7D53BF75080BA9F /* DesignSystem.swift in Sources */,
 				1143D12EE513E6B654F8ECFD /* GSubsApp.swift in Sources */,
+				A54ED7753E03FDA39266D2E6 /* ImmersiveVideoCanvas.swift in Sources */,
 				136B03060170F5583F1AAA3A /* KeychainStore.swift in Sources */,
 				CDF6B4BA67C02A0580B0C87A /* LocalMediaStore.swift in Sources */,
 				3FF3FF294F6EF6589F0E37D5 /* LoginView.swift in Sources */,
@@ -375,6 +382,7 @@
 				5AD2EC6617B1B5B277961C25 /* PickedVideo.swift in Sources */,
 				BA8604A906ECDAF9AFA5FFF0 /* ProjectDraft.swift in Sources */,
 				75A651C3563C4504A27AB2A7 /* ProjectDraftStore.swift in Sources */,
+				4716C718EB6C44B60C3532FF /* StudioView+ImmersiveEditor.swift in Sources */,
 				42DAC9A6907C19B38892734B /* StudioView+MobileEditor.swift in Sources */,
 				9E7F1FB1079CDFD25E9AA2F9 /* StudioView+Workspace.swift in Sources */,
 				80DE512AFB22A98A0F6BF65C /* StudioView.swift in Sources */,

@@ -81,12 +81,12 @@ extension GSubsUITests {
 
     func testEditorControlsFreezeWhileAccountDeletionIsPending() {
         launch("--gsubs-ui-test-slow-delete-editor")
+        openImmersiveTools()
 
         let controls = [
             app.buttons["account-menu"],
             app.buttons["cue-next"],
-            app.descendants(matching: .any)["subtitle-cue-0"],
-            app.sliders["cue-position-slider-0"],
+            app.buttons["font-size-increase"],
             app.buttons["primary-action"],
         ]
         for control in controls {
@@ -107,6 +107,7 @@ extension GSubsUITests {
     func testLandscapeCloseFreezesWhileAccountDeletionIsPending() {
         launch("--gsubs-ui-test-slow-delete-editor")
         XCUIDevice.shared.orientation = .landscapeLeft
+        openImmersiveTools(timeout: 4)
 
         let closeVideo = app.buttons["close-video"]
         XCTAssertTrue(waitForEnabledAndHittable(closeVideo, timeout: 3))

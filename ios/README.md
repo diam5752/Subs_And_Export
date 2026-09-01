@@ -10,11 +10,12 @@ True zero-transfer transcription would require a separate on-device speech model
 
 ## On-device editor
 
-Once cues arrive, the phone editor uses one fixed, non-scrolling screen in
-portrait and landscape. Select a cue with Previous/Next or the `1 / N` picker;
-selection pauses and seeks the preview to that cue. Text, cue position, and
-global size, color, and position controls remain available together, including
-the compact keyboard layout.
+Once cues arrive, the phone editor opens as an edge-to-edge video canvas in
+portrait and landscape. The canvas shows only the video, the burned-in preview
+cue, and a small pull-down affordance. Tap the visible cue to edit it with the
+keyboard or drag it vertically to override only that cue's position. Pull down
+from the top to reveal cue navigation, global style, account, new-video, and
+export controls; closing the drawer returns to the clean canvas.
 
 Cues inherit the global position by default. Moving one cue creates an optional
 override; Common/reset removes only that override. Text edits preserve it, and
@@ -89,7 +90,7 @@ xcodebuild test \
   -only-testing:GSubsTests/VideoPreviewPreparerTests
 ```
 
-Run the compact-editor acceptance checks on iPhone SE with:
+Run the immersive-editor acceptance checks on iPhone SE with:
 
 ```bash
 cd ios
@@ -97,6 +98,7 @@ xcodebuild test \
   -project GSubs.xcodeproj \
   -scheme GSubs \
   -destination 'platform=iOS Simulator,name=iPhone SE (3rd generation),OS=17.4' \
+  -only-testing:GSubsUITests/GSubsUITests/testImmersiveEditorShowsOnlyCanvasAndSwipeHandle \
   -only-testing:GSubsUITests/GSubsUITests/testSubtitleEditorFitsOnOneScreenAndKeyboard \
   -only-testing:GSubsUITests/GSubsUITests/testLandscapeKeyboardKeepsEveryEditorControlVisible \
   -only-testing:GSubsUITests/GSubsUITests/testLandscapeExportShowsSaveAndShareActions \
