@@ -211,6 +211,10 @@ function expectBaseEditorMetrics(
     `${viewport.width}px scope toggle touch target`,
   ).toBeGreaterThanOrEqual(44);
   expect(
+    metrics.positionScope.width,
+    `${viewport.width}px compact scope toggle width`,
+  ).toBeLessThanOrEqual(Math.min(168, metrics.phone.width - 16) + 1);
+  expect(
     metrics.positionScope.x,
     `${viewport.width}px scope toggle left containment`,
   ).toBeGreaterThanOrEqual(metrics.phone.x - 1);
