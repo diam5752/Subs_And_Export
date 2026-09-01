@@ -335,16 +335,9 @@ test("player and subtitle manipulation stay clear across browser engines", async
     await finishPinch();
 
     if (testInfo.project.name === "android-chromium") {
-      const scopeBox = await page
-        .getByTestId("subtitle-position-scope")
-        .boundingBox();
-      expect(scopeBox).not.toBeNull();
-      // The scope toggle intentionally occupies the top of the phone. Exercise
-      // the real video touch path on the first exposed row beneath it.
-      const playbackTapY = Math.max(
-        gestureY,
-        scopeBox!.y + scopeBox!.height + 8,
-      );
+      // The per-phrase scope switch belongs to the transcript row, so the
+      // whole phone remains available to the real video touch path.
+      const playbackTapY = gestureY;
       await page.touchscreen.tap(gestureStartX, playbackTapY);
       await expect
         .poll(async () =>

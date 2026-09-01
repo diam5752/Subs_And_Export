@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type {
   InlineSubtitleEditorConfig,
   SubtitleTransformConfig,
@@ -61,9 +61,6 @@ export function usePreviewSubtitleEditor(): InlineSubtitleEditorConfig {
 }
 
 export interface LiveSubtitlePositioning {
-  scope: SubtitlePositionScope;
-  disabled: boolean;
-  onScopeChange: (scope: SubtitlePositionScope) => void;
   transformControls?: SubtitleTransformConfig;
 }
 
@@ -80,42 +77,39 @@ interface SubtitlePositionActions {
     scope: SubtitlePositionScope,
   ) => Promise<void>;
   cancel: (sourceCueIndex: number, scope: SubtitlePositionScope) => void;
-  reset: (sourceCueIndex: number) => Promise<void>;
   resize: (size: number) => void;
 }
 
 function buildSubtitleTransformControls(
-  scope: SubtitlePositionScope,
   t: Translate,
   actions: SubtitlePositionActions,
 ): SubtitleTransformConfig {
   return {
     labels: {
-      move: t(
-        scope === "cue"
-          ? "subtitleDragHandleLabel"
-          : "subtitleDragAllHandleLabel",
-      ),
+      move: t("subtitleDragAllHandleLabel"),
+      moveCue: t("subtitleDragHandleLabel"),
       resize: t("subtitleResizeHandleLabel"),
       customPosition: t("subtitleCustomPosition"),
       sharedPosition: t("subtitleSharedPosition"),
-      resetPosition: t("subtitleResetPosition"),
     },
     onPositionChange: (sourceCueIndex, position) => {
-      actions.change(sourceCueIndex, position, scope);
+      actions.change(sourceCueIndex, position, "all");
     },
     onPositionCommit: (sourceCueIndex) => {
-      void actions.commit(sourceCueIndex, scope);
+      void actions.commit(sourceCueIndex, "all");
     },
     onPositionCancel: (sourceCueIndex) => {
-      actions.cancel(sourceCueIndex, scope);
+      actions.cancel(sourceCueIndex, "all");
     },
-    onPositionReset:
-      scope === "cue"
-        ? (sourceCueIndex: number) => {
-            void actions.reset(sourceCueIndex);
-          }
-        : undefined,
+    onCuePositionChange: (sourceCueIndex, position) => {
+      actions.change(sourceCueIndex, position, "cue");
+    },
+    onCuePositionCommit: (sourceCueIndex) => {
+      void actions.commit(sourceCueIndex, "cue");
+    },
+    onCuePositionCancel: (sourceCueIndex) => {
+      actions.cancel(sourceCueIndex, "cue");
+    },
     onSizeChange: actions.resize,
   };
 }
@@ -127,19 +121,16 @@ export function useLiveSubtitlePositioning(): LiveSubtitlePositioning {
     changeCuePosition,
     commitCuePosition,
     isSavingTranscript,
-    resetCuePosition,
     setSubtitleSize,
   } = useProcessContext();
-  const [scope, setScope] = useState<SubtitlePositionScope>("cue");
   const transformControls = useMemo<SubtitleTransformConfig | undefined>(
     () =>
       isSavingTranscript
         ? undefined
-        : buildSubtitleTransformControls(scope, t, {
+        : buildSubtitleTransformControls(t, {
             change: changeCuePosition,
             commit: commitCuePosition,
             cancel: cancelCuePosition,
-            reset: resetCuePosition,
             resize: setSubtitleSize,
           }),
     [
@@ -147,16 +138,11 @@ export function useLiveSubtitlePositioning(): LiveSubtitlePositioning {
       changeCuePosition,
       commitCuePosition,
       isSavingTranscript,
-      resetCuePosition,
       setSubtitleSize,
-      scope,
       t,
     ],
   );
   return {
-    scope,
-    disabled: isSavingTranscript,
-    onScopeChange: setScope,
     transformControls,
   };
 }

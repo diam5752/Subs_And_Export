@@ -32,11 +32,12 @@ function CueListEntry({
   props: CueListProps;
 }) {
   const isEditing = props.editingCueIndex === index;
+  const isActive = index === props.activeCueIndex;
   return (
     <CueItem
       cue={cue}
       index={index}
-      isActive={index === props.activeCueIndex}
+      isActive={isActive}
       isEditing={isEditing}
       canEdit={!props.isSaving && (props.editingCueIndex === null || isEditing)}
       draftText={isEditing ? props.editingCueDraft : ""}

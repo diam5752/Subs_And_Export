@@ -468,9 +468,6 @@
       "frontend/src/components/RecentJobsList.tsx::RecentJobsList": [
         114
       ],
-      "frontend/src/features/process/CueItem.tsx::(anonymous)": [
-        71
-      ],
       "frontend/src/features/process/ProcessContext.tsx::(anonymous)": [
         54
       ],

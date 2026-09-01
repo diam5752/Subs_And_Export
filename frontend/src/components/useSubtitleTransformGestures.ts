@@ -3,7 +3,10 @@ import {
   SUBTITLE_POSITION_MAX,
   SUBTITLE_POSITION_MIN,
 } from "@/lib/subtitleUtils";
-import type { SubtitleTransformControls } from "./SubtitleOverlayTypes";
+import type {
+  SubtitlePositionScope,
+  SubtitleTransformControls,
+} from "./SubtitleOverlayTypes";
 
 export const SUBTITLE_SIZE_MIN = 50;
 export const SUBTITLE_SIZE_MAX = 150;
@@ -14,6 +17,7 @@ type PointerPoint = { x: number; y: number };
 
 type SinglePointerGesture = {
   mode: "position" | "size";
+  positionScope: SubtitlePositionScope;
   sourceCueIndex: number;
   pointerId: number;
   startX: number;
@@ -22,6 +26,38 @@ type SinglePointerGesture = {
   startSize: number;
   moved: boolean;
 };
+
+function changeGesturePosition(
+  controls: SubtitleTransformControls,
+  gesture: SinglePointerGesture,
+  position: number,
+): void {
+  if (gesture.positionScope === "cue") {
+    controls.onCuePositionChange?.(gesture.sourceCueIndex, position);
+    return;
+  }
+  controls.onPositionChange(gesture.sourceCueIndex, position);
+}
+
+function finishGesturePosition(
+  controls: SubtitleTransformControls | undefined,
+  gesture: SinglePointerGesture,
+  cancelled: boolean,
+): void {
+  if (gesture.positionScope === "cue") {
+    if (cancelled) {
+      controls?.onCuePositionCancel?.(gesture.sourceCueIndex);
+    } else {
+      controls?.onCuePositionCommit?.(gesture.sourceCueIndex);
+    }
+    return;
+  }
+  if (cancelled) {
+    controls?.onPositionCancel?.(gesture.sourceCueIndex);
+  } else {
+    controls?.onPositionCommit?.(gesture.sourceCueIndex);
+  }
+}
 
 type PinchGesture = {
   mode: "pinch";
@@ -154,8 +190,9 @@ function moveSinglePointerGesture(
   capturePointer(refs.overlay.current, event.pointerId);
   if (gesture.mode === "position") {
     const positionDelta = -(deltaY / Math.max(1, videoHeight)) * 100;
-    controls.onPositionChange(
-      gesture.sourceCueIndex,
+    changeGesturePosition(
+      controls,
+      gesture,
       clampAndRound(
         gesture.startPosition + positionDelta,
         SUBTITLE_POSITION_MIN,
@@ -201,11 +238,7 @@ function finishSinglePointerGesture(
   refs.gesture.current = null;
   releasePointer(refs.overlay.current, event.pointerId);
   if (gesture.mode === "position" && gesture.moved) {
-    if (cancelled) {
-      controls?.onPositionCancel?.(gesture.sourceCueIndex);
-    } else {
-      controls?.onPositionCommit?.(gesture.sourceCueIndex);
-    }
+    finishGesturePosition(controls, gesture, cancelled);
   }
   if (cancelled || !gesture.moved) refs.suppressClick.current = false;
 }
@@ -266,7 +299,7 @@ export function useSubtitleTransformGestures({
     const pointerIds = new Set(activeTouchPointsRef.current.keys());
     const gesture = gestureRef.current;
     if (gesture?.mode === "position" && gesture.moved) {
-      transformControlsRef.current?.onPositionCancel?.(gesture.sourceCueIndex);
+      finishGesturePosition(transformControlsRef.current, gesture, true);
     }
     if (gesture?.mode === "pinch") {
       gesture.pointerIds.forEach((pointerId) => pointerIds.add(pointerId));
@@ -294,6 +327,7 @@ export function useSubtitleTransformGestures({
     (
       event: React.PointerEvent<HTMLElement>,
       mode: SinglePointerGesture["mode"],
+      positionScope: SubtitlePositionScope = "all",
     ) => {
       if (!transformControls) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -303,6 +337,7 @@ export function useSubtitleTransformGestures({
       suppressClickRef.current = false;
       gestureRef.current = {
         mode,
+        positionScope,
         sourceCueIndex,
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -321,7 +356,7 @@ export function useSubtitleTransformGestures({
     (event: React.PointerEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement;
       if (target.closest("[data-subtitle-resize-handle]")) return;
-      beginTransform(event, "position");
+      beginTransform(event, "position", "all");
     },
     [beginTransform],
   );
@@ -329,10 +364,20 @@ export function useSubtitleTransformGestures({
   const handlePositionHandlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
       event.stopPropagation();
-      beginTransform(event, "position");
+      beginTransform(event, "position", "all");
       capturePointer(overlayRef.current, event.pointerId);
     },
     [beginTransform],
+  );
+
+  const handleCuePositionHandlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (!transformControls?.onCuePositionChange) return;
+      event.stopPropagation();
+      beginTransform(event, "position", "cue");
+      capturePointer(overlayRef.current, event.pointerId);
+    },
+    [beginTransform, transformControls],
   );
 
   const handleResizePointerDown = useCallback(
@@ -421,8 +466,11 @@ export function useSubtitleTransformGestures({
     [],
   );
 
-  const handlePositionKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+  const changePositionWithKeyboard = useCallback(
+    (
+      event: React.KeyboardEvent<HTMLButtonElement>,
+      positionScope: SubtitlePositionScope,
+    ) => {
       if (!transformControls) return;
       const nextPosition = nextKeyboardValue(
         event.key,
@@ -435,17 +483,34 @@ export function useSubtitleTransformGestures({
       event.preventDefault();
       event.stopPropagation();
       transformControls.onInteractionStart?.();
-      transformControls.onPositionChange(
-        sourceCueIndex,
-        clampAndRound(
-          nextPosition,
-          SUBTITLE_POSITION_MIN,
-          SUBTITLE_POSITION_MAX,
-        ),
+      const nextValue = clampAndRound(
+        nextPosition,
+        SUBTITLE_POSITION_MIN,
+        SUBTITLE_POSITION_MAX,
       );
+      if (positionScope === "cue") {
+        transformControls.onCuePositionChange?.(sourceCueIndex, nextValue);
+        transformControls.onCuePositionCommit?.(sourceCueIndex);
+        return;
+      }
+      transformControls.onPositionChange(sourceCueIndex, nextValue);
       transformControls.onPositionCommit?.(sourceCueIndex);
     },
     [position, sourceCueIndex, transformControls],
+  );
+
+  const handlePositionKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      changePositionWithKeyboard(event, "all");
+    },
+    [changePositionWithKeyboard],
+  );
+
+  const handleCuePositionKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      changePositionWithKeyboard(event, "cue");
+    },
+    [changePositionWithKeyboard],
   );
 
   const handleSizeKeyDown = useCallback(
@@ -473,6 +538,8 @@ export function useSubtitleTransformGestures({
     () => ({
       finishTransform,
       handleClickCapture,
+      handleCuePositionHandlePointerDown,
+      handleCuePositionKeyDown,
       handleLostPointerCapture,
       handlePointerMove,
       handlePositionHandlePointerDown,
@@ -484,6 +551,8 @@ export function useSubtitleTransformGestures({
     [
       finishTransform,
       handleClickCapture,
+      handleCuePositionHandlePointerDown,
+      handleCuePositionKeyDown,
       handleLostPointerCapture,
       handlePointerMove,
       handlePositionHandlePointerDown,

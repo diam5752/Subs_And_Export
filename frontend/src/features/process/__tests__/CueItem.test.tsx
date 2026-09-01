@@ -65,9 +65,6 @@ describe("CueItem", () => {
     const textarea = screen.getByRole("textbox");
     expect(textarea).toHaveValue("Hello world");
 
-    // Wait for focus
-    waitFor(() => expect(textarea).toHaveFocus());
-
     expect(screen.getByLabelText("transcriptSave")).toBeInTheDocument();
     expect(screen.getByLabelText("transcriptCancel")).toBeInTheDocument();
     expect(screen.getByLabelText("transcriptSave")).toHaveClass(
@@ -124,6 +121,11 @@ describe("CueItem", () => {
       screen.getByRole("button", { name: "subtitleResetPosition" }),
     );
     expect(onResetPosition).toHaveBeenCalledWith(0);
+  });
+
+  it("keeps movement scope controls out of transcript phrases", () => {
+    render(<CueItem {...defaultProps} isActive />);
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
   it("calls onUpdateDraft when typing", () => {

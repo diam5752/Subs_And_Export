@@ -83,31 +83,65 @@ function PositionHandle({
   );
 }
 
-function PositionResetButton({
-  sourceCueIndex,
+function CuePositionIcon() {
+  return (
+    <span className="relative grid h-8 w-8 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform group-hover:scale-110 group-focus-visible:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-cyan-300">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      >
+        <path d="M10 2.5v15M6.8 5.7 10 2.5l3.2 3.2M6.8 14.3 10 17.5l3.2-3.2" />
+      </svg>
+      <span
+        aria-hidden="true"
+        className="absolute -bottom-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full border border-black/70 bg-cyan-200 px-0.5 text-[8px] font-black leading-none text-black"
+      >
+        1
+      </span>
+    </span>
+  );
+}
+
+function CuePositionHandle({
+  position,
   controls,
+  handlers,
+  hasCustomPosition,
 }: {
-  sourceCueIndex: number;
+  position: number;
   controls: SubtitleTransformControls;
+  handlers: TransformHandlers;
+  hasCustomPosition: boolean;
 }) {
-  if (!controls.onPositionReset) return null;
-  const label = controls.labels.resetPosition ?? "Use shared position";
+  const label = controls.labels.moveCue;
+  if (!label || !controls.onCuePositionChange) return null;
   return (
     <button
       type="button"
-      data-testid="subtitle-position-reset"
+      role="slider"
+      data-testid="subtitle-cue-drag-handle"
       aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={SUBTITLE_POSITION_MIN}
+      aria-valuemax={SUBTITLE_POSITION_MAX}
+      aria-valuenow={position}
+      aria-valuetext={`${position}% · ${
+        hasCustomPosition
+          ? (controls.labels.customPosition ?? "custom position")
+          : (controls.labels.sharedPosition ?? "shared position")
+      }`}
       title={label}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        controls.onInteractionStart?.();
-        controls.onPositionReset?.(sourceCueIndex);
-      }}
-      className="subtitle-desktop-transform-handle absolute left-0 top-1/2 mt-10 grid min-h-8 min-w-8 -translate-x-1/2 place-items-center rounded-full border border-white/25 bg-black/85 px-2 text-[10px] font-bold text-white shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm hover:border-cyan-300/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      onPointerDown={handlers.handleCuePositionHandlePointerDown}
+      onKeyDown={handlers.handleCuePositionKeyDown}
+      className="subtitle-desktop-transform-handle subtitle-cue-transform-handle group absolute left-0 top-1/2 z-10 mt-8 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full bg-transparent touch-none focus-visible:outline-none"
     >
-      <span aria-hidden="true">↺</span>
+      <CuePositionIcon />
     </button>
   );
 }
@@ -149,14 +183,12 @@ function TransformHandles({
   controls,
   handlers,
   hasCustomPosition,
-  sourceCueIndex,
 }: {
   position: number;
   fontSize: number;
   controls: SubtitleTransformControls;
   handlers: TransformHandlers;
   hasCustomPosition: boolean;
-  sourceCueIndex: number;
 }) {
   return (
     <>
@@ -166,12 +198,12 @@ function TransformHandles({
         handlers={handlers}
         hasCustomPosition={hasCustomPosition}
       />
-      {hasCustomPosition && (
-        <PositionResetButton
-          sourceCueIndex={sourceCueIndex}
-          controls={controls}
-        />
-      )}
+      <CuePositionHandle
+        position={position}
+        controls={controls}
+        handlers={handlers}
+        hasCustomPosition={hasCustomPosition}
+      />
       <SizeHandle fontSize={fontSize} controls={controls} handlers={handlers} />
     </>
   );
@@ -265,7 +297,6 @@ export function SubtitleOverlayFrame({
           controls={transformControls}
           handlers={handlers}
           hasCustomPosition={hasCustomPosition}
-          sourceCueIndex={sourceCueIndex}
         />
       )}
     </div>

@@ -130,6 +130,29 @@ describe("Sidebar Tabs", () => {
     expect(container.querySelectorAll("#cue-0")).toHaveLength(1);
   });
 
+  it("keeps movement scope controls on the video instead of the transcript", () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: jest.fn(),
+    });
+    (useProcessContext as jest.Mock).mockReturnValue({
+      ...mockContextValue,
+      cues: [
+        { start: 0, end: 1, text: "Active subtitle" },
+        { start: 2, end: 3, text: "Later subtitle" },
+      ],
+    });
+
+    render(
+      <I18nProvider initialLocale="en">
+        <PlaybackProvider>
+          <Sidebar />
+        </PlaybackProvider>
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
   it("keeps completed-job actions above the mobile style scroll target", () => {
     const setActiveSidebarTab = jest.fn();
     const previewSectionScrollIntoView = jest.fn();

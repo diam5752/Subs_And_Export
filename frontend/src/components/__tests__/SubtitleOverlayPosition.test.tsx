@@ -21,6 +21,77 @@ function firePointer(
 }
 
 describe("SubtitleOverlay phrase positioning", () => {
+  it("uses a separate handle for the active phrase while normal dragging moves all", () => {
+    const onPositionChange = jest.fn();
+    const onPositionCommit = jest.fn();
+    const onCuePositionChange = jest.fn();
+    const onCuePositionCommit = jest.fn();
+
+    render(
+      <SubtitleOverlay
+        currentTime={0.5}
+        cues={[{ start: 0, end: 2, text: "first", sourceCueIndex: 3 }]}
+        settings={{
+          position: 20,
+          color: "#FFFF00",
+          fontSize: 100,
+          karaoke: false,
+          maxLines: 2,
+          shadowStrength: 4,
+        }}
+        videoWidth={500}
+        videoHeight={1000}
+        transformControls={{
+          labels: {
+            move: "Move all subtitles",
+            moveCue: "Move only this phrase",
+            resize: "Resize subtitles",
+          },
+          onPositionChange,
+          onPositionCommit,
+          onCuePositionChange,
+          onCuePositionCommit,
+          onSizeChange: jest.fn(),
+        }}
+      />,
+    );
+
+    const overlay = screen.getByTestId("subtitle-overlay");
+    const cueHandle = screen.getByRole("slider", {
+      name: "Move only this phrase",
+    });
+    const allHandle = screen.getByRole("slider", {
+      name: "Move all subtitles",
+    });
+    expect(cueHandle).toHaveTextContent("1");
+    expect(cueHandle).toHaveClass("subtitle-cue-transform-handle");
+
+    firePointer(cueHandle, "pointerdown", {
+      button: 0,
+      pointerId: 60,
+      clientX: 100,
+      clientY: 600,
+    });
+    firePointer(overlay, "pointermove", {
+      pointerId: 60,
+      clientX: 100,
+      clientY: 500,
+    });
+    firePointer(overlay, "pointerup", {
+      pointerId: 60,
+      clientX: 100,
+      clientY: 500,
+    });
+
+    expect(onCuePositionChange).toHaveBeenCalledWith(3, 30);
+    expect(onCuePositionCommit).toHaveBeenCalledWith(3);
+    expect(onPositionChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(allHandle, { key: "ArrowUp" });
+    expect(onPositionChange).toHaveBeenCalledWith(3, 21);
+    expect(onPositionCommit).toHaveBeenCalledWith(3);
+  });
+
   it("pins a live drag to the phrase active when playback advanced", () => {
     const onPositionChange = jest.fn();
     const onPositionCommit = jest.fn();
@@ -87,8 +158,7 @@ describe("SubtitleOverlay phrase positioning", () => {
     expect(onPositionCommit).toHaveBeenCalledWith(3);
   });
 
-  it("renders a cue-local position and can reset only that phrase", () => {
-    const onPositionReset = jest.fn();
+  it("renders a cue-local position without an in-video reset button", () => {
     render(
       <SubtitleOverlay
         currentTime={2.5}
@@ -115,10 +185,8 @@ describe("SubtitleOverlay phrase positioning", () => {
             move: "Move phrase",
             resize: "Resize subtitles",
             customPosition: "custom phrase position",
-            resetPosition: "Use shared position",
           },
           onPositionChange: jest.fn(),
-          onPositionReset,
           onSizeChange: jest.fn(),
         }}
       />,
@@ -133,9 +201,8 @@ describe("SubtitleOverlay phrase positioning", () => {
       "aria-valuetext",
       "77% · custom phrase position",
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Use shared position" }),
-    );
-    expect(onPositionReset).toHaveBeenCalledWith(8);
+    expect(
+      screen.queryByTestId("subtitle-position-reset"),
+    ).not.toBeInTheDocument();
   });
 });

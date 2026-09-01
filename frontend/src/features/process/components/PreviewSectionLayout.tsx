@@ -42,52 +42,6 @@ interface PreviewSectionLayoutProps {
 
 type PreviewContentProps = Omit<PreviewSectionLayoutProps, "playerRef">;
 
-const SubtitlePositionScopeToggle = memo(
-  ({
-    positioning,
-    t,
-  }: {
-    positioning: LiveSubtitlePositioning;
-    t: PreviewTranslate;
-  }) => {
-    const hintId = React.useId();
-    const currentCueOnly = positioning.scope === "cue";
-    return (
-      <div
-        className="subtitle-position-scope-control"
-        data-scope={positioning.scope}
-        data-testid="subtitle-position-scope"
-      >
-        <button
-          type="button"
-          role="switch"
-          aria-checked={currentCueOnly}
-          aria-describedby={hintId}
-          aria-label={t("subtitlePositionScopeLabel")}
-          disabled={positioning.disabled}
-          onClick={() =>
-            positioning.onScopeChange(currentCueOnly ? "all" : "cue")
-          }
-          className="subtitle-position-scope-toggle"
-        >
-          <span aria-hidden="true" className="subtitle-position-scope-switch" />
-          <span className="subtitle-position-scope-label">
-            {t("subtitlePositionScopeShortLabel")}
-          </span>
-        </button>
-        <p id={hintId} className="subtitle-position-scope-hint">
-          {t(
-            currentCueOnly
-              ? "subtitleDragHandleLabel"
-              : "subtitleDragAllHandleLabel",
-          )}
-        </p>
-      </div>
-    );
-  },
-);
-SubtitlePositionScopeToggle.displayName = "SubtitlePositionScopeToggle";
-
 function PreviewEmptyState({ t }: { t: PreviewTranslate }) {
   return (
     <div className="editor-empty-state">
@@ -117,20 +71,6 @@ function PreviewPlaceholder({ t }: { t: PreviewTranslate }) {
         <path d="M8.5 6.9a1 1 0 011.52-.85l7.3 4.6a1 1 0 010 1.7l-7.3 4.6a1 1 0 01-1.52-.85V6.9z" />
       </svg>
       <span>{t("clickToPreview")}</span>
-    </div>
-  );
-}
-
-function PositionScopeOverlay({
-  positioning,
-  t,
-}: {
-  positioning: LiveSubtitlePositioning;
-  t: PreviewTranslate;
-}) {
-  return (
-    <div className="subtitle-position-scope-overlay">
-      <SubtitlePositionScopeToggle positioning={positioning} t={t} />
     </div>
   );
 }
@@ -242,12 +182,6 @@ function PreviewPlayerPanel({
                   playbackToggleLabel={props.t("previewVideoToggle")}
                   initialTime={initialTime}
                 />
-                {props.processedCues.length > 0 && (
-                  <PositionScopeOverlay
-                    positioning={props.subtitlePositioning}
-                    t={props.t}
-                  />
-                )}
               </>
             ) : (
               <PreviewPlaceholder t={props.t} />

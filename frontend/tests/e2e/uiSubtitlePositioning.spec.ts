@@ -33,7 +33,7 @@ const transcription = [
   },
 ];
 
-test("a playing phrase moves alone, persists, exports, and resets on desktop and mobile", async ({
+test("separate handles move all subtitles or only the active phrase", async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -48,28 +48,25 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
 
   const overlay = page.getByTestId("subtitle-overlay");
   const phone = page.getByTestId("editor-phone");
-  const positionScope = phone.getByRole("switch", {
-    name: el.subtitlePositionScopeLabel,
+  const moveAllHandle = page.getByRole("slider", {
+    name: el.subtitleDragAllHandleLabel,
   });
-  let moveHandle = page.getByRole("slider", {
+  const moveCueHandle = page.getByRole("slider", {
     name: el.subtitleDragHandleLabel,
   });
   const resizeHandle = page.getByRole("slider", {
     name: el.subtitleResizeHandleLabel,
   });
 
-  await expect(positionScope).toBeVisible();
-  await expect(positionScope).toBeChecked();
+  await expect(moveAllHandle).toBeVisible();
+  await expect(moveCueHandle).toBeVisible();
+  await expect(moveCueHandle).toHaveText("1");
+  await expect(page.getByRole("switch")).toHaveCount(0);
   await expect(overlay).toHaveAttribute("data-source-cue-index", "0");
   await expect(overlay).toHaveAttribute("data-position-mode", "shared");
   const initialPosition = Number(await overlay.getAttribute("data-position"));
   const initialSize = Number(await overlay.getAttribute("data-font-size"));
 
-  await positionScope.click();
-  await expect(positionScope).not.toBeChecked();
-  moveHandle = page.getByRole("slider", {
-    name: el.subtitleDragAllHandleLabel,
-  });
   await page.getByRole("button", { name: el.previewVideoToggle }).click();
   await expect
     .poll(() =>
@@ -78,7 +75,7 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
         .evaluate((video) => !(video as HTMLVideoElement).paused),
     )
     .toBe(true);
-  await moveHandle.press("ArrowUp");
+  await moveAllHandle.press("ArrowUp");
   const sharedMovedPosition = initialPosition + 1;
   await expect(overlay).toHaveAttribute(
     "data-position",
@@ -99,18 +96,13 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
     String(sharedMovedPosition),
   );
 
-  await positionScope.click();
-  await expect(positionScope).toBeChecked();
-  moveHandle = page.getByRole("slider", {
-    name: el.subtitleDragHandleLabel,
-  });
   const positionSaveRequest = page.waitForRequest(
     (request) =>
       request.method() === "PUT" &&
       request.url().endsWith("/videos/jobs/job-futurist/transcription"),
   );
-  await moveHandle.hover();
-  const moveBox = await moveHandle.boundingBox();
+  await moveCueHandle.hover();
+  const moveBox = await moveCueHandle.boundingBox();
   expect(moveBox).not.toBeNull();
   const moveX = moveBox!.x + moveBox!.width / 2;
   const moveY = moveBox!.y + moveBox!.height / 2;
@@ -179,14 +171,17 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
   expect(exportPayload.subtitle_position).toBe(sharedMovedPosition);
   expect(exportPayload.subtitle_size).toBe(finalSize);
 
+  await expect(
+    phone.getByRole("button", { name: el.subtitleResetPosition }),
+  ).toHaveCount(0);
   const resetRequest = page.waitForRequest(
     (request) =>
       request.method() === "PUT" &&
       request.url().endsWith("/videos/jobs/job-futurist/transcription"),
   );
   await page
+    .locator('.cue-item[data-active="true"]')
     .getByRole("button", { name: el.subtitleResetPosition })
-    .first()
     .click();
   const resetPayload = (await resetRequest).postDataJSON() as {
     cues: Array<{ position?: number }>;
@@ -198,18 +193,18 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
 
   await page.setViewportSize(viewports.mobile);
   await stabilizeUi(page);
-  const toggleBox = await positionScope.boundingBox();
-  expect(toggleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const mobileOverlayBox = await overlay.boundingBox();
-  expect(mobileOverlayBox).not.toBeNull();
+  const mobileCueHandleBox = await moveCueHandle.boundingBox();
+  expect(mobileCueHandleBox).not.toBeNull();
+  expect(mobileCueHandleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(mobileCueHandleBox?.width ?? 0).toBeGreaterThanOrEqual(44);
   const mobileSaveRequest = page.waitForRequest(
     (request) =>
       request.method() === "PUT" &&
       request.url().endsWith("/videos/jobs/job-futurist/transcription"),
   );
-  const mobileX = mobileOverlayBox!.x + mobileOverlayBox!.width / 2;
-  const mobileY = mobileOverlayBox!.y + mobileOverlayBox!.height / 2;
-  await overlay.dispatchEvent("pointerdown", {
+  const mobileX = mobileCueHandleBox!.x + mobileCueHandleBox!.width / 2;
+  const mobileY = mobileCueHandleBox!.y + mobileCueHandleBox!.height / 2;
+  await moveCueHandle.dispatchEvent("pointerdown", {
     pointerId: 81,
     pointerType: "touch",
     isPrimary: true,

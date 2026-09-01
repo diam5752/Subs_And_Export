@@ -118,11 +118,12 @@ export const CueItem = memo(
     return (
       <div
         id={`cue-${index}`}
-        className={`rounded-lg border px-2 py-2 transition-colors ${
+        className={`cue-item rounded-lg border px-2 py-2 transition-colors ${
           isActive
             ? "border-[var(--accent)]/25 bg-[var(--accent)]/10"
             : "border-transparent hover:bg-white/5"
         }`}
+        data-active={isActive}
       >
         <div className="flex items-start gap-3">
           <CueTimeButton
