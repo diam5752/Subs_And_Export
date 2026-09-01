@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { useI18n } from "@/context/I18nContext";
 import { useProcessContext } from "../ProcessContext";
 import { TranscriptPanel } from "./SidebarTranscript";
+import type { LiveSubtitlePositioning } from "./usePreviewSectionConfig";
 
 const SubtitlePositionSelector = dynamic(() =>
   import("@/components/SubtitlePositionSelector").then(
@@ -76,7 +77,11 @@ const SidebarTabs = memo((props: SidebarTabsProps) => (
 ));
 SidebarTabs.displayName = "SidebarTabs";
 
-export function Sidebar() {
+interface SidebarProps {
+  subtitlePositioning?: LiveSubtitlePositioning;
+}
+
+export function Sidebar({ subtitlePositioning }: SidebarProps = {}) {
   const { t } = useI18n();
   const process = useProcessContext();
   const sidebarBodyRef = useRef<HTMLDivElement>(null);
@@ -140,7 +145,9 @@ export function Sidebar() {
           stylesLabel={t("tabStyles") || "Styles"}
         />
         <div className="editor-tab-content">
-          {process.activeSidebarTab === "transcript" && <TranscriptPanel />}
+          {process.activeSidebarTab === "transcript" && (
+            <TranscriptPanel subtitlePositioning={subtitlePositioning} />
+          )}
           {process.activeSidebarTab === "styles" && stylesPanel}
         </div>
       </div>

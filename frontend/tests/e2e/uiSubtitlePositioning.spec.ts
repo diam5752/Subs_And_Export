@@ -48,7 +48,7 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
 
   const overlay = page.getByTestId("subtitle-overlay");
   const phone = page.getByTestId("editor-phone");
-  const positionScope = phone.getByRole("switch", {
+  const positionScope = page.getByRole("switch", {
     name: el.subtitlePositionScopeLabel,
   });
   let moveHandle = page.getByRole("slider", {
@@ -60,6 +60,10 @@ test("a playing phrase moves alone, persists, exports, and resets on desktop and
 
   await expect(positionScope).toBeVisible();
   await expect(positionScope).toBeChecked();
+  await expect(phone.getByRole("switch")).toHaveCount(0);
+  await expect(
+    page.locator('.cue-item[data-active="true"]').getByRole("switch"),
+  ).toHaveCount(1);
   await expect(overlay).toHaveAttribute("data-source-cue-index", "0");
   await expect(overlay).toHaveAttribute("data-position-mode", "shared");
   const initialPosition = Number(await overlay.getAttribute("data-position"));

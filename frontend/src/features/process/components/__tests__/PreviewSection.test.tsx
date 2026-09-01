@@ -91,7 +91,36 @@ jest.mock("@/components/PreviewPlayer", () => ({
 const mockSeekTo = jest.fn();
 
 jest.mock("../Sidebar", () => ({
-  Sidebar: () => <div data-testid="sidebar">sidebar</div>,
+  Sidebar: ({
+    subtitlePositioning,
+  }: {
+    subtitlePositioning?: {
+      scope: "all" | "cue";
+      disabled: boolean;
+      onScopeChange: (scope: "all" | "cue") => void;
+    };
+  }) => (
+    <div data-testid="sidebar">
+      {subtitlePositioning && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={subtitlePositioning.scope === "cue"}
+          aria-label="subtitlePositionScopeLabel"
+          disabled={subtitlePositioning.disabled}
+          onClick={() =>
+            subtitlePositioning.onScopeChange(
+              subtitlePositioning.scope === "cue" ? "all" : "cue",
+            )
+          }
+        >
+          {subtitlePositioning.scope === "cue"
+            ? "subtitlePositionScopeOn"
+            : "subtitlePositionScopeOff"}
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 jest.mock("../NewVideoConfirmModal", () => ({
@@ -232,13 +261,15 @@ describe("PreviewSection", () => {
     const positionScope = screen.getByRole("switch", {
       name: "subtitlePositionScopeLabel",
     });
-    expect(screen.getByTestId("editor-phone")).toContainElement(positionScope);
-    expect(positionScope).toHaveTextContent("subtitlePositionScopeShortLabel");
+    expect(screen.getByTestId("editor-phone")).not.toContainElement(
+      positionScope,
+    );
+    expect(screen.getByTestId("sidebar")).toContainElement(positionScope);
+    expect(positionScope).toHaveTextContent("subtitlePositionScopeOn");
     expect(positionScope).toBeChecked();
-    expect(screen.getByText("subtitleDragHandleLabel")).toBeInTheDocument();
     fireEvent.click(positionScope);
     expect(positionScope).not.toBeChecked();
-    expect(screen.getByText("subtitleDragAllHandleLabel")).toBeInTheDocument();
+    expect(positionScope).toHaveTextContent("subtitlePositionScopeOff");
     fireEvent.click(screen.getByTestId("position-on-video"));
     expect(contextValue.changeCuePosition).toHaveBeenLastCalledWith(
       0,

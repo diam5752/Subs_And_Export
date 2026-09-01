@@ -1,8 +1,9 @@
 import React, { memo, useRef, useEffect } from "react";
-import { Cue } from "@/components/SubtitleOverlay";
+import { Cue, type SubtitlePositionScope } from "@/components/SubtitleOverlay";
 import { useI18n } from "@/context/I18nContext";
 import { CueEditor } from "./components/CueEditor";
 import { CueItemReadActions } from "./components/CueItemReadActions";
+import { CuePositionScopeToggle } from "./components/CuePositionScopeToggle";
 
 interface CueItemProps {
   cue: Cue;
@@ -19,6 +20,9 @@ interface CueItemProps {
   onUpdateDraft: (text: string) => void;
   autoFocusEditor?: boolean;
   onResetPosition?: (index: number) => void;
+  positionScope?: SubtitlePositionScope;
+  positionScopeDisabled?: boolean;
+  onPositionScopeChange?: (scope: SubtitlePositionScope) => void;
 }
 
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -65,6 +69,9 @@ export const CueItem = memo(
     onUpdateDraft,
     autoFocusEditor = true,
     onResetPosition,
+    positionScope,
+    positionScopeDisabled = false,
+    onPositionScopeChange,
   }: CueItemProps) => {
     const { t } = useI18n();
     const formattedTime = `${Math.floor(cue.start / 60)}:${(cue.start % 60).toFixed(0).padStart(2, "0")}`;
@@ -118,11 +125,12 @@ export const CueItem = memo(
     return (
       <div
         id={`cue-${index}`}
-        className={`rounded-lg border px-2 py-2 transition-colors ${
+        className={`cue-item rounded-lg border px-2 py-2 transition-colors ${
           isActive
             ? "border-[var(--accent)]/25 bg-[var(--accent)]/10"
             : "border-transparent hover:bg-white/5"
         }`}
+        data-active={isActive}
       >
         <div className="flex items-start gap-3">
           <CueTimeButton
@@ -132,6 +140,13 @@ export const CueItem = memo(
             onSeek={onSeek}
           />
           <div className="flex-1 min-w-0">
+            {isActive && positionScope && onPositionScopeChange && (
+              <CuePositionScopeToggle
+                scope={positionScope}
+                disabled={positionScopeDisabled}
+                onScopeChange={onPositionScopeChange}
+              />
+            )}
             {isEditing ? (
               <CueEditor
                 textareaRef={textareaRef}

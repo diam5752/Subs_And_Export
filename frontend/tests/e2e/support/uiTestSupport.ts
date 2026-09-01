@@ -105,6 +105,15 @@ async function readEditorMetrics(page: Page) {
             ) ?? null,
           ),
       ),
+      positionScopeInsideActiveCue: Boolean(
+        document
+          .querySelector<HTMLElement>('.cue-item[data-active="true"]')
+          ?.contains(
+            document.querySelector<HTMLElement>(
+              ".subtitle-position-scope-toggle",
+            ) ?? null,
+          ),
+      ),
       sidebar: bounds('[data-testid="editor-sidebar"]'),
       tabsSticky: bounds(".editor-tabs-sticky"),
       transcriptList: bounds(".editor-transcript-list"),
@@ -205,6 +214,10 @@ function expectBaseEditorMetrics(
   expect(
     metrics.positionScopeInsidePhone,
     `${viewport.width}px scope toggle placement`,
+  ).toBe(false);
+  expect(
+    metrics.positionScopeInsideActiveCue,
+    `${viewport.width}px active cue scope toggle placement`,
   ).toBe(true);
   expect(
     metrics.positionScope.height,
@@ -212,16 +225,16 @@ function expectBaseEditorMetrics(
   ).toBeGreaterThanOrEqual(44);
   expect(
     metrics.positionScope.width,
-    `${viewport.width}px micro scope toggle width`,
-  ).toBeLessThanOrEqual(Math.min(112, metrics.phone.width - 16) + 1);
+    `${viewport.width}px scope toggle width`,
+  ).toBeLessThanOrEqual(112);
   expect(
     metrics.positionScope.x,
     `${viewport.width}px scope toggle left containment`,
-  ).toBeGreaterThanOrEqual(metrics.phone.x - 1);
+  ).toBeGreaterThanOrEqual(metrics.sidebar.x - 1);
   expect(
     metrics.positionScope.right,
     `${viewport.width}px scope toggle right containment`,
-  ).toBeLessThanOrEqual(metrics.phone.right + 1);
+  ).toBeLessThanOrEqual(metrics.sidebar.right + 1);
   expect(
     metrics.transcriptList.y,
     `${viewport.width}px transcript below sticky tabs`,

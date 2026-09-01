@@ -21,6 +21,8 @@
   "subtitleSharedPositionHint": "Shared position. The switch selects all subtitles or only the active phrase.",
   "subtitlePositionScopeLabel": "Only this phrase",
   "subtitlePositionScopeShortLabel": "Only this",
+  "subtitlePositionScopeOn": "ON",
+  "subtitlePositionScopeOff": "OFF",
   "subtitleDirectManipulationHint": "Drag the active phrase to move only it · pull the corner to resize all",
   "previewTouchGestureHint": "Video: tap play/pause · drag ↔ to seek · hold for 2×",
   "subtitleTouchManipulationHint": "Tap to edit · drag to move only this phrase · pinch with 2 fingers to resize",

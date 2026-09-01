@@ -6,6 +6,7 @@ import { findCueIndexAtTime } from "@/lib/subtitleUtils";
 import { CueItem } from "../CueItem";
 import { usePlaybackContext } from "../PlaybackContext";
 import { useProcessContext } from "../ProcessContext";
+import type { LiveSubtitlePositioning } from "./usePreviewSectionConfig";
 
 interface CueListProps {
   cues: Cue[];
@@ -20,6 +21,7 @@ interface CueListProps {
   onUpdateDraft: (text: string) => void;
   autoFocusEditor: boolean;
   onResetPosition: (index: number) => void;
+  subtitlePositioning?: LiveSubtitlePositioning;
 }
 
 function CueListEntry({
@@ -32,11 +34,12 @@ function CueListEntry({
   props: CueListProps;
 }) {
   const isEditing = props.editingCueIndex === index;
+  const isActive = index === props.activeCueIndex;
   return (
     <CueItem
       cue={cue}
       index={index}
-      isActive={index === props.activeCueIndex}
+      isActive={isActive}
       isEditing={isEditing}
       canEdit={!props.isSaving && (props.editingCueIndex === null || isEditing)}
       draftText={isEditing ? props.editingCueDraft : ""}
@@ -48,6 +51,9 @@ function CueListEntry({
       onUpdateDraft={props.onUpdateDraft}
       autoFocusEditor={props.autoFocusEditor}
       onResetPosition={props.onResetPosition}
+      positionScope={isActive ? props.subtitlePositioning?.scope : undefined}
+      positionScopeDisabled={props.subtitlePositioning?.disabled}
+      onPositionScopeChange={props.subtitlePositioning?.onScopeChange}
     />
   );
 }
@@ -152,43 +158,52 @@ function useActiveCueScroll(
   }, [activeCueIndex, editingCueIndex, containerRef]);
 }
 
-export const TranscriptPanel = memo(() => {
-  const {
-    cues,
-    playerRef,
-    editingCueIndex,
-    transcriptContainerRef,
-    beginEditingCue,
-  } = useProcessContext();
-  const { currentTime } = usePlaybackContext();
-  const activeCueIndex = useMemo(
-    () => (cues.length ? findCueIndexAtTime(cues, currentTime) : -1),
-    [cues, currentTime],
-  );
-  const handleSeek = useCallback(
-    (time: number) => seekPlayer(playerRef, time),
-    [playerRef],
-  );
-  const handleEdit = useCallback(
-    (index: number) => editCue(playerRef, cues, beginEditingCue, index),
-    [beginEditingCue, cues, playerRef],
-  );
-  useActiveCueScroll(activeCueIndex, editingCueIndex, transcriptContainerRef);
-  return (
-    <TranscriptPanelView
-      activeCueIndex={activeCueIndex}
-      onSeek={handleSeek}
-      onEdit={handleEdit}
-    />
-  );
-});
+interface TranscriptPanelProps {
+  subtitlePositioning?: LiveSubtitlePositioning;
+}
+
+export const TranscriptPanel = memo(
+  ({ subtitlePositioning }: TranscriptPanelProps) => {
+    const {
+      cues,
+      playerRef,
+      editingCueIndex,
+      transcriptContainerRef,
+      beginEditingCue,
+    } = useProcessContext();
+    const { currentTime } = usePlaybackContext();
+    const activeCueIndex = useMemo(
+      () => (cues.length ? findCueIndexAtTime(cues, currentTime) : -1),
+      [cues, currentTime],
+    );
+    const handleSeek = useCallback(
+      (time: number) => seekPlayer(playerRef, time),
+      [playerRef],
+    );
+    const handleEdit = useCallback(
+      (index: number) => editCue(playerRef, cues, beginEditingCue, index),
+      [beginEditingCue, cues, playerRef],
+    );
+    useActiveCueScroll(activeCueIndex, editingCueIndex, transcriptContainerRef);
+    return (
+      <TranscriptPanelView
+        activeCueIndex={activeCueIndex}
+        onSeek={handleSeek}
+        onEdit={handleEdit}
+        subtitlePositioning={subtitlePositioning}
+      />
+    );
+  },
+);
 TranscriptPanel.displayName = "TranscriptPanel";
 
 function TranscriptPanelView({
   activeCueIndex,
   onSeek,
   onEdit,
-}: Pick<CueListProps, "activeCueIndex" | "onSeek" | "onEdit">) {
+  subtitlePositioning,
+}: Pick<CueListProps, "activeCueIndex" | "onSeek" | "onEdit"> &
+  TranscriptPanelProps) {
   const { t } = useI18n();
   const {
     cues,
@@ -220,6 +235,7 @@ function TranscriptPanelView({
       onResetPosition={(index) => {
         void resetCuePosition(index);
       }}
+      subtitlePositioning={subtitlePositioning}
       autoFocusEditor={editingCueSurface !== "video"}
       ref={transcriptContainerRef}
       transcriptLoadError={transcriptLoadError}

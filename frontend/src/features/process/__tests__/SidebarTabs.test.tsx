@@ -130,6 +130,46 @@ describe("Sidebar Tabs", () => {
     expect(container.querySelectorAll("#cue-0")).toHaveLength(1);
   });
 
+  it("renders the scope switch only above the active transcript phrase", () => {
+    const onScopeChange = jest.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: jest.fn(),
+    });
+    (useProcessContext as jest.Mock).mockReturnValue({
+      ...mockContextValue,
+      cues: [
+        { start: 0, end: 1, text: "Active subtitle" },
+        { start: 2, end: 3, text: "Later subtitle" },
+      ],
+    });
+
+    const { container } = render(
+      <I18nProvider initialLocale="en">
+        <PlaybackProvider>
+          <Sidebar
+            subtitlePositioning={{
+              scope: "cue",
+              disabled: false,
+              onScopeChange,
+            }}
+          />
+        </PlaybackProvider>
+      </I18nProvider>,
+    );
+
+    const scopeSwitch = screen.getByRole("switch", {
+      name: "Only this phrase",
+    });
+    expect(scopeSwitch).toBeChecked();
+    expect(scopeSwitch).toHaveTextContent("ON");
+    expect(container.querySelector("#cue-0")).toContainElement(scopeSwitch);
+    expect(container.querySelector("#cue-1")).not.toContainElement(scopeSwitch);
+
+    fireEvent.click(scopeSwitch);
+    expect(onScopeChange).toHaveBeenCalledWith("all");
+  });
+
   it("keeps completed-job actions above the mobile style scroll target", () => {
     const setActiveSidebarTab = jest.fn();
     const previewSectionScrollIntoView = jest.fn();
