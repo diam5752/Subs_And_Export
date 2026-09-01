@@ -83,7 +83,7 @@ verify_edge_and_endpoint_contracts() {
     }
   done
 
-  if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   import sys
 
   source = sys.stdin.read()
@@ -111,7 +111,7 @@ verify_edge_and_endpoint_contracts() {
   # deploy verification. The structural check below is performed against the
   # read-only file mounted in the running edge, while the subsequent HTTP probes
   # use method/path combinations proven to terminate at the local 404 handler.
-  if ! docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  if ! docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   from __future__ import annotations
 
   from collections import Counter
@@ -287,7 +287,7 @@ verify_edge_and_endpoint_contracts() {
     exit 1
   fi
 
-  relay_deny_http=$(docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  relay_deny_http=$(docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   import urllib.error
   import urllib.request
 
@@ -346,7 +346,7 @@ verify_edge_and_endpoint_contracts() {
     echo "curl or wget is required for loopback verification." >&2
     exit 1
   fi
-  printf '%s' "$health_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  printf '%s' "$health_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   import json
   import sys
 
@@ -356,7 +356,7 @@ verify_edge_and_endpoint_contracts() {
   if health.get("app_env") != "production":
       raise SystemExit("Production health endpoint must report app_env=production")
   """), "<gsubs-production-verifier>", "exec"))'
-  printf '%s' "$catalog_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  printf '%s' "$catalog_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   import json
   import sys
 
@@ -368,7 +368,7 @@ verify_edge_and_endpoint_contracts() {
   if not isinstance(catalog.get("consumer_contract"), dict):
       raise SystemExit("Production billing catalog must publish the approved consumer contract")
   """), "<gsubs-production-verifier>", "exec"))'
-  printf '%s' "$feedback_canary_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  printf '%s' "$feedback_canary_json" | docker exec -i "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   import json
   import sys
 

@@ -405,7 +405,7 @@ verify_storage_and_provider_contracts() {
     echo "Backend erasure journal must use its dedicated writable volume." >&2
     exit 1
   fi
-  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   import os
   from pathlib import Path
 
@@ -443,7 +443,7 @@ verify_storage_and_provider_contracts() {
     echo "Backend Google client ID does not match the release environment." >&2
     exit 1
   }
-  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   from urllib.parse import urlsplit
 
   from backend.app.core.config import settings
@@ -496,7 +496,7 @@ verify_storage_and_provider_contracts() {
     echo "Production provider or Stripe staging configuration is incomplete or unsafe." >&2
     exit 1
   fi
-  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent("""\
+  if ! docker exec "$backend_id" python -c 'import textwrap; exec(compile(textwrap.dedent(r"""
   from backend.app.services.billing import BillingError, StripeSdkGateway
 
   try:

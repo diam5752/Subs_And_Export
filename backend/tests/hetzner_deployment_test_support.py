@@ -53,7 +53,7 @@ def relay_validator_source(verifier: str) -> str:
     marker = (
         'docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | '
         'docker exec -i "$backend_id" python -c '
-        '\'import textwrap; exec(compile(textwrap.dedent("""\\\n'
+        '\'import textwrap; exec(compile(textwrap.dedent(r"""\n'
     )
     terminator = '\n  """), "<gsubs-production-verifier>", "exec"))\'; then'
     validator = textwrap.dedent(verifier.split(marker, 1)[1].split(terminator, 1)[0])
