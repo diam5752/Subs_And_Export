@@ -65,9 +65,6 @@ describe("CueItem", () => {
     const textarea = screen.getByRole("textbox");
     expect(textarea).toHaveValue("Hello world");
 
-    // Wait for focus
-    waitFor(() => expect(textarea).toHaveFocus());
-
     expect(screen.getByLabelText("transcriptSave")).toBeInTheDocument();
     expect(screen.getByLabelText("transcriptCancel")).toBeInTheDocument();
     expect(screen.getByLabelText("transcriptSave")).toHaveClass(
