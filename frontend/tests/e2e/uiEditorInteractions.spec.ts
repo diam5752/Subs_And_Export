@@ -114,6 +114,10 @@ test("desktop style controls use their natural height without an empty sidebar",
   await page.goto("/");
   await page.getByTestId("completed-editor").waitFor({ timeout: 30_000 });
   await page.getByRole("tab", { name: el.tabStyles }).click();
+  await expect(page.getByTestId("editor-workspace")).toHaveAttribute(
+    "data-editor-mode",
+    "styles",
+  );
   await stabilizeUi(page);
 
   const metrics = await page.evaluate(() => {
