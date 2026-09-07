@@ -80,14 +80,16 @@ function DashboardAccountControls({
   );
 }
 
-function DashboardHistoryButton(
-  props: Pick<
-    DashboardHeaderProps,
-    "user" | "accountReturnFocusRef" | "onOpenHistory"
-  >,
-) {
+function DashboardHistoryButton({
+  user,
+  accountReturnFocusRef,
+  onOpenHistory,
+}: Pick<
+  DashboardHeaderProps,
+  "user" | "accountReturnFocusRef" | "onOpenHistory"
+>) {
   const { t } = useI18n();
-  if (!props.user) return null;
+  if (!user) return null;
   return (
     <button
       type="button"
@@ -95,8 +97,8 @@ function DashboardHistoryButton(
       aria-label={t("myVideos")}
       aria-haspopup="dialog"
       onClick={(event) => {
-        props.accountReturnFocusRef.current = event.currentTarget;
-        props.onOpenHistory();
+        accountReturnFocusRef.current = event.currentTarget;
+        onOpenHistory();
       }}
     >
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
