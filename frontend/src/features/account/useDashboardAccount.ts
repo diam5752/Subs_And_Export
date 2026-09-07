@@ -33,6 +33,10 @@ export function useDashboardAccount({
     setActiveTab("profile");
     setIsOpen(true);
   }, []);
+  const openHistory = useCallback(() => {
+    setActiveTab("history");
+    setIsOpen(true);
+  }, []);
   const logoutFromAccount = useCallback(async () => {
     setError("");
     try {
@@ -91,6 +95,7 @@ export function useDashboardAccount({
     returnFocusRef,
     close,
     openProfile,
+    openHistory,
     setActiveTab,
     logoutFromAccount,
     saveProfile,

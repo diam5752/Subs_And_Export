@@ -107,6 +107,32 @@ describe("Sidebar Tabs", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("supports arrow, Home and End navigation with a single tab stop", () => {
+    render(
+      <I18nProvider initialLocale="en">
+        <PlaybackProvider>
+          <Sidebar />
+        </PlaybackProvider>
+      </I18nProvider>,
+    );
+    const transcript = screen.getByRole("tab", { name: /transcript/i });
+    const styles = screen.getByRole("tab", { name: /styles/i });
+    expect(transcript).toHaveAttribute("tabindex", "0");
+    expect(styles).toHaveAttribute("tabindex", "-1");
+    fireEvent.keyDown(transcript, { key: "ArrowRight" });
+    expect(styles).toHaveFocus();
+    expect(mockContextValue.setActiveSidebarTab).toHaveBeenLastCalledWith(
+      "styles",
+    );
+    fireEvent.keyDown(styles, { key: "Home" });
+    expect(transcript).toHaveFocus();
+    expect(mockContextValue.setActiveSidebarTab).toHaveBeenLastCalledWith(
+      "transcript",
+    );
+    fireEvent.keyDown(transcript, { key: "End" });
+    expect(styles).toHaveFocus();
+  });
+
   it("renders one unique scroll anchor for each transcript cue", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,

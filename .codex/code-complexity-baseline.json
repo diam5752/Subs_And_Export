@@ -477,11 +477,8 @@
       "frontend/src/features/process/components/PreviewSection.tsx::PreviewSection": [
         62
       ],
-      "frontend/src/features/process/components/Sidebar.tsx::(anonymous)": [
-        56
-      ],
       "frontend/src/features/process/components/UploadSection.tsx::(anonymous)": [
-        247
+        216
       ],
       "src/main/java/com/ascentia/subs/auth/AuthStore.java::AuthStore::upsertGoogleUser": [
         104

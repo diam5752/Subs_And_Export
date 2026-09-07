@@ -33,9 +33,46 @@ export function HiddenVideoInput({
 export function UploadValidationError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+    <div
+      role="alert"
+      className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in"
+    >
       {message}
     </div>
+  );
+}
+
+export function SelectedVideoStatus({
+  isProcessing,
+  isPending,
+  hasError,
+  t,
+}: {
+  isProcessing: boolean;
+  isPending: boolean;
+  hasError: boolean;
+  t: Translate;
+}) {
+  if (isProcessing)
+    return (
+      <span className="font-medium text-amber-700">
+        {t("statusProcessingEllipsis")}
+      </span>
+    );
+  if (hasError)
+    return (
+      <span className="font-medium text-[var(--danger)]">
+        {t("uploadNeedsAttention")}
+      </span>
+    );
+  if (isPending)
+    return (
+      <span className="font-medium text-[var(--muted)]">
+        {t("uploadValidating")}
+      </span>
+    );
+  return (
+    <span className="font-medium text-emerald-700">{t("statusReady")}</span>
   );
 }
 
@@ -56,7 +93,7 @@ export function UploadRetentionNote({ t }: { t: Translate }) {
           strokeLinejoin="round"
         />
       </svg>
-      {t("temporaryWorkspaceUploadNote")}
+      {t("workspaceRetentionNote")}
     </p>
   );
 }

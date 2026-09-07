@@ -158,7 +158,7 @@ describe("DashboardPage shell and account", () => {
     },
   );
 
-  it("keeps history out of the header and opens it from the profile panel", async () => {
+  it("keeps account settings and history accessible from the profile panel", async () => {
     render(<DashboardPage />);
 
     const studioHeader = screen.getByRole("banner", { name: "gsubs studio" });
@@ -196,6 +196,18 @@ describe("DashboardPage shell and account", () => {
     expect(
       screen.queryByRole("button", { name: "switchLanguage" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens video history directly from the header", async () => {
+    render(<DashboardPage />);
+    fireEvent.click(screen.getByRole("button", { name: "myVideos" }));
+    expect(await screen.findByTestId("account-view")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "historyTitle" })).toHaveClass(
+      "text-[var(--accent)]",
+    );
+    expect(
+      screen.getByRole("button", { name: "accountSettingsTitle" }),
+    ).not.toHaveClass("text-[var(--accent)]");
   });
 
   it("asks before the logo closes an active workspace and only leaves after confirmation", () => {

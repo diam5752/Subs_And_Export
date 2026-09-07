@@ -18,11 +18,12 @@ interface DashboardHeaderProps {
   onBrandHomeClick: (event: MouseEvent<HTMLAnchorElement>) => void;
   onOpenCreditPurchase: () => void;
   onOpenAccount: () => void;
+  onOpenHistory: () => void;
 }
 
 interface DashboardAccountControlsProps extends Omit<
   DashboardHeaderProps,
-  "isInert" | "onBrandHomeClick"
+  "isInert" | "onBrandHomeClick" | "onOpenHistory"
 > {
   guestSignInLabel: string;
   profileLabel: string;
@@ -79,43 +80,75 @@ function DashboardAccountControls({
   );
 }
 
-export function DashboardHeader({
+function DashboardHistoryButton({
   user,
-  isInert,
-  paidCreditSalesUiApproved,
-  accountPanelOpen,
   accountReturnFocusRef,
-  onBrandHomeClick,
-  onOpenCreditPurchase,
-  onOpenAccount,
-}: DashboardHeaderProps) {
+  onOpenHistory,
+}: Pick<
+  DashboardHeaderProps,
+  "user" | "accountReturnFocusRef" | "onOpenHistory"
+>) {
   const { t } = useI18n();
+  if (!user) return null;
+  return (
+    <button
+      type="button"
+      className="studio-history-trigger"
+      aria-label={t("myVideos")}
+      aria-haspopup="dialog"
+      onClick={(event) => {
+        accountReturnFocusRef.current = event.currentTarget;
+        onOpenHistory();
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect
+          x="3"
+          y="6"
+          width="18"
+          height="15"
+          rx="3"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        <path
+          d="M7 3h10M10 10l5 3.5-5 3.5v-7Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>{t("myVideos")}</span>
+    </button>
+  );
+}
 
+export function DashboardHeader(props: DashboardHeaderProps) {
+  const { t } = useI18n();
   return (
     <header
       className="studio-header"
       aria-label="gsubs studio"
-      aria-hidden={isInert || undefined}
-      inert={isInert ? true : undefined}
+      aria-hidden={props.isInert || undefined}
+      inert={props.isInert ? true : undefined}
     >
+      <a className="studio-skip-link" href="#studio-content">
+        {t("skipToContent")}
+      </a>
       <Link
         href="/"
         className="studio-brand"
         aria-label={t("brandHomeLabel")}
-        onClick={onBrandHomeClick}
+        onClick={props.onBrandHomeClick}
       >
         <BetaBrandLogo className="block h-auto w-[68px] sm:w-[72px]" />
       </Link>
-
       <div className="studio-header-account">
+        <DashboardHistoryButton {...props} />
         <LanguageToggle />
         <DashboardAccountControls
-          user={user}
-          paidCreditSalesUiApproved={paidCreditSalesUiApproved}
-          accountPanelOpen={accountPanelOpen}
-          accountReturnFocusRef={accountReturnFocusRef}
-          onOpenCreditPurchase={onOpenCreditPurchase}
-          onOpenAccount={onOpenAccount}
+          {...props}
           guestSignInLabel={t("guestSignIn")}
           profileLabel={t("profileLabel")}
           accountSettingsTitle={t("accountSettingsTitle")}
