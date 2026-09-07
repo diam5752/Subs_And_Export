@@ -314,7 +314,7 @@ export function UploadSection() {
             onDrop={handleDrop}
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2>
+              <h2 aria-label={t("inputVideoTitle")}>
                 <button
                   type="button"
                   disabled={isProcessing}
