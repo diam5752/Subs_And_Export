@@ -27,7 +27,7 @@ export function RecentJobsHeader({
           {t("historyTitle") || "History"}
         </h3>
         <p className="text-xs text-[var(--muted)]">
-          {t("workspaceRetentionNote")}
+          {t("workspaceRetentionNote") || "Items expire in 24 hours"}
         </p>
       </div>
       <div className="flex items-center gap-2">
