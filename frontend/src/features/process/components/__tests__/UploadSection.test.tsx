@@ -245,6 +245,8 @@ describe("UploadSection", () => {
     });
     expect(startButton).toBeDisabled();
     expect(startButton).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("uploadValidating")).toBeInTheDocument();
+    expect(screen.queryByText("statusReady")).not.toBeInTheDocument();
     fireEvent.click(startButton);
     expect(contextValue.handleStart).not.toHaveBeenCalled();
 
@@ -261,6 +263,7 @@ describe("UploadSection", () => {
 
     expect(startButton).toBeEnabled();
     expect(startButton).not.toHaveAttribute("aria-busy");
+    expect(screen.getByText("statusReady")).toBeInTheDocument();
     fireEvent.click(startButton);
     expect(contextValue.handleStart).toHaveBeenCalledTimes(1);
   });
@@ -353,6 +356,61 @@ describe("UploadSection", () => {
 
     expect(screen.queryByText("uploadFileTooLarge")).not.toBeInTheDocument();
     expect(contextValue.onFileSelect).toHaveBeenCalledWith(atLimit);
+  });
+
+  it("replaces an existing file by dropping onto the compact summary", () => {
+    contextValue.selectedFile = new File(["old"], "old.mp4");
+    const { getByTestId } = renderUpload();
+    const replacement = new File(["new"], "new.mov");
+    fireEvent.drop(getByTestId("upload-section"), {
+      dataTransfer: { files: [replacement] },
+    });
+    expect(contextValue.onFileSelect).toHaveBeenCalledWith(replacement);
+    expect(contextValue.setOverrideStep).toHaveBeenCalledWith(null);
+  });
+
+  it("rejects an invalid replacement with an announced error and preserves the selected file", () => {
+    contextValue.selectedFile = new File(["old"], "old.mp4");
+    renderUpload();
+    fireEvent.drop(screen.getByTestId("upload-section"), {
+      dataTransfer: { files: [new File(["bad"], "bad.txt")] },
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "uploadUnsupportedType",
+    );
+    expect(screen.getByText("uploadNeedsAttention")).toBeInTheDocument();
+    expect(contextValue.onFileSelect).not.toHaveBeenCalled();
+  });
+
+  it("ignores replacement drops while processing", () => {
+    contextValue.selectedFile = new File(["old"], "old.mp4");
+    contextValue.isProcessing = true;
+    renderUpload();
+    fireEvent.drop(screen.getByTestId("upload-section"), {
+      dataTransfer: { files: [new File(["new"], "new.mp4")] },
+    });
+    expect(contextValue.onFileSelect).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "inputVideoSummaryToggle" }),
+    ).toBeDisabled();
+  });
+
+  it("previews a highlight color without opening the file picker", () => {
+    renderUpload();
+    const clickInput = jest.spyOn(contextValue.fileInputRef.current!, "click");
+    fireEvent.click(screen.getByRole("button", { name: "colorCyan" }));
+    expect(screen.getByRole("button", { name: "colorCyan" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "colorYellow" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByText("captionSampleHighlight")).toHaveStyle({
+      color: "#00FFFF",
+    });
+    expect(clickInput).not.toHaveBeenCalled();
   });
 
   it("explains the temporary workspace before the user uploads", () => {

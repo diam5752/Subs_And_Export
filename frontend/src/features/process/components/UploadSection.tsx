@@ -21,8 +21,10 @@ import {
   SelectedVideoThumbnail,
   UploadRetentionNote,
   UploadValidationError,
+  SelectedVideoStatus,
 } from "./UploadSectionParts";
 import { CompactFileIndicator } from "./CompactFileIndicator";
+import { UploadLanding } from "./UploadLanding";
 
 const DEFAULT_MAX_UPLOAD_MB = 500;
 const parsedMaxUploadMb = Number(
@@ -140,6 +142,8 @@ export function UploadSection() {
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0] || null;
+      // Allow selecting the same file again after a validation error.
+      e.target.value = "";
       setFileValidationErrorKind(null);
       if (file) {
         if (!ALLOWED_VIDEO_EXT.test(file.name)) {
@@ -162,16 +166,6 @@ export function UploadSection() {
     }
   }, [isProcessing, fileInputRef]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent, callback: () => void) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        callback();
-      }
-    },
-    [],
-  );
-
   const handleDragEnter = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -186,7 +180,7 @@ export function UploadSection() {
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.currentTarget === e.target) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
       setIsDragOver(false);
     }
   }, []);
@@ -313,39 +307,44 @@ export function UploadSection() {
           <div
             id="upload-section-compact"
             data-testid="upload-section"
-            className="card space-y-4 scroll-mt-32 animate-fade-in-up-scale"
+            className={`card space-y-4 scroll-mt-32 animate-fade-in-up-scale ${isDragOver ? "studio-file-drag-active" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={isExpanded}
-                aria-controls="input-video-details"
-                aria-label={t("inputVideoSummaryToggle")}
-                onKeyDown={(e) => handleKeyDown(e, handleSummaryToggle)}
-                className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${isExpanded ? "scale-[1.01]" : "hover:scale-[1.005]"}`}
-                onClick={handleSummaryToggle}
-              >
-                <h3 className="text-xl font-semibold">
-                  {t("inputVideoTitle")}
-                </h3>
-                {/* Chevron indicator for expand/collapse */}
-                <svg
-                  className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  data-testid="input-video-chevron"
-                  aria-hidden="true"
+              <h2>
+                <button
+                  type="button"
+                  disabled={isProcessing}
+                  aria-expanded={isExpanded}
+                  aria-controls="input-video-details"
+                  aria-label={t("inputVideoSummaryToggle")}
+                  className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${isExpanded ? "scale-[1.01]" : "hover:scale-[1.005]"}`}
+                  onClick={handleSummaryToggle}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
+                  <span className="text-lg font-semibold">
+                    {t("inputVideoTitle")}
+                  </span>
+                  {/* Chevron indicator for expand/collapse */}
+                  <svg
+                    className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    data-testid="input-video-chevron"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+              </h2>
               {/* Right side: file indicator and status badges */}
               <div className="flex items-center gap-3">
                 <CompactFileIndicator
@@ -385,15 +384,12 @@ export function UploadSection() {
                     <p className="text-[var(--muted)] flex items-center gap-1.5">
                       <span>{fileSize} MB</span>
                       <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                      {isProcessing ? (
-                        <span className="text-amber-400 font-medium animate-pulse">
-                          {t("statusProcessingEllipsis")}
-                        </span>
-                      ) : (
-                        <span className="text-emerald-500 font-medium">
-                          {t("statusReady")}
-                        </span>
-                      )}
+                      <SelectedVideoStatus
+                        isProcessing={isProcessing}
+                        isPending={isVideoValidationPending}
+                        hasError={Boolean(fileValidationError)}
+                        t={t}
+                      />
                     </p>
 
                     {!isProcessing && (
@@ -489,61 +485,24 @@ export function UploadSection() {
         data-testid="upload-section"
         className="studio-upload-shell animate-fade-in-up-scale"
       >
-        <div
-          className={`studio-upload-zone ${isDragOver ? "studio-upload-zone-active" : ""}`}
-          data-clickable="true"
-          onClick={handleUploadCardClick}
-          onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
-          role="button"
-          tabIndex={0}
-          aria-label={t("uploadDropTitle")}
+        <HiddenVideoInput
+          inputRef={fileInputRef}
+          onChange={handleFileChange}
+          disabled={isProcessing}
+        />
+        <UploadLanding
+          isDragOver={isDragOver}
+          disabled={isProcessing}
+          maxSize={MAX_UPLOAD_MB}
+          maxDuration={MAX_VIDEO_DURATION_LABEL}
+          onChooseFile={handleUploadCardClick}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          <HiddenVideoInput
-            inputRef={fileInputRef}
-            onChange={handleFileChange}
-            disabled={isProcessing}
-          />
-
-          <div className="studio-upload-preview" aria-hidden="true">
-            <svg viewBox="0 0 48 48" fill="none">
-              <rect
-                x="10"
-                y="7"
-                width="28"
-                height="34"
-                rx="5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-              <path d="M21 17.5 30 24l-9 6.5v-13Z" fill="currentColor" />
-            </svg>
-          </div>
-
-          <span className="studio-upload-cta">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            {isDragOver ? t("dropFileHere") : t("uploadDropTitle")}
-          </span>
-          <p>{isDragOver ? t("releaseToUpload") : t("uploadDropSubtitle")}</p>
-          <small>
-            {t("uploadDropFootnote", {
-              size: MAX_UPLOAD_MB,
-              duration: MAX_VIDEO_DURATION_LABEL,
-            })}
-          </small>
-        </div>
-        <UploadRetentionNote t={t} />
+          <UploadRetentionNote t={t} />
+        </UploadLanding>
         <UploadValidationError message={fileValidationError} />
       </div>
     );
@@ -556,7 +515,6 @@ export function UploadSection() {
     selectedJob,
     handleStart,
     onFileSelect,
-    handleKeyDown,
     handleSummaryToggle,
     isDragOver,
     isExpanded,

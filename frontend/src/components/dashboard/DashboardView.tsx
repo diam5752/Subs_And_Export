@@ -47,6 +47,8 @@ function StudioMain({ controller }: { controller: DashboardController }) {
   const { foundation, core, gateActions, polling, workspace } = controller;
   return (
     <main
+      id="studio-content"
+      tabIndex={-1}
       className={`studio-main ${
         foundation.jobs.selectedJob?.status === "completed"
           ? "studio-main-workspace"
@@ -55,6 +57,9 @@ function StudioMain({ controller }: { controller: DashboardController }) {
     >
       <section className="studio-intro" data-testid="studio-intro">
         <div className="studio-intro-copy">
+          <span className="studio-eyebrow">
+            {foundation.t("studioEyebrow")}
+          </span>
           <h1>{foundation.t("heroTitle")}</h1>
           <p>{foundation.t("heroSubtitle")}</p>
         </div>
@@ -307,6 +312,7 @@ export function DashboardView({
         onBrandHomeClick={workspace.brandHomeClick}
         onOpenCreditPurchase={() => gate.setShowCreditPurchase(true)}
         onOpenAccount={foundation.account.openProfile}
+        onOpenHistory={foundation.account.openHistory}
       />
       <CheckoutReturnLayer controller={controller} blocked={blocked} />
       <DashboardStudio controller={controller} blocked={blocked} />

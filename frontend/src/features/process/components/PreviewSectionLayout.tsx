@@ -216,7 +216,21 @@ function CompletedEditor({ playerRef, ...props }: PreviewSectionLayoutProps) {
 function PreviewReadyState({ playerRef, ...props }: PreviewSectionLayoutProps) {
   return (
     <>
-      <ReadyActions {...props} />
+      <div className="editor-project-header">
+        <div className="editor-project-copy">
+          <span>{props.t("editorProjectLabel")}</span>
+          <h1
+            title={
+              props.selectedJob?.result_data?.original_filename || undefined
+            }
+          >
+            {props.selectedJob?.result_data?.original_filename ||
+              props.t("processedVideoFallback")}
+          </h1>
+          <p>{props.t("editorProjectHint")}</p>
+        </div>
+        <ReadyActions {...props} />
+      </div>
       <ExportProgress
         exportingResolutions={props.exportingResolutions}
         exportProgress={props.exportProgress}

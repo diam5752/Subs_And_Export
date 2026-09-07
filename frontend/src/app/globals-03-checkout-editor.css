@@ -290,8 +290,8 @@
 }
 
 .studio-main {
-  width: min(860px, calc(100% - 48px));
-  padding: clamp(48px, 6vw, 72px) 0 44px;
+  width: min(1040px, calc(100% - 64px));
+  padding: clamp(32px, 4vw, 52px) 0 24px;
 }
 
 .studio-intro {
@@ -302,15 +302,15 @@
 
 .studio-intro h1 {
   max-width: none;
-  font-size: clamp(2.8rem, 5.4vw, 4.8rem);
-  font-weight: 790;
-  letter-spacing: -0.07em;
-  line-height: 0.98;
+  font-size: clamp(2.6rem, 4.5vw, 3.6rem);
+  font-weight: 750;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
 }
 
 .studio-intro-copy > p {
   max-width: 590px;
-  margin: 16px auto 0;
+  margin: 14px auto 0;
   color: #6d7077;
   font-size: clamp(14px, 1.55vw, 17px);
   line-height: 1.55;

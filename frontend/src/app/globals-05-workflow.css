@@ -290,14 +290,15 @@
 }
 
 .studio-upload-zone {
-  min-height: 330px;
+  width: 100%;
+  min-height: 354px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1.5px dashed #b8bbc2;
-  border-radius: 15px;
-  background: rgb(255 255 255 / 0.66);
+  border: 1.5px dashed #b5c5de;
+  border-radius: 20px;
+  background: #ffffff;
   color: var(--foreground);
   padding: 38px 24px;
   text-align: center;
@@ -318,15 +319,15 @@
 }
 
 .studio-upload-preview {
-  width: 104px;
-  height: 62px;
+  width: 64px;
+  height: 64px;
   display: grid;
   place-items: center;
-  margin-bottom: 22px;
-  border-radius: 8px;
-  background: #111215;
-  color: #fff;
-  box-shadow: 0 12px 26px rgb(17 18 21 / 0.16);
+  margin-bottom: 16px;
+  border: 1px solid #dce7fa;
+  border-radius: 18px;
+  background: #eff5ff;
+  color: var(--accent);
 }
 
 .studio-upload-preview svg {
@@ -336,7 +337,8 @@
 }
 
 .studio-upload-cta {
-  min-width: 190px;
+  min-width: 204px;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
