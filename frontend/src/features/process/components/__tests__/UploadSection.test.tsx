@@ -418,9 +418,7 @@ describe("UploadSection", () => {
 
     // REGRESSION: users were not told that every upload and export shares
     // one auto-deleting workspace whose timer refreshes after activity.
-    expect(
-      screen.getByText("temporaryWorkspaceUploadNote"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("workspaceRetentionNote")).toBeInTheDocument();
   });
 
   it("rejects files above the 500 MB upload ceiling before processing", () => {

@@ -293,7 +293,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
         name: el.historyTitle,
       });
       await page.getByRole("heading", { name: el.historyTitle }).waitFor();
-      await historyDialog.getByText(el.historyExpiry).waitFor();
+      await historyDialog.getByText(el.workspaceRetentionNote).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
 
@@ -302,7 +302,9 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expect(
         page.getByRole("heading", { name: el.historyTitle }),
       ).toBeVisible();
-      await expect(historyDialog.getByText(el.historyExpiry)).toBeVisible();
+      await expect(
+        historyDialog.getByText(el.workspaceRetentionNote),
+      ).toBeVisible();
       if (viewport.width <= 800) {
         const selectionBox = await page
           .getByRole("button", { name: el.selectMode })

@@ -93,7 +93,7 @@ export function UploadRetentionNote({ t }: { t: Translate }) {
           strokeLinejoin="round"
         />
       </svg>
-      {t("temporaryWorkspaceUploadNote")}
+      {t("workspaceRetentionNote")}
     </p>
   );
 }
