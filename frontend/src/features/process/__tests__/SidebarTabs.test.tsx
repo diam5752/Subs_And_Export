@@ -92,6 +92,9 @@ describe("Sidebar Tabs", () => {
       </I18nProvider>,
     );
 
+    expect(
+      await screen.findByRole("slider", { name: "Size" }),
+    ).toBeInTheDocument();
     // REGRESSION: the filename/status row and repeated "Custom settings"
     // heading consumed the first part of the mobile settings panel.
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -99,9 +102,6 @@ describe("Sidebar Tabs", () => {
     expect(
       screen.queryByRole("heading", { name: "Custom settings" }),
     ).not.toBeInTheDocument();
-    expect(
-      await screen.findByRole("slider", { name: "Size" }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("slider", { name: "Position" }),
     ).not.toBeInTheDocument();

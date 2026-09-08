@@ -409,6 +409,7 @@ test("style controls stay responsive when reduced effects are active", async ({
   await page.goto("/");
   await page.getByTestId("completed-editor").waitFor({ timeout: 30_000 });
   await page.getByRole("tab", { name: el.tabStyles }).click();
+  await expect(page.getByTestId("style-size-control")).toBeVisible();
   await stabilizeUi(page);
 
   const measureControls = () =>
@@ -474,6 +475,7 @@ test("subtitle color presets stay inside their surface at every responsive width
   await page.goto("/");
   await page.getByTestId("completed-editor").waitFor({ timeout: 30_000 });
   await page.getByRole("tab", { name: el.tabStyles }).click();
+  await expect(page.getByTestId("style-color-options")).toBeVisible();
   await stabilizeUi(page);
 
   for (const viewport of [
