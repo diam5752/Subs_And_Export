@@ -27,6 +27,10 @@
   box-shadow: var(--glow);
 }
 
+body:has([aria-modal="true"]) [data-testid="feedback-trigger"] {
+  visibility: hidden;
+}
+
 .app-shell {
   --studio-header-row-height: 72px;
   --studio-header-total-height: calc(
