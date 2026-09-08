@@ -9,7 +9,7 @@
 	}
 	encode @compressible_response zstd gzip
 
-	@stripe_webhook path /billing/webhook
+	@stripe_webhook path /billing/webhook /billing/webhook/
 	handle @stripe_webhook {
 		request_body {
 			max_size 1MB
@@ -17,7 +17,7 @@
 		reverse_proxy backend:8080
 	}
 
-	@video_stream path /videos/process-stream
+	@video_stream path /videos/process-stream /videos/process-stream/
 	handle @video_stream {
 		request_body {
 			max_size 500MB
@@ -25,7 +25,7 @@
 		reverse_proxy backend:8080
 	}
 
-	@mobile_transcription path /videos/mobile-transcriptions
+	@mobile_transcription path /videos/mobile-transcriptions /videos/mobile-transcriptions/
 	handle @mobile_transcription {
 		request_body {
 			max_size 16MB
@@ -33,7 +33,7 @@
 		reverse_proxy backend:8080
 	}
 
-	@feedback path /feedback
+	@feedback path /feedback /feedback/
 	handle @feedback {
 		request_body {
 			max_size 16KB
@@ -41,7 +41,7 @@
 		reverse_proxy backend:8080
 	}
 
-	@observability_events path /observability/events
+	@observability_events path /observability/events /observability/events/
 	handle @observability_events {
 		request_body {
 			max_size 4KB
@@ -49,8 +49,22 @@
 		reverse_proxy backend:8080
 	}
 
+	@transcription_update {
+		method PUT
+		path_regexp transcription_update ^/videos/jobs/[^/]+/transcription/?$
+	}
+	handle @transcription_update {
+		request_body {
+			max_size 8388608
+		}
+		reverse_proxy backend:8080
+	}
+
 	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /observability/* /static/* /health
 	handle @backend {
+		request_body {
+			max_size 1MB
+		}
 		reverse_proxy backend:8080
 	}
 

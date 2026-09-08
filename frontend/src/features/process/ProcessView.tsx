@@ -8,9 +8,25 @@ import {
 } from "./ProcessContext";
 import { PlaybackProvider } from "./PlaybackContext";
 export type { ProcessingOptions } from "./ProcessContext";
-import { PreviewSection } from "./components/PreviewSection";
 import { JobResponse } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
+
+// Editing, playback and export are only needed once a completed job opens.
+const PreviewSection = dynamic(
+  () =>
+    import("./components/PreviewSection").then(
+      (module) => module.PreviewSection,
+    ),
+  {
+    loading: () => (
+      <div
+        data-testid="editor-workspace-loading"
+        className="min-h-64 animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)]"
+        aria-hidden="true"
+      />
+    ),
+  },
+);
 
 // The upload controls are not rendered when a completed job opens directly.
 // Keep their media-inspection and pricing code out of that low-end editor path.

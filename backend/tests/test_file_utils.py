@@ -134,11 +134,52 @@ def test_save_request_stream_allows_slow_active_chunks(tmp_path: Path) -> None:
             destination,
             expected_size=len(b"slow-mobile-upload"),
             inactivity_timeout_seconds=0.05,
+            total_timeout_seconds=1,
         )
         assert saved == len(b"slow-mobile-upload")
 
     anyio.run(run)
     assert destination.read_bytes() == b"slow-mobile-upload"
+
+
+@pytest.mark.parametrize("cleanup", [True, False])
+def test_active_trickle_cannot_extend_total_upload_deadline(tmp_path: Path, cleanup: bool) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        with pytest.raises(HTTPException) as exc_info:
+            await file_utils.save_request_stream_with_limit(
+                _slow_active_streaming_request([b"x"] * 100, delay_seconds=0.005),
+                destination,
+                expected_size=100,
+                cleanup_on_error=cleanup,
+                inactivity_timeout_seconds=1,
+                total_timeout_seconds=0.04,
+            )
+        assert exc_info.value.status_code == 408
+        assert exc_info.value.detail == "Upload exceeded the total time limit"
+
+    anyio.run(run)
+    assert destination.exists() is not cleanup
+    if not cleanup:
+        assert 0 < destination.stat().st_size < 100
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_upload_total_timeout_must_be_finite_and_positive(tmp_path: Path, timeout: float) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        with pytest.raises(ValueError, match="finite and positive"):
+            await file_utils.save_request_stream_with_limit(
+                _streaming_request([b"x"]),
+                destination,
+                expected_size=1,
+                total_timeout_seconds=timeout,
+            )
+
+    anyio.run(run)
+    assert not destination.exists()
 
 
 def test_save_request_stream_rejects_non_positive_inactivity_timeout(

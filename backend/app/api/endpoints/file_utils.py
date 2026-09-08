@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import shutil
@@ -135,13 +136,19 @@ async def _next_upload_chunk(
     stream: AsyncIterator[bytes],
     *,
     timeout_seconds: float,
+    deadline: float,
     total: int,
     expected_size: int | None,
 ) -> bytes:
+    remaining = deadline - anyio.current_time()
+    if remaining <= 0:
+        raise HTTPException(status_code=408, detail="Upload exceeded the total time limit")
     try:
-        with anyio.fail_after(timeout_seconds):
+        with anyio.fail_after(min(timeout_seconds, remaining)):
             return await anext(stream)
     except TimeoutError as exc:
+        if anyio.current_time() >= deadline:
+            raise HTTPException(status_code=408, detail="Upload exceeded the total time limit") from exc
         logger.warning(
             "Upload stream stalled before completion",
             extra={
@@ -181,17 +188,21 @@ async def save_request_stream_with_limit(
     expected_size: int | None,
     cleanup_on_error: bool = True,
     inactivity_timeout_seconds: float | None = None,
+    total_timeout_seconds: float | None = None,
 ) -> int:
     """Stream a raw request body directly to disk with a strict size limit.
 
     This path never asks Starlette to parse or spool a multipart body before
     authentication and application-level size enforcement. Every received
-    chunk resets a bounded inactivity timer so slow but active mobile uploads
-    remain valid while abandoned requests fail quickly enough to refund their
-    provisional credit reservation.
+    chunk resets the inactivity timer, while one fixed deadline bounds the
+    entire upload even when a client continually trickles bytes.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     timeout_seconds = _upload_timeout_seconds(inactivity_timeout_seconds)
+    total_timeout = settings.upload_total_timeout_seconds if total_timeout_seconds is None else total_timeout_seconds
+    if not math.isfinite(total_timeout) or total_timeout <= 0:
+        raise ValueError("Upload total timeout must be finite and positive")
+    deadline = anyio.current_time() + total_timeout
 
     total = 0
     stream = request.stream().__aiter__()
@@ -202,6 +213,7 @@ async def save_request_stream_with_limit(
                     chunk = await _next_upload_chunk(
                         stream,
                         timeout_seconds=timeout_seconds,
+                        deadline=deadline,
                         total=total,
                         expected_size=expected_size,
                     )

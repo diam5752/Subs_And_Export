@@ -563,7 +563,6 @@
   "adminBillingRecentSignInRequired": "This permanent record requires a new sign-in from the last 15 minutes. Sign out, sign in again with the authorized account, and refresh the queue.",
   "adminBillingRecordError": "Recording did not complete. Refresh the queue before trying again.",
   "adminBillingPrivacyNotice": "This page is not cached and shows only the minimum details needed for reconciliation.",
-  "studioEyebrow": "YOUR VIDEO. YOUR STYLE.",
   "uploadStartTitle": "Start with your video",
   "uploadValidating": "Checking video…",
   "uploadNeedsAttention": "Check this file",

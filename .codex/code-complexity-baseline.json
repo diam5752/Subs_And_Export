@@ -193,9 +193,6 @@
       "frontend/src/features/process/useSessionJobRestore.ts::(anonymous)": [
         11
       ],
-      "frontend/src/hooks/useJobPolling.ts::poll": [
-        13
-      ],
       "frontend/src/lib/apiClient.ts::reprocessJob": [
         22
       ],

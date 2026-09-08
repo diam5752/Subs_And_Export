@@ -105,15 +105,21 @@ def _request_metadata(request: Request) -> tuple[str, str, int, int | None]:
 async def _read_audio_body(request: Request, expected_length: int | None) -> bytes:
     body = bytearray()
     iterator = request.stream().__aiter__()
+    deadline = asyncio.get_running_loop().time() + settings.upload_total_timeout_seconds
     while True:
+        remaining = deadline - asyncio.get_running_loop().time()
+        if remaining <= 0:
+            raise HTTPException(status_code=408, detail="Audio upload exceeded the total time limit")
         try:
             chunk = await asyncio.wait_for(
                 anext(iterator),
-                timeout=settings.upload_inactivity_timeout_seconds,
+                timeout=min(settings.upload_inactivity_timeout_seconds, remaining),
             )
         except StopAsyncIteration:
             break
         except TimeoutError as exc:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise HTTPException(status_code=408, detail="Audio upload exceeded the total time limit") from exc
             raise HTTPException(status_code=408, detail="Audio upload stalled") from exc
         body.extend(chunk)
         if len(body) > MOBILE_AUDIO_MAX_BYTES:

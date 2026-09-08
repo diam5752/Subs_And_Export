@@ -57,9 +57,6 @@ function StudioMain({ controller }: { controller: DashboardController }) {
     >
       <section className="studio-intro" data-testid="studio-intro">
         <div className="studio-intro-copy">
-          <span className="studio-eyebrow">
-            {foundation.t("studioEyebrow")}
-          </span>
           <h1>{foundation.t("heroTitle")}</h1>
           <p>{foundation.t("heroSubtitle")}</p>
         </div>

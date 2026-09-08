@@ -524,6 +524,12 @@ class Settings(SettingsRuntimeChecks, BaseSettings):
         le=300,
         validation_alias="GSP_UPLOAD_INACTIVITY_TIMEOUT_SECONDS",
     )
+    upload_total_timeout_seconds: float = Field(
+        default=900.0,
+        gt=0,
+        le=3600,
+        validation_alias="GSP_UPLOAD_TOTAL_TIMEOUT_SECONDS",
+    )
     workspace_retention_hours: int = Field(
         default=24,
         gt=0,

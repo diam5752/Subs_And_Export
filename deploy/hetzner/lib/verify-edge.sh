@@ -148,7 +148,7 @@ verify_edge_and_endpoint_contracts() {
 
   public = block(source, ":8080")
   mobile_matchers = re.findall(
-      r"^[ \t]*@mobile_transcription[ \t]+path[ \t]+/videos/mobile-transcriptions[ \t]*(?:#.*)?$",
+      r"^[ \t]*@mobile_transcription[ \t]+path[ \t]+/videos/mobile-transcriptions[ \t]+/videos/mobile-transcriptions/[ \t]*(?:#.*)?$",
       public,
       re.MULTILINE,
   )
@@ -162,7 +162,7 @@ verify_edge_and_endpoint_contracts() {
   if public.find("@mobile_transcription path") > public.find("@backend path"):
       raise SystemExit("Mobile transcription body cap must precede the generic backend route.")
   feedback_matchers = re.findall(
-      r"^[ \t]*@feedback[ \t]+path[ \t]+/feedback[ \t]*(?:#.*)?$",
+      r"^[ \t]*@feedback[ \t]+path[ \t]+/feedback[ \t]+/feedback/[ \t]*(?:#.*)?$",
       public,
       re.MULTILINE,
   )
@@ -174,7 +174,7 @@ verify_edge_and_endpoint_contracts() {
   if feedback_handler.count("reverse_proxy backend:8080") != 1:
       raise SystemExit("Public feedback route must have one backend upstream.")
   observability_matchers = re.findall(
-      r"^[ \t]*@observability_events[ \t]+path[ \t]+/observability/events[ \t]*(?:#.*)?$",
+      r"^[ \t]*@observability_events[ \t]+path[ \t]+/observability/events[ \t]+/observability/events/[ \t]*(?:#.*)?$",
       public,
       re.MULTILINE,
   )
@@ -194,6 +194,20 @@ verify_edge_and_endpoint_contracts() {
   )
   if len(backend_matchers) != 1 or "/feedback" in backend_matchers[0]:
       raise SystemExit("Feedback must not bypass its body cap through the generic backend matcher.")
+  if directives(block(block(public, "handle @backend"), "request_body")) != ("max_size 1MB",):
+      raise SystemExit("General API request-body cap must be exactly 1MB.")
+  if directives(block(public, "@transcription_update")) != (
+      "method PUT",
+      "path_regexp transcription_update ^/videos/jobs/[^/]+/transcription/?$",
+  ):
+      raise SystemExit("Transcript updates must have the exact method and path matcher.")
+  transcript_handler = block(public, "handle @transcription_update")
+  if directives(block(transcript_handler, "request_body")) != ("max_size 8388608",):
+      raise SystemExit("Transcript request-body cap must be exactly 8 MiB.")
+  if transcript_handler.count("reverse_proxy backend:8080") != 1:
+      raise SystemExit("Transcript updates must have one backend upstream.")
+  if public.find("@transcription_update {") > public.find("@backend path"):
+      raise SystemExit("Transcript body cap must precede the generic backend route.")
 
   relay = block(source, ":8081")
   expected_matchers = {
