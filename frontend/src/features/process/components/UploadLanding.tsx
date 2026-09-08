@@ -1,6 +1,5 @@
 import type { DragEventHandler, ReactNode } from "react";
 import { useI18n } from "@/context/I18nContext";
-import { CaptionSample } from "./CaptionSample";
 import styles from "./UploadLanding.module.css";
 
 interface UploadLandingProps {
@@ -83,7 +82,6 @@ export function UploadLanding({ children, ...props }: UploadLandingProps) {
         </div>
         {children}
       </div>
-      <CaptionSample />
     </div>
   );
 }

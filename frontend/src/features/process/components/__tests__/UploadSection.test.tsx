@@ -395,24 +395,6 @@ describe("UploadSection", () => {
     ).toBeDisabled();
   });
 
-  it("previews a highlight color without opening the file picker", () => {
-    renderUpload();
-    const clickInput = jest.spyOn(contextValue.fileInputRef.current!, "click");
-    fireEvent.click(screen.getByRole("button", { name: "colorCyan" }));
-    expect(screen.getByRole("button", { name: "colorCyan" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByRole("button", { name: "colorYellow" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(screen.getByText("captionSampleHighlight")).toHaveStyle({
-      color: "#00FFFF",
-    });
-    expect(clickInput).not.toHaveBeenCalled();
-  });
-
   it("explains the temporary workspace before the user uploads", () => {
     renderUpload();
 
