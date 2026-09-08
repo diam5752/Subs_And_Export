@@ -1,14 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import dynamic from "next/dynamic";
 import { useI18n } from "@/context/I18nContext";
+// The editor already loads on demand. Keep its style controls in that bundle
+// so switching tabs cannot suspend and hide the mounted video workspace.
+import { SubtitlePositionSelector } from "@/components/SubtitlePositionSelector";
 import { useProcessContext } from "../ProcessContext";
 import { TranscriptPanel } from "./SidebarTranscript";
-
-const SubtitlePositionSelector = dynamic(() =>
-  import("@/components/SubtitlePositionSelector").then(
-    (module) => module.SubtitlePositionSelector,
-  ),
-);
 
 interface SidebarTabsProps {
   activeTab: "transcript" | "styles";
