@@ -30,6 +30,7 @@ async function openGuestAuthGate(page: Page) {
     name: el.processingGateAuthTitle,
   });
   await expect(authDialog).toBeVisible();
+  await expect(page.getByTestId("feedback-trigger")).toBeHidden();
   return authDialog;
 }
 
@@ -200,6 +201,7 @@ test.describe("Inline processing gate on mobile browsers", () => {
     const card = page.getByTestId("processing-gate-card");
     await expect(dialog).toBeVisible();
     await expect(card).toBeVisible();
+    await expect(page.getByTestId("feedback-trigger")).toBeHidden();
     await dialog
       .getByRole("button", {
         name: el.processingGateCreateAccount,
@@ -330,6 +332,7 @@ test.describe("Inline processing gate on mobile browsers", () => {
     });
     await dialog.getByRole("button", { name: el.closeLabel }).click();
     await expect(dialog).toBeHidden();
+    await expect(page.getByTestId("feedback-trigger")).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBe(originalState.scrollY);
@@ -375,6 +378,7 @@ test.describe("Feedback sheet on mobile browsers", () => {
     const dialog = page.getByTestId("feedback-dialog");
     const message = page.getByLabel(el.feedbackMessageLabel);
     await expect(dialog).toBeVisible();
+    await expect(page.getByTestId("feedback-trigger")).toBeHidden();
     const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
     if (hasTouch) {
       // The exact non-text focus target differs between Chromium and WebKit.
@@ -396,5 +400,9 @@ test.describe("Feedback sheet on mobile browsers", () => {
     await expect(message).toBeFocused();
     await expect(page.getByText(el.feedbackMessageTooShort)).toBeVisible();
     expect(feedbackPosts).toBe(0);
+    await dialog.getByRole("button", { name: el.feedbackClose }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByTestId("feedback-trigger")).toBeVisible();
+    await expect(page.getByTestId("feedback-trigger")).toBeFocused();
   });
 });
