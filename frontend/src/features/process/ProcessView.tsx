@@ -8,9 +8,25 @@ import {
 } from "./ProcessContext";
 import { PlaybackProvider } from "./PlaybackContext";
 export type { ProcessingOptions } from "./ProcessContext";
-import { PreviewSection } from "./components/PreviewSection";
 import { JobResponse } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
+
+// Editing, playback and export are only needed once a completed job opens.
+const PreviewSection = dynamic(
+  () =>
+    import("./components/PreviewSection").then(
+      (module) => module.PreviewSection,
+    ),
+  {
+    loading: () => (
+      <div
+        data-testid="editor-workspace-loading"
+        className="min-h-[calc(100dvh-10rem)] animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)]"
+        aria-hidden="true"
+      />
+    ),
+  },
+);
 
 // The upload controls are not rendered when a completed job opens directly.
 // Keep their media-inspection and pricing code out of that low-end editor path.
@@ -146,59 +162,14 @@ export function ProcessViewContent() {
       {
         id: 1,
         label: t("stepUpload") || "Upload",
-        icon: (
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-            />
-          </svg>
-        ),
       },
       {
         id: 2,
         label: t("stepCaptions") || "Captions",
-        icon: (
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
-        ),
       },
       {
         id: 3,
         label: t("stepExport") || "Export",
-        icon: (
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-            />
-          </svg>
-        ),
       },
     ],
     [t],

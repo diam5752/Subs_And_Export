@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -102,19 +103,30 @@ def _request_metadata(request: Request) -> tuple[str, str, int, int | None]:
     return idempotency_key, content_type, authorized_credits, content_length
 
 
+async def _next_audio_chunk(iterator: AsyncIterator[bytes], deadline: float) -> bytes:
+    remaining = deadline - asyncio.get_running_loop().time()
+    if remaining <= 0:
+        raise HTTPException(status_code=408, detail="Audio upload exceeded the total time limit")
+    try:
+        return await asyncio.wait_for(
+            anext(iterator),
+            timeout=min(settings.upload_inactivity_timeout_seconds, remaining),
+        )
+    except TimeoutError as exc:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise HTTPException(status_code=408, detail="Audio upload exceeded the total time limit") from exc
+        raise HTTPException(status_code=408, detail="Audio upload stalled") from exc
+
+
 async def _read_audio_body(request: Request, expected_length: int | None) -> bytes:
     body = bytearray()
     iterator = request.stream().__aiter__()
+    deadline = asyncio.get_running_loop().time() + settings.upload_total_timeout_seconds
     while True:
         try:
-            chunk = await asyncio.wait_for(
-                anext(iterator),
-                timeout=settings.upload_inactivity_timeout_seconds,
-            )
+            chunk = await _next_audio_chunk(iterator, deadline)
         except StopAsyncIteration:
             break
-        except TimeoutError as exc:
-            raise HTTPException(status_code=408, detail="Audio upload stalled") from exc
         body.extend(chunk)
         if len(body) > MOBILE_AUDIO_MAX_BYTES:
             raise HTTPException(status_code=413, detail="Mobile audio is too large")

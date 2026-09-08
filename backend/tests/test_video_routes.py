@@ -118,10 +118,12 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_duration_exceeds
     assert list(artifacts_root.iterdir()) == []
 
 
+@pytest.mark.parametrize("detail", ["Upload stalled before completion", "Upload exceeded the total time limit"])
 def test_stream_stall_refunds_reservation_and_deletes_partial_workspace(
     client: TestClient,
     funded_user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
+    detail: str,
 ) -> None:
     from backend.app.api.endpoints import videos as videos_module
     from backend.app.core.database import Database
@@ -150,7 +152,7 @@ def test_stream_stall_refunds_reservation_and_deletes_partial_workspace(
         captured_path.append(destination)
         raise HTTPException(
             status_code=408,
-            detail="Upload stalled before completion",
+            detail=detail,
         )
 
     monkeypatch.setattr(
@@ -167,7 +169,7 @@ def test_stream_stall_refunds_reservation_and_deletes_partial_workspace(
     )
 
     assert response.status_code == 408
-    assert response.json() == {"detail": "Upload stalled before completion"}
+    assert response.json() == {"detail": detail}
     assert points_store.get_balance(user_id) == starting_balance
     assert JobStore(Database()).list_jobs_for_user(user_id) == []
     assert len(captured_path) == 1

@@ -11,9 +11,9 @@ jest.mock("@/context/I18nContext", () => ({
 }));
 
 const steps = [
-  { id: 1, label: "Upload", icon: <span>Upload icon</span> },
-  { id: 2, label: "Captions", icon: <span>Captions icon</span> },
-  { id: 3, label: "Export", icon: <span>Export icon</span> },
+  { id: 1, label: "Upload" },
+  { id: 2, label: "Captions" },
+  { id: 3, label: "Export" },
 ];
 
 describe("StepIndicator", () => {

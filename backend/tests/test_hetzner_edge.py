@@ -327,7 +327,7 @@ def test_edge_caps_observability_events_before_the_generic_backend_proxy() -> No
     matcher = "@observability_events path /observability/events"
     assert caddyfile.count(matcher) == 1
     assert caddyfile.index(matcher) < caddyfile.index("@backend path")
-    handler = caddyfile.split(matcher, 1)[1].split("@backend path", 1)[0]
+    handler = caddyfile.split(matcher, 1)[1].split("@transcription_update", 1)[0]
     assert "request_body" in handler
     assert "max_size 4KB" in handler
     assert handler.count("reverse_proxy backend:8080") == 1
@@ -474,6 +474,12 @@ def test_runtime_relay_contract_validator_accepts_only_the_reviewed_allow_list()
             1,
         ),
         caddyfile.replace("max_size 16KB", "max_size 1MB", 1),
+        caddyfile.replace("max_size 8388608", "max_size 8388609", 1),
+        caddyfile.replace(
+            "handle @backend {\n\t\trequest_body {\n\t\t\tmax_size 1MB",
+            "handle @backend {\n\t\trequest_body {\n\t\t\tmax_size 2MB",
+            1,
+        ),
         caddyfile.replace("@backend path ", "@backend path /feedback ", 1),
     )
     for unsafe in unsafe_variants:

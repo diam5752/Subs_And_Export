@@ -26,6 +26,13 @@ the fixed 2 GiB free-space floor. If the requested files do not fit safely,
 the next request receives `507` before its body is consumed; capacity never
 means overcommitting the root disk.
 
+Each streamed video must finish within 15 minutes in addition to the 30-second
+inactivity timeout. Small periodic chunks do not extend the total deadline;
+expiration refunds the provisional credits and removes the pending job and its
+exact workspace. General API bodies are capped before parsing at 1 MB, while
+transcript updates have an 8 MiB budget. Media and webhook routes retain their
+separate streaming limits.
+
 Video exports acquire their bounded render lane before publishing a projected
 output-size reservation. The short admission lock makes those reservations and
 their disk preflight atomic across both render lanes. A queued export therefore

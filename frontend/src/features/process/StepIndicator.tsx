@@ -6,7 +6,6 @@ interface StepIndicatorProps {
   steps: {
     id: number;
     label: string;
-    icon: React.ReactNode;
   }[];
   maxStep?: number; // The furthest step the user has unlocked (1, 2, or 3)
   onStepClick?: (stepId: number) => void;

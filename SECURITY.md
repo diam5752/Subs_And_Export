@@ -31,7 +31,9 @@ governed by the controls below.
 - Optionally set `GSP_PROXY_TRUSTED_HOSTS` to the proxy CIDRs/IPs that should be allowed to set `X-Forwarded-*`.
 
 ### Upload Limits
-- Backend enforces a **500 MB maximum upload size** and **10-minute maximum duration** by default.
+- Backend enforces a **500 MB maximum upload size** and **3-minute maximum video duration** by default.
+- Video uploads have a 30-second inactivity timeout and a 15-minute total upload deadline; interrupted uploads refund their reservation and remove their partial workspace.
+- Automatically parsed API bodies are capped at 1 MB before parsing, with an 8 MiB transcript-update allowance and smaller feedback/telemetry caps. Streaming media and signed webhooks retain their dedicated byte limits.
 - Uploads go through the authenticated backend stream endpoint into the dedicated local volume.
 - Keep the backend and database off the public network; only the edge proxy may reach them.
 

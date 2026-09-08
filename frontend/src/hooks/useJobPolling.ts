@@ -21,119 +21,114 @@ interface UseJobPollingResult {
   stopPolling: () => void;
 }
 
-/**
- * Custom hook for polling job status.
- * Extracted from page.tsx to enable isolated testing.
- *
- * Performance Optimization:
- * Reduces polling frequency when the document is hidden (user switched tabs/minimized)
- * to save bandwidth and server resources.
- */
+function startPolling(
+  jobId: string,
+  interval: number,
+  onStatus: (job: JobResponse) => void,
+  onError: () => void,
+): () => void {
+  let active = true;
+  let inFlight = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    timer = setTimeout(
+      () => void poll(),
+      document.hidden ? Math.max(interval, 15_000) : interval,
+    );
+  };
+  const poll = async () => {
+    if (!active || inFlight) return;
+    inFlight = true;
+    try {
+      const job = await api.getJobStatus(jobId);
+      if (active) onStatus(job);
+    } catch {
+      if (active) onError();
+    } finally {
+      inFlight = false;
+      if (active) schedule();
+    }
+  };
+  const onVisibilityChange = () => {
+    clearTimeout(timer);
+    if (inFlight || !active) return;
+    if (document.hidden) schedule();
+    else void poll();
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  void poll();
+  return () => {
+    active = false;
+    clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+}
+
+function reportStatus(
+  job: JobResponse,
+  { callbacks, t }: Pick<UseJobPollingOptions, "callbacks" | "t">,
+  stop: () => void,
+): void {
+  callbacks.onProgress(
+    job.progress,
+    job.status === "cancelling"
+      ? t("cancellationRequested")
+      : job.message ||
+          (job.status === "processing" ? t("statusProcessingEllipsis") : ""),
+  );
+  if (job.status === "completed") {
+    stop();
+    callbacks.onComplete(job);
+  } else if (job.status === "failed") {
+    stop();
+    callbacks.onFailed(job.message || t("statusFailedFallback"));
+  } else if (job.status === "cancelled") {
+    stop();
+    callbacks.onFailed(t("processingCancelled"));
+  }
+}
+
+/** Poll sequentially, slow down hidden tabs and ignore obsolete job responses. */
 export function useJobPolling({
   jobId,
   callbacks,
   pollingInterval = 1000,
   t,
 }: UseJobPollingOptions): UseJobPollingResult {
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isPolling, setIsPolling] = useState(false);
-  const isPollingRef = useRef(false);
-  const inFlightRef = useRef(false);
-
-  // Dynamic polling interval based on visibility
-  const [currentInterval, setCurrentInterval] = useState(pollingInterval);
+  const stopRef = useRef<(() => void) | null>(null);
+  const handlers = useRef({ callbacks, t });
+  useEffect(() => {
+    handlers.current = { callbacks, t };
+  }, [callbacks, t]);
 
   const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    isPollingRef.current = false;
+    stopRef.current?.();
     setIsPolling(false);
   }, []);
 
-  // Handle visibility changes to throttle polling
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Throttle to 5 seconds when hidden
-        setCurrentInterval(Math.max(pollingInterval, 5000));
-      } else {
-        // Restore original interval when visible
-        setCurrentInterval(pollingInterval);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const starter = setTimeout(() => {
+      setIsPolling(Boolean(jobId));
+      if (!jobId) return;
+      stopRef.current = startPolling(
+        jobId,
+        pollingInterval,
+        (job) => reportStatus(job, handlers.current, stopPolling),
+        () => {
+          stopPolling();
+          handlers.current.callbacks.onError(
+            handlers.current.t("statusCheckFailed"),
+          );
+        },
+      );
+    }, 0);
+    stopRef.current = () => clearTimeout(starter);
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearTimeout(starter);
+      stopRef.current?.();
     };
-  }, [pollingInterval]);
+  }, [jobId, pollingInterval, stopPolling]);
 
-  useEffect(() => {
-    if (!jobId) {
-      // Avoid setting state synchronously
-      if (isPollingRef.current) {
-        setTimeout(() => stopPolling(), 0);
-      }
-      return;
-    }
-
-    isPollingRef.current = true;
-    setTimeout(() => setIsPolling(true), 0);
-
-    const poll = async () => {
-      if (!isPollingRef.current || inFlightRef.current) return;
-      inFlightRef.current = true;
-      try {
-        const job = await api.getJobStatus(jobId);
-        if (!isPollingRef.current) return;
-        callbacks.onProgress(
-          job.progress,
-          job.status === "cancelling"
-            ? t("cancellationRequested")
-            : job.message ||
-                (job.status === "processing"
-                  ? t("statusProcessingEllipsis")
-                  : ""),
-        );
-
-        if (job.status === "completed") {
-          stopPolling();
-          callbacks.onComplete(job);
-        } else if (job.status === "failed") {
-          stopPolling();
-          callbacks.onFailed(job.message || t("statusFailedFallback"));
-        } else if (job.status === "cancelled") {
-          stopPolling();
-          callbacks.onFailed(t("processingCancelled"));
-        }
-      } catch {
-        if (!isPollingRef.current) return;
-        stopPolling();
-        callbacks.onError(t("statusCheckFailed"));
-      } finally {
-        inFlightRef.current = false;
-      }
-    };
-
-    // Clear existing interval if any (when currentInterval changes)
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    intervalRef.current = setInterval(() => {
-      void poll();
-    }, currentInterval);
-    void poll(); // Initial poll
-
-    return () => {
-      stopPolling();
-    };
-  }, [jobId, callbacks, currentInterval, t, stopPolling]);
-
-  return {
-    isPolling,
-    stopPolling,
-  };
+  return { isPolling, stopPolling };
 }

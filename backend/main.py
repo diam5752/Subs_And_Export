@@ -55,6 +55,7 @@ from backend.app.core.download_grants import (
 from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.core.private_media import PrivateMediaFileResponse
 from backend.app.core.ratelimit import get_client_ip, limiter_static
+from backend.app.core.request_limits import RequestBodyLimitMiddleware
 from backend.app.core.workspace_deletion import reclaim_abandoned_lifecycle_locks
 from backend.app.services.consumer_contracts import (
     assert_consumer_contract_registry_approved,
@@ -200,6 +201,8 @@ default_origins = (
 origins = settings.allowed_origins or default_origins
 if not settings.is_dev and not origins:
     raise RuntimeError("GSP_ALLOWED_ORIGINS must be set in production")
+
+app.add_middleware(RequestBodyLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

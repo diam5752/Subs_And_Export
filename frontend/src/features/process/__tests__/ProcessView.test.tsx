@@ -143,7 +143,7 @@ describe("ProcessView", () => {
     expect(screen.getAllByText(/^Captions$/i).length).toBeGreaterThan(0);
   });
 
-  it("renders Step 3 (Preview) when job is completed", () => {
+  it("renders Step 3 (Preview) when job is completed", async () => {
     (useProcessContext as jest.Mock).mockReturnValue({
       ...mockContextValue,
       currentStep: 3,
@@ -162,7 +162,7 @@ describe("ProcessView", () => {
     expect(screen.getAllByText(/Step 3/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^Export$/i).length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("tab", { name: /Transcript/i }),
+      await screen.findByRole("tab", { name: /Transcript/i }),
     ).toBeInTheDocument();
 
     const stepper = screen.getByTestId("workflow-stepper");

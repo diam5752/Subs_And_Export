@@ -4,10 +4,25 @@ import { useI18n } from "@/context/I18nContext";
 import { useProcessContext } from "../ProcessContext";
 import { TranscriptPanel } from "./SidebarTranscript";
 
-const SubtitlePositionSelector = dynamic(() =>
-  import("@/components/SubtitlePositionSelector").then(
-    (module) => module.SubtitlePositionSelector,
-  ),
+function StyleControlsLoading() {
+  const { t } = useI18n();
+  return (
+    <div
+      role="status"
+      className="min-h-64 animate-pulse rounded-2xl bg-[var(--surface-elevated)] p-4 text-sm text-[var(--text-muted)]"
+    >
+      {t("loading")}
+    </div>
+  );
+}
+
+// Keep style loading inside its panel so it cannot hide the mounted player.
+const SubtitlePositionSelector = dynamic(
+  () =>
+    import("@/components/SubtitlePositionSelector").then(
+      (module) => module.SubtitlePositionSelector,
+    ),
+  { loading: StyleControlsLoading },
 );
 
 interface SidebarTabsProps {
