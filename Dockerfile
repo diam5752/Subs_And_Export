@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 ARG REQUIREMENTS_FILE=backend/requirements.mock.txt
@@ -6,7 +6,7 @@ COPY ${REQUIREMENTS_FILE} requirements.txt
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 # ============================================
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # Install runtime system dependencies
 # - ffmpeg: video/audio processing
