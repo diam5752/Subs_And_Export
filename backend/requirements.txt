@@ -17,7 +17,7 @@ google-auth>=2.29.0,<2.42.0
 
 # Database (production-grade)
 sqlalchemy>=2.0.0
-alembic>=1.13.0
+alembic>=1.19.1
 psycopg[binary]>=3.1.0
 
 # HTTP/API
