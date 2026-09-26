@@ -4,6 +4,9 @@ out/
 coverage/
 test-results/
 playwright-report/
+# Tests keep their full repository context in CI, outside the runtime build.
+src/__tests__/
+tests/
 .env*
 npm-debug.log*
 .DS_Store
