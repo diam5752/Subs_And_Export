@@ -373,7 +373,8 @@ class BillingConsumerRecordStore(BillingConsumerWithdrawalMixin):
             confirmation,
             purchase=purchase,
         )
-        return cast(DbBillingContractConfirmation, confirmation)
+        verified_confirmation: DbBillingContractConfirmation = confirmation
+        return verified_confirmation
 
     def list_purchases(
         self,

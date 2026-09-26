@@ -8,9 +8,12 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .upload_session import UPLOAD_CHUNK_BYTES
+
 DEFAULT_BODY_LIMIT = 1_000_000
 TRANSCRIPTION_BODY_LIMIT = 8 * 1024 * 1024
 _TRANSCRIPTION_PATH = re.compile(r"/videos/jobs/[^/]+/transcription")
+_UPLOAD_CHUNK_PATH = re.compile(r"/videos/uploads/[0-9a-f-]{36}/chunks")
 _MANUALLY_BOUNDED_PATHS = {
     "/videos/process-stream",
     "/videos/mobile-transcriptions",
@@ -22,6 +25,8 @@ _SMALL_BODY_LIMITS = {"/feedback": 16_000, "/observability/events": 4_000}
 def request_body_limit(scope: Scope) -> int | None:
     path = scope.get("path", "").rstrip("/")
     method = scope.get("method", "")
+    if method == "POST" and _UPLOAD_CHUNK_PATH.fullmatch(path):
+        return UPLOAD_CHUNK_BYTES
     # These routes authenticate/verify and count their own actual stream bytes.
     # Do not buffer media or change their upload/refund error contracts here.
     if method == "POST" and path in _MANUALLY_BOUNDED_PATHS:

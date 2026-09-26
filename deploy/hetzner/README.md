@@ -33,6 +33,22 @@ exact workspace. General API bodies are capped before parsing at 1 MB, while
 transcript updates have an 8 MiB budget. Media and webhook routes retain their
 separate streaming limits.
 
+Cloudflare Free permits at most 100 MB in one HTTP request. Browser videos above
+64 MiB therefore use authenticated upload sessions and independent requests of
+at most 16 MiB; the existing 500 MiB file limit stays unchanged. Each chunk carries
+its exact offset and SHA-256. A lost acknowledgement is reconciled against the
+durable offset, and a completion retry reuses the same job and credit reservation.
+Source bytes remain in the dedicated local media volume. Smaller videos retain
+the original stream endpoint, while each Caddy/API parser applies the relevant
+per-route limit before processing a body.
+
+An upload session has a fixed 15-minute deadline. Explicit cancellation refunds
+and erases its exact workspace; expired or interrupted cancellation reservations
+are reclaimed by the existing retention pass (normally every 15 minutes).
+Validate a file above 100 MB through the public tunnel before changing the
+registrar delegation or removing the current public origin listener. Keep all
+mail DNS records intact and DNS-only during the migration.
+
 Video exports acquire their bounded render lane before publishing a projected
 output-size reservation. The short admission lock makes those reservations and
 their disk preflight atomic across both render lanes. A queued export therefore

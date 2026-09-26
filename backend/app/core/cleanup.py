@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 from .config import settings
 from .erasure_journal import ErasureJournal, configured_erasure_journal
 from .job_lifecycle import ACTIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
+from .upload_session import upload_session_expired
 from .workspace_deletion import (
     UPLOAD_SUFFIXES,
     delete_job_workspace,
@@ -65,6 +66,22 @@ class CleanupReport:
     failed_orphan_items: int = 0
 
 
+def _expired_uploads(job_store: RetentionJobStore, now: int) -> list[RetentionJob]:
+    return [
+        job
+        for job in job_store.list_jobs_updated_before(now + 1, frozenset({"pending", "cancelling"}))
+        if upload_session_expired(job, now)
+    ]
+
+
+def _retention_candidates(
+    job_store: RetentionJobStore, terminal_cutoff: int, active_cutoff: int, now: int
+) -> dict[str, RetentionJob]:
+    terminal = job_store.list_jobs_updated_before(terminal_cutoff, TERMINAL_JOB_STATUSES)
+    stale = job_store.list_jobs_updated_before(active_cutoff, ACTIVE_JOB_STATUSES)
+    return {job.id: job for job in (*terminal, *stale, *_expired_uploads(job_store, now))}
+
+
 def cleanup_expired_workspaces(
     *,
     job_store: RetentionJobStore,
@@ -83,15 +100,7 @@ def cleanup_expired_workspaces(
     terminal_cutoff = current_time - (workspace_retention_hours * 3600)
     active_cutoff = current_time - (stale_job_retention_hours * 3600)
 
-    terminal_jobs = job_store.list_jobs_updated_before(
-        terminal_cutoff,
-        TERMINAL_JOB_STATUSES,
-    )
-    stale_active_jobs = job_store.list_jobs_updated_before(
-        active_cutoff,
-        ACTIVE_JOB_STATUSES,
-    )
-    candidates = {job.id: job for job in (*terminal_jobs, *stale_active_jobs)}
+    candidates = _retention_candidates(job_store, terminal_cutoff, active_cutoff, current_time)
 
     deleted_job_ids: list[str] = []
     failed_job_ids: list[str] = []
@@ -103,6 +112,7 @@ def cleanup_expired_workspaces(
                     latest_job,
                     terminal_cutoff=terminal_cutoff,
                     active_cutoff=active_cutoff,
+                    now=current_time,
                 ):
                     continue
                 if latest_job.status in ACTIVE_JOB_STATUSES and before_delete_job is not None:
@@ -173,7 +183,10 @@ def _job_is_expired(
     *,
     terminal_cutoff: int,
     active_cutoff: int,
+    now: int | None = None,
 ) -> bool:
+    if now is not None and upload_session_expired(job, now):
+        return True
     if job.status in TERMINAL_JOB_STATUSES:
         return job.updated_at < terminal_cutoff
     if job.status in ACTIVE_JOB_STATUSES:

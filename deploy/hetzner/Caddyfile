@@ -25,6 +25,17 @@
 		reverse_proxy backend:8080
 	}
 
+	@upload_chunk {
+		method POST
+		path_regexp upload_chunk ^/videos/uploads/[0-9a-f-]{36}/chunks/?$
+	}
+	handle @upload_chunk {
+		request_body {
+			max_size 16777216
+		}
+		reverse_proxy backend:8080
+	}
+
 	@mobile_transcription path /videos/mobile-transcriptions /videos/mobile-transcriptions/
 	handle @mobile_transcription {
 		request_body {
