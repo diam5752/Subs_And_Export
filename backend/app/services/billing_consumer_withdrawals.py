@@ -451,7 +451,8 @@ class BillingConsumerWithdrawalMixin:
             purchase=purchase,
             confirmation=confirmation,
         )
-        return cast(DbBillingWithdrawalRequest, withdrawal)
+        verified_withdrawal: DbBillingWithdrawalRequest = withdrawal
+        return verified_withdrawal
 
     def get_withdrawal_resolution(
         self,
@@ -510,7 +511,6 @@ class BillingConsumerWithdrawalMixin:
                     reversal=reversal,
                 )
             except BillingManualRecordError as exc:
-                raise BillingConsumerRecordConflictError(
-                    "Withdrawal resolution evidence is invalid",
-                ) from exc
-            return cast(DbBillingWithdrawalResolution, resolution)
+                raise BillingConsumerRecordConflictError("Withdrawal resolution evidence is invalid") from exc
+            verified_resolution: DbBillingWithdrawalResolution = resolution
+            return verified_resolution

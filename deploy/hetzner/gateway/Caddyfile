@@ -5,6 +5,9 @@
 }
 
 :8080 {
+	@canonical_www host www.gsubs.gr
+	redir @canonical_www https://gsubs.gr{uri} permanent
+
 	@edge_health path /.well-known/gsubs-edge-health
 	handle @edge_health {
 		respond "gateway-ok" 200

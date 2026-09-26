@@ -165,7 +165,7 @@ class _DbLimiter:
                     "min_ws": min_window_start,
                 },
             )
-            current_count = result.scalar_one()
+            current_count: int = result.scalar_one()
 
         if current_count > self.limit:
             raise HTTPException(

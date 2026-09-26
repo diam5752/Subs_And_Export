@@ -44,7 +44,7 @@
         12
       ],
       "backend/app/core/cleanup.py::cleanup_expired_workspaces": [
-        13
+        12
       ],
       "backend/app/core/config.py::validate_allowed_origins": [
         14
@@ -301,7 +301,7 @@
         63
       ],
       "backend/app/core/cleanup.py::cleanup_expired_workspaces": [
-        95
+        88
       ],
       "backend/app/core/cleanup.py::run_configured_retention": [
         62
@@ -352,7 +352,7 @@
         69
       ],
       "backend/app/services/billing_consumer_withdrawals.py::get_withdrawal_resolution": [
-        61
+        60
       ],
       "backend/app/services/billing_consumer_withdrawals.py::submit_withdrawal": [
         67

@@ -169,6 +169,7 @@ def _is_media_creation_request(request: Request) -> bool:
     return path in {
         _PROCESS_STREAM_PATH,
         _MOBILE_TRANSCRIPTION_PATH,
+        "/videos/uploads",
     } or path.endswith("/reprocess")
 
 

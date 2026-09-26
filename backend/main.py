@@ -37,6 +37,7 @@ from backend.app.api.endpoints import (
     feedback,
     history,
     observability,
+    resumable_uploads,
     videos,
 )
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
@@ -500,6 +501,7 @@ async def serve_static(
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(auth.media_router, tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
+app.include_router(resumable_uploads.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(

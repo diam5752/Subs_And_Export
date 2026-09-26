@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class JobResponse(BaseModel):
@@ -17,6 +17,12 @@ class JobResponse(BaseModel):
     expires_at: int | None = None
     result_data: dict[str, Any] | None
     balance: int | None = None
+
+    @field_serializer("result_data")
+    def public_result_data(self, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return {key: item for key, item in value.items() if not key.startswith("_")}
 
 
 class PaginatedJobsResponse(BaseModel):

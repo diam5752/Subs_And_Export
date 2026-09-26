@@ -10,6 +10,7 @@ import {
   type UploadCallbacks,
 } from "./apiCore";
 import { ApiTransport } from "./apiTransport";
+import { DIRECT_UPLOAD_MAX_BYTES, uploadInChunks } from "./chunkedUploads";
 import type { ProcessingCreditTier } from "@/lib/points";
 import type {
   ArtifactDownloadGrantResponse,
@@ -307,6 +308,19 @@ class ApiClient extends ApiTransport {
         "Upload settings are too large to send safely. Shorten the context prompt and try again.",
         0,
         "upload_metadata_too_large",
+      );
+    }
+
+    if (file.size > DIRECT_UPLOAD_MAX_BYTES) {
+      return uploadInChunks(
+        {
+          request: (endpoint, options) => this.request(endpoint, options),
+          upload: (endpoint, body, uploadCallbacks, headers) =>
+            this.uploadBody(endpoint, body, uploadCallbacks, headers),
+        },
+        file,
+        { filename: file.name, ...normalizedSettings },
+        callbacks,
       );
     }
 
