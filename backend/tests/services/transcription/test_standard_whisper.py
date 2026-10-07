@@ -30,8 +30,7 @@ class TestStandardWhisperHelpers:
         assert format_timestamp(0.0) == "0:00:00.00"
         # 1h 1m 1.5s = 3661.5
         assert format_timestamp(3661.5) == "1:01:01.50"
-        # Check comma replacement happens in SRT writer, not here.
-        # Here it returns dot.
+        # ASS-style timestamps retain centiseconds; SRT uses a separate writer.
         assert "." in format_timestamp(1.5)
 
     def test_write_srt_from_segments(self, tmp_path):
@@ -43,8 +42,8 @@ class TestStandardWhisperHelpers:
         write_srt_from_segments(segments, dest)
 
         content = dest.read_text(encoding="utf-8")
-        expected_timestamp_1 = "0:00:00,00 --> 0:00:01,50"
-        expected_timestamp_2 = "0:00:01,50 --> 0:00:03,00"
+        expected_timestamp_1 = "00:00:00,000 --> 00:00:01,500"
+        expected_timestamp_2 = "00:00:01,500 --> 00:00:03,000"
 
         assert "1" in content
         assert expected_timestamp_1 in content

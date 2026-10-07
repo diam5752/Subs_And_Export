@@ -128,32 +128,66 @@ def test_generate_video_variant_only_copies_compatible_aac_audio(
     assert captured["audio_copy"] is audio_is_aac
 
 
-def test_generate_video_variant_reuses_existing_ass(monkeypatch, tmp_path: Path):
+@pytest.mark.parametrize("subtitle_settings", [None, {"max_subtitle_lines": 1}])
+def test_generate_video_variant_uses_current_transcript_and_stored_style(
+    monkeypatch,
+    tmp_path: Path,
+    subtitle_settings: dict[str, object] | None,
+):
+    # REGRESSION: history exports without explicit styles reused a stale ASS
+    # after the editor saved new text to transcription.json.
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()
     input_video = tmp_path / "in.mp4"
     input_video.touch()
-    (artifact_dir / "in.srt").touch()
-    (artifact_dir / "in.ass").touch()  # exists
+    (artifact_dir / "in.srt").write_text(
+        "1\n00:00:00,100 --> 00:00:01,000\nOLD CAPTION\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / "in.ass").write_text("STALE ASS CAPTION", encoding="utf-8")
+    (artifact_dir / "transcription.json").write_text(
+        json.dumps([{"start": 0.1, "end": 1.0, "text": "UPDATED CAPTION"}]),
+        encoding="utf-8",
+    )
 
     job_store = MagicMock()
     job = MagicMock()
     job.user_id = "u1"
-    job.result_data = {"subtitle_size": 100}
+    job.result_data = {
+        "subtitle_size": 70,
+        "subtitle_color": "&H00FF00FF",
+        "shadow_strength": 6,
+        "max_subtitle_lines": 2,
+        "karaoke_enabled": False,
+        "watermark_enabled": True,
+        "transcription_edited": True,
+    }
     job_store.get_job.return_value = job
 
-    # Should NOT call create_styled_subtitle_file if no settings passed
-    create_mock = MagicMock()
-    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", create_mock)
+    rendered: dict[str, object] = {}
 
-    def fake_burn(*args, **kwargs):
-        Path(args[2]).touch()
+    def fake_burn(_input_path: Path, ass_path: Path, output_path: Path, **kwargs: object):
+        rendered["ass"] = ass_path.read_text(encoding="utf-8")
+        rendered["watermark_enabled"] = kwargs["watermark_enabled"]
+        output_path.write_bytes(b"rendered-video")
 
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
 
-    video_processing.generate_video_variant("job1", input_video, artifact_dir, "1280x720", job_store, "u1")
+    video_processing.generate_video_variant(
+        "job1",
+        input_video,
+        artifact_dir,
+        "1280x720",
+        job_store,
+        "u1",
+        subtitle_settings=subtitle_settings,
+    )
 
-    create_mock.assert_not_called()
+    assert "UPDATED CAPTION" in rendered["ass"]
+    assert "OLD CAPTION" not in rendered["ass"]
+    assert "STALE ASS CAPTION" not in rendered["ass"]
+    assert "&H00FF00FF" in rendered["ass"]
+    assert rendered["watermark_enabled"] is True
 
 
 def test_generate_video_variant_resolution_bad_string(tmp_path):

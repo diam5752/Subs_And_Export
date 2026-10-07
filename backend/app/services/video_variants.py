@@ -97,23 +97,16 @@ def _prepare_variant_ass(
     normalize_highlight_style: Callable[..., Any],
     resolve_ass_highlight_style: Callable[..., str],
 ) -> Path:
-    if subtitle_settings:
-        return _create_variant_ass(
-            transcript_path=transcript_path,
-            artifact_dir=artifact_dir,
-            style_settings=subtitle_settings,
-            load_persisted_cues=load_persisted_cues,
-            normalize_highlight_style=normalize_highlight_style,
-            resolve_ass_highlight_style=resolve_ass_highlight_style,
-        )
-
     ass_path = _find_existing_ass(transcript_path, artifact_dir)
-    if ass_path.exists():
+    style_changed = any(value != result_data.get(field) for field, value in (subtitle_settings or {}).items())
+    if not (artifact_dir / "transcription.json").is_file() and not style_changed and ass_path.is_file():
         return ass_path
+    style_settings = dict(result_data)
+    style_settings.update(subtitle_settings or {})
     return _create_variant_ass(
         transcript_path=transcript_path,
         artifact_dir=artifact_dir,
-        style_settings=result_data,
+        style_settings=style_settings,
         load_persisted_cues=load_persisted_cues,
         normalize_highlight_style=normalize_highlight_style,
         resolve_ass_highlight_style=resolve_ass_highlight_style,
@@ -143,10 +136,8 @@ def _encode_video_variant(
         if stored_crf is not None
         else settings.default_video_crf
     )
-    watermark_enabled = (
-        bool(subtitle_settings.get("watermark_enabled", False))
-        if subtitle_settings
-        else bool(result_data.get("watermark_enabled", False))
+    watermark_enabled = bool(
+        (subtitle_settings or {}).get("watermark_enabled", result_data.get("watermark_enabled", False)),
     )
     temporary_destination = artifact_dir / f".{output_filename}.{uuid.uuid4().hex}.tmp.mp4"
     try:

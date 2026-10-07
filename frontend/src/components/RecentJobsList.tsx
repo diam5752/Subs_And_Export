@@ -3,6 +3,7 @@ import { api, type JobResponse } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
 import { buildSubtitleExportFilename } from "@/lib/exportFilename";
 import { downloadArtifactWithGrant } from "@/lib/artifactDownload";
+import { parseResolutionString } from "@/lib/videoResolution";
 import {
   RecentJobsEmpty,
   RecentJobsHeader,
@@ -133,11 +134,26 @@ export const RecentJobsList = memo(function RecentJobsList({
       setDownloadError(null);
       setDownloadingJobId(job.id);
       try {
+        // The main video is the clean editor preview. Ask the server to render
+        // the current saved captions before preparing any History download.
+        const dimensions = parseResolutionString(job.result_data?.resolution);
+        const resolution = dimensions
+          ? `${dimensions.width}x${dimensions.height}`
+          : "1080x1920";
+        const exportedJob = await api.exportVideo(job.id, resolution);
+        const exportedArtifact =
+          exportedJob.result_data?.variants?.[resolution];
+        if (!exportedArtifact) {
+          throw new Error(
+            "Export did not include the requested video artifact",
+          );
+        }
         await downloadArtifactWithGrant(
           job.id,
-          artifactPath,
+          exportedArtifact,
           buildSubtitleExportFilename(
-            job.result_data?.original_filename,
+            exportedJob.result_data?.original_filename ??
+              job.result_data?.original_filename,
             "mp4",
           ),
           buildStaticUrl,

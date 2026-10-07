@@ -382,10 +382,29 @@ test.describe("Video Processing Flow", () => {
     ]);
   });
 
-  test("history download survives an in-app to external browser handoff", async ({
+  test("history renders captions before preparing a cross-browser download grant", async ({
     page,
   }) => {
     await mockApi(page);
+    let finishRender!: () => void;
+    const renderPending = new Promise<void>((resolve) => {
+      finishRender = resolve;
+    });
+    await page.route("**/videos/jobs/job-futurist/export", async (route) => {
+      await renderPending;
+      await route.fulfill({
+        json: {
+          id: "job-futurist",
+          status: "completed",
+          result_data: {
+            variants: {
+              "1080x1920":
+                "/static/artifacts/job-futurist/processed_1080x1920.mp4",
+            },
+          },
+        },
+      });
+    });
     await page.goto("/");
     await waitForUploadWorkspace(page);
 
@@ -394,10 +413,15 @@ test.describe("Video Processing Flow", () => {
       .getByRole("button", { name: el.historyTitle, exact: true })
       .click();
 
+    const exportRequestPromise = page.waitForRequest((request) =>
+      request.url().endsWith("/videos/jobs/job-futurist/export"),
+    );
+    let grantCount = 0;
     const grantRequestPromise = page.waitForRequest(
       (request) =>
         request.method() === "POST" &&
-        request.url().endsWith("/videos/jobs/job-futurist/download-grant"),
+        request.url().endsWith("/videos/jobs/job-futurist/download-grant") &&
+        ++grantCount > 0,
     );
     const downloadPromise = page.waitForEvent("download");
     await page
@@ -405,13 +429,23 @@ test.describe("Video Processing Flow", () => {
         name: `${el.download} GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4`,
       })
       .click();
+    expect((await exportRequestPromise).postDataJSON()).toEqual({
+      resolution: "1080x1920",
+    });
+    await expect(
+      page.getByRole("button", {
+        name: `${el.downloading} GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4`,
+      }),
+    ).toBeDisabled();
+    expect(grantCount).toBe(0);
+    finishRender();
     const [grantRequest, download] = await Promise.all([
       grantRequestPromise,
       downloadPromise,
     ]);
 
     expect(grantRequest.postDataJSON()).toEqual({
-      artifact_path: "/static/artifacts/job-futurist/processed.mp4",
+      artifact_path: "/static/artifacts/job-futurist/processed_1080x1920.mp4",
       filename: "GreekSubtitles_CaseStudy_Vertical_Edit_v4_subs.mp4",
     });
     expect(download.suggestedFilename()).toBe(

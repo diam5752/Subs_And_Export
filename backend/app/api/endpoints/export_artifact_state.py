@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from ...services.video_export_cache import VIDEO_EXPORT_STYLE_FIELDS
 from .file_utils import relpath_safe
 
 
@@ -61,12 +62,17 @@ def build_video_export_plan(
     build_signature: Callable[..., str],
 ) -> VideoExportPlan:
     result_data = dict(raw_result_data or {})
+    result_data.update(subtitle_settings)
+    result_data["video_crf"] = video_crf
+    effective_subtitle_settings = {
+        field: result_data[field] for field in VIDEO_EXPORT_STYLE_FIELDS if result_data.get(field) is not None
+    }
     output_path = artifact_dir / f"processed_{resolution}.mp4"
     export_signature = build_signature(
         input_video=input_video,
         artifact_dir=artifact_dir,
         resolution=resolution,
-        subtitle_settings=subtitle_settings,
+        subtitle_settings=effective_subtitle_settings,
         result_data=result_data,
         video_crf=video_crf,
     )
@@ -74,7 +80,7 @@ def build_video_export_plan(
     export_cache = dict(export_cache_value) if isinstance(export_cache_value, dict) else {}
     return VideoExportPlan(
         result_data=result_data,
-        subtitle_settings=subtitle_settings,
+        subtitle_settings=effective_subtitle_settings,
         video_crf=video_crf,
         output_path=output_path,
         export_signature=export_signature,
