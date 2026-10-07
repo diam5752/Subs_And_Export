@@ -1,11 +1,7 @@
 import functools
-import re
 import unicodedata
-from pathlib import Path
-from typing import Iterable, List, Tuple
 
-# Type alias for TimeRange
-TimeRange = Tuple[float, float, str]
+from backend.app.services.subtitles import write_srt_from_segments as write_srt_from_segments
 
 
 @functools.lru_cache(maxsize=4096)
@@ -23,18 +19,3 @@ def format_timestamp(seconds: float) -> str:
     minutes = int((seconds % 3600) // 60)
     secs = seconds % 60
     return f"{hours:01d}:{minutes:02d}:{secs:05.2f}"
-
-
-def write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
-    lines: List[str] = []
-    for idx, (start, end, text) in enumerate(segments, start=1):
-        start_ts = format_timestamp(start)
-        end_ts = format_timestamp(end)
-        lines.append(str(idx))
-        lines.append(f"{start_ts.replace('.', ',')} --> {end_ts.replace('.', ',')}")
-        # Security: Sanitize text to prevent SRT injection via double newlines
-        clean_text = re.sub(r"(\r?\n){2,}", "\n", text.strip())
-        lines.append(clean_text)
-        lines.append("")  # blank line separator
-    dest.write_text("\n".join(lines), encoding="utf-8")
-    return dest

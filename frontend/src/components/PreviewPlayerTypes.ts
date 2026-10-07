@@ -8,7 +8,7 @@ export interface PreviewPlayerHandle {
   toggleMuted: () => void;
 }
 
-export interface PreviewPlaybackStatus {
+interface PreviewPlaybackStatus {
   duration: number;
   isPlaying: boolean;
   isMuted: boolean;

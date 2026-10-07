@@ -25,6 +25,7 @@ jest.mock("@/lib/api", () => ({
   api: {
     deleteJob: jest.fn(),
     deleteJobs: jest.fn(),
+    exportVideo: jest.fn(),
     createArtifactDownloadGrant: jest.fn(),
   },
 }));
@@ -132,6 +133,17 @@ function renderList(
 describe("RecentJobsList", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (api.exportVideo as jest.Mock).mockImplementation(
+      async (jobId: string, resolution: string) => ({
+        ...jobs.find((job) => job.id === jobId),
+        result_data: {
+          ...jobs.find((job) => job.id === jobId)?.result_data,
+          variants: {
+            [resolution]: `/static/artifacts/${jobId}/processed_${resolution}.mp4`,
+          },
+        },
+      }),
+    );
     mockMissingTranslations = false;
     Object.defineProperty(window, "requestAnimationFrame", {
       writable: true,
@@ -218,12 +230,13 @@ describe("RecentJobsList", () => {
     });
   });
 
-  it("downloads history artifacts through a short-lived cross-browser grant", async () => {
+  it("renders saved captions before granting a History video download", async () => {
     const anchorClick = jest
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
     (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
-      download_url: "/static/artifacts/job-1/processed.mp4?grant=history-grant",
+      download_url:
+        "/static/artifacts/job-1/processed_1080x1920.mp4?grant=history-grant",
       expires_in: 300,
     });
 
@@ -232,9 +245,10 @@ describe("RecentJobsList", () => {
 
     expect(screen.getByText("downloading-job-1")).toBeInTheDocument();
     await waitFor(() => {
+      expect(api.exportVideo).toHaveBeenCalledWith("job-1", "1080x1920");
       expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
         "job-1",
-        "/static/artifacts/job-1/processed.mp4",
+        "/static/artifacts/job-1/processed_1080x1920.mp4",
         "first_subs.mp4",
       );
       expect(anchorClick).toHaveBeenCalledTimes(1);
@@ -245,11 +259,89 @@ describe("RecentJobsList", () => {
 
     const anchor = anchorClick.mock.contexts[0] as HTMLAnchorElement;
     expect(anchor.href).toContain(
-      "/static/artifacts/job-1/processed.mp4?grant=history-grant",
+      "/static/artifacts/job-1/processed_1080x1920.mp4?grant=history-grant",
     );
     expect(anchor.download).toBe("first_subs.mp4");
     anchorClick.mockRestore();
   });
+
+  it("waits for a fresh export even when the History row has an older variant", async () => {
+    let finishExport!: (job: JobResponse) => void;
+    (api.exportVideo as jest.Mock).mockReturnValue(
+      new Promise<JobResponse>((resolve) => {
+        finishExport = resolve;
+      }),
+    );
+    const savedJob: JobResponse = {
+      ...jobs[0],
+      result_data: {
+        ...jobs[0].result_data!,
+        resolution: "720×1280",
+        variants: { "720x1280": "/static/artifacts/job-1/old-captions.mp4" },
+      },
+    };
+    const anchorClick = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
+      download_url: "/static/artifacts/job-1/current-captions.mp4?grant=fresh",
+      expires_in: 300,
+    });
+
+    renderList({ jobs: [savedJob] });
+    fireEvent.click(screen.getByRole("button", { name: "download-job-1" }));
+
+    expect(api.exportVideo).toHaveBeenCalledWith("job-1", "720x1280");
+    expect(screen.getByText("downloading-job-1")).toBeInTheDocument();
+    expect(api.createArtifactDownloadGrant).not.toHaveBeenCalled();
+    expect(anchorClick).not.toHaveBeenCalled();
+
+    finishExport({
+      ...savedJob,
+      result_data: {
+        ...savedJob.result_data!,
+        variants: {
+          "720x1280": "/static/artifacts/job-1/current-captions.mp4",
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
+        "job-1",
+        "/static/artifacts/job-1/current-captions.mp4",
+        "first_subs.mp4",
+      );
+      expect(anchorClick).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("idle-job-1")).toBeInTheDocument();
+    });
+    anchorClick.mockRestore();
+  });
+
+  it.each(["render failure", "missing rendered artifact"])(
+    "never falls back to the clean preview after %s",
+    async (failure) => {
+      const errorSpy = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      if (failure === "render failure") {
+        (api.exportVideo as jest.Mock).mockRejectedValue(
+          new Error("render failed"),
+        );
+      } else {
+        (api.exportVideo as jest.Mock).mockResolvedValue(jobs[0]);
+      }
+
+      renderList();
+      fireEvent.click(screen.getByRole("button", { name: "download-job-1" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "downloadError",
+      );
+      expect(api.createArtifactDownloadGrant).not.toHaveBeenCalled();
+      expect(screen.getByText("idle-job-1")).toBeInTheDocument();
+      errorSpy.mockRestore();
+    },
+  );
 
   it("shows a retryable error when the history grant cannot be created", async () => {
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
@@ -386,6 +478,7 @@ describe("RecentJobsList", () => {
   });
 
   it("rejects history downloads that have no artifact path", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     const noArtifactJob = {
       ...jobs[0],
       result_data: { original_filename: "missing.mp4" },
@@ -395,7 +488,9 @@ describe("RecentJobsList", () => {
     fireEvent.click(screen.getByRole("button", { name: "download-job-1" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("downloadError");
+    expect(api.exportVideo).not.toHaveBeenCalled();
     expect(api.createArtifactDownloadGrant).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("renders safe English fallbacks, loading state, and bounded page controls", () => {

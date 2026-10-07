@@ -11,8 +11,8 @@ from typing import Any
 
 from backend.app.core.config import settings
 
-_EXPORT_RENDERER_VERSION = 1
-_RESULT_RENDER_FIELDS = (
+_EXPORT_RENDERER_VERSION = 2
+VIDEO_EXPORT_STYLE_FIELDS = (
     "subtitle_position",
     "max_subtitle_lines",
     "subtitle_color",
@@ -90,7 +90,7 @@ def build_video_export_signature(
         },
         "transcription_sha256": _sha256_file(transcription_path),
         "subtitle_settings": dict(subtitle_settings),
-        "persisted_settings": {field: result_data.get(field) for field in _RESULT_RENDER_FIELDS},
+        "persisted_settings": {field: result_data.get(field) for field in VIDEO_EXPORT_STYLE_FIELDS},
         "encoder": {
             "crf": video_crf,
             "preset": settings.default_video_preset,

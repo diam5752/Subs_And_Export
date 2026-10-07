@@ -6,7 +6,7 @@ export interface TokenResponse {
   beta_credits_awarded?: number;
 }
 
-export interface JobResultData {
+interface JobResultData {
   video_path: string;
   artifacts_dir: string;
   public_url?: string;
@@ -96,7 +96,7 @@ export interface CreditPackage {
 export type ConsumerContractLocale = "el" | "en";
 export type BillingCountry = "GR";
 
-export interface ConsumerContractDisclosure {
+interface ConsumerContractDisclosure {
   schema_version: number;
   status: string;
   classification: string;
@@ -159,7 +159,7 @@ export interface ConsumerContractAcceptanceRequest {
   withdrawal_consequences_acknowledged: true;
 }
 
-export interface VideoCreditBracket {
+interface VideoCreditBracket {
   key: string;
   max_duration_seconds: number;
   credits: number;
@@ -214,12 +214,12 @@ export interface BillingPurchaseResponse {
   withdrawal_resolution_url: string | null;
 }
 
-export interface BillingAdminPackage {
+interface BillingAdminPackage {
   key: string | null;
   credits: number | null;
 }
 
-export interface BillingAdminPayment {
+interface BillingAdminPayment {
   checkout_session_id: string | null;
   payment_intent_id: string | null;
   confirmed_at: number | null;
@@ -229,7 +229,7 @@ export interface BillingAdminPayment {
   payment_status: string | null;
 }
 
-export interface BillingAdminCustomer {
+interface BillingAdminCustomer {
   name: string | null;
   email: string | null;
   country: string | null;
@@ -242,14 +242,14 @@ export interface BillingAdminCustomer {
   missing_required_fields: string[];
 }
 
-export interface BillingAdminTax {
+interface BillingAdminTax {
   gross_amount_cents: number | null;
   net_amount_cents: number | null;
   vat_amount_cents: number | null;
   vat_rate_percent: number | null;
 }
 
-export interface BillingAdminService {
+interface BillingAdminService {
   code: string | null;
   name: string | null;
 }
@@ -349,7 +349,7 @@ export interface RecordedManualRefundAccountingResponse {
   original_invoice_mark: string;
 }
 
-export interface BillingAdminWithdrawalAdjustment {
+interface BillingAdminWithdrawalAdjustment {
   adjustment_id: string;
   stripe_refund_id: string;
   amount_cents: number;

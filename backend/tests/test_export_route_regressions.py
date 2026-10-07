@@ -415,6 +415,18 @@ def test_video_export_reuses_exact_cached_render_and_invalidates_on_transcript_c
         assert second.status_code == 200, second.text
         assert render_crfs == [23]
         assert second.json()["result_data"]["export_cache"]["1080x1920"]["size"] == len(b"render-1")
+        assert second.json()["result_data"]["subtitle_size"] == 85
+        assert second.json()["result_data"]["video_crf"] == 23
+
+        # History sends no editor settings; it must retain the latest successful
+        # style/quality and reuse the exact captioned export.
+        history = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=user_auth_headers,
+            json={"resolution": "1080x1920"},
+        )
+        assert history.status_code == 200, history.text
+        assert render_crfs == [23]
 
         transcription_path.write_text(
             '[{"start": 0, "end": 1, "text": "Changed"}]',
@@ -423,7 +435,7 @@ def test_video_export_reuses_exact_cached_render_and_invalidates_on_transcript_c
         changed = client.post(
             f"/videos/jobs/{job_id}/export",
             headers=user_auth_headers,
-            json=payload,
+            json={"resolution": "1080x1920"},
         )
 
         assert changed.status_code == 200, changed.text

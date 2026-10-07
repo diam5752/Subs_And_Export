@@ -39,14 +39,21 @@
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "jscpd": "5.1.0",
-    "knip": "^5.73.0",
+    "knip": "6.40.0",
     "postcss": "8.5.25",
     "prettier": "3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   },
   "overrides": {
+    "@next/eslint-plugin-next@16.3.6": {
+      "fast-glob": "npm:tinyglobby@0.2.17"
+    },
+    "brace-expansion@1.x": "1.1.21",
+    "brace-expansion@2.x": "2.1.7",
+    "brace-expansion@5.x": "5.0.12",
     "postcss": "8.5.25",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2"
   }
 }

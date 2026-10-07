@@ -1,8 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { api, type JobResponse } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
-import { buildSubtitleExportFilename } from "@/lib/exportFilename";
-import { downloadArtifactWithGrant } from "@/lib/artifactDownload";
+import { downloadHistoryVideo } from "@/lib/historyVideoDownload";
 import {
   RecentJobsEmpty,
   RecentJobsHeader,
@@ -122,26 +121,10 @@ export const RecentJobsList = memo(function RecentJobsList({
 
   const handleDownloadJob = useCallback(
     async (job: JobResponse) => {
-      const artifactPath =
-        job.result_data?.public_url || job.result_data?.video_path;
-      if (!artifactPath) {
-        setDownloadError(
-          t("downloadError") || "The secure download could not be prepared.",
-        );
-        return;
-      }
       setDownloadError(null);
       setDownloadingJobId(job.id);
       try {
-        await downloadArtifactWithGrant(
-          job.id,
-          artifactPath,
-          buildSubtitleExportFilename(
-            job.result_data?.original_filename,
-            "mp4",
-          ),
-          buildStaticUrl,
-        );
+        await downloadHistoryVideo(job, buildStaticUrl);
       } catch (error) {
         console.error("History download failed:", error);
         setDownloadError(
