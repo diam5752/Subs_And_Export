@@ -478,6 +478,7 @@ describe("RecentJobsList", () => {
   });
 
   it("rejects history downloads that have no artifact path", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     const noArtifactJob = {
       ...jobs[0],
       result_data: { original_filename: "missing.mp4" },
@@ -487,7 +488,9 @@ describe("RecentJobsList", () => {
     fireEvent.click(screen.getByRole("button", { name: "download-job-1" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("downloadError");
+    expect(api.exportVideo).not.toHaveBeenCalled();
     expect(api.createArtifactDownloadGrant).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("renders safe English fallbacks, loading state, and bounded page controls", () => {
