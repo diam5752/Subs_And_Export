@@ -591,7 +591,7 @@ def test_frontend_image_uses_native_patched_dependencies_without_postinstall_shi
         for path, metadata in package_lock["packages"].items()
         if path.endswith("node_modules/brace-expansion")
     }
-    assert brace_versions == {"1.1.18", "2.1.4", "5.0.9"}
+    assert brace_versions == {"1.1.21", "2.1.7", "5.0.12"}
     assert '"postcss": "8.5.25"' in package
     assert '"brace-expansion"' not in package
     assert '"postinstall"' not in package
