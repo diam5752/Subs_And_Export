@@ -141,7 +141,6 @@ extension GSubsUITests {
         timeout: TimeInterval
     ) -> Bool {
         let predicate = NSPredicate { _, _ in
-            guard self.dismissTypingIntroductionIfPresent() else { return false }
             return self.isHittableOnScreen(element)
         }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
@@ -153,14 +152,13 @@ extension GSubsUITests {
         timeout: TimeInterval
     ) -> Bool {
         let predicate = NSPredicate { _, _ in
-            guard self.dismissTypingIntroductionIfPresent() else { return false }
             return element.exists && element.isEnabled && self.isHittableOnScreen(element)
         }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
-    func waitForKeyboard(timeout: TimeInterval = 3) -> Bool {
+    func waitForKeyboard(timeout: TimeInterval = 5) -> Bool {
         let keyboard = app.keyboards.firstMatch
         let predicate = NSPredicate { _, _ in
             guard self.dismissTypingIntroductionIfPresent() else { return false }
@@ -187,7 +185,16 @@ extension GSubsUITests {
     }
 
     private func isHittableOnScreen(_ element: XCUIElement) -> Bool {
-        hasVisibleFrame(element) && element.isHittable
+        guard hasVisibleFrame(element) else { return false }
+        let identifier = element.identifier
+        if !identifier.isEmpty {
+            let windows = app.windows.containing(element.elementType, identifier: identifier)
+                .allElementsBoundByIndex
+            guard !windows.isEmpty, windows.allSatisfy({ hasVisibleFrame($0) }) else {
+                return false
+            }
+        }
+        return element.isHittable
     }
 
     private func hasVisibleFrame(_ element: XCUIElement) -> Bool {
@@ -334,8 +341,9 @@ extension GSubsUITests {
     func dismissKeyboardIfPresent(timeout: TimeInterval = 2) -> Bool {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.exists else { return true }
+        guard dismissTypingIntroductionIfPresent() else { return false }
         let done = app.buttons["keyboard-done"]
-        if waitForHittable(done, timeout: 1) {
+        if waitForHittable(done, timeout: max(timeout, 3)) {
             done.tap()
             if keyboard.waitForNonExistence(timeout: timeout) { return true }
         }

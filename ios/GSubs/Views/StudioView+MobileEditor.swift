@@ -585,6 +585,7 @@ extension StudioView {
 
     private func selectCue(at index: Int) {
         guard model.cues.indices.contains(index) else { return }
+        immersiveSubtitleFocused = false
         focusedCueID = nil
         selectedCueID = model.cues[index].id
     }
@@ -593,7 +594,11 @@ extension StudioView {
         guard model.cues.indices.contains(index) else { return }
         let cueID = model.cues[index].id
         selectedCueID = cueID
-        focusedCueID = cueID
+        if model.videoURL != nil {
+            immersiveSubtitleFocused = true
+        } else {
+            focusedCueID = cueID
+        }
     }
 
     private func adjustFontScale(by change: Double) {
