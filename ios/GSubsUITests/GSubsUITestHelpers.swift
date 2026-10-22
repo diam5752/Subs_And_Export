@@ -140,9 +140,7 @@ extension GSubsUITests {
         _ element: XCUIElement,
         timeout: TimeInterval
     ) -> Bool {
-        let predicate = NSPredicate { _, _ in
-            return self.isHittableOnScreen(element)
-        }
+        let predicate = NSPredicate(format: "exists == true AND hittable == true")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
@@ -151,24 +149,24 @@ extension GSubsUITests {
         _ element: XCUIElement,
         timeout: TimeInterval
     ) -> Bool {
-        let predicate = NSPredicate { _, _ in
-            return element.exists && element.isEnabled && self.isHittableOnScreen(element)
-        }
+        let predicate = NSPredicate(
+            format: "exists == true AND enabled == true AND hittable == true"
+        )
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     func waitForKeyboard(timeout: TimeInterval = 5) -> Bool {
         let keyboard = app.keyboards.firstMatch
-        let predicate = NSPredicate { _, _ in
-            guard self.dismissTypingIntroductionIfPresent() else { return false }
-            return self.hasVisibleFrame(keyboard)
+        guard keyboard.waitForExistence(timeout: timeout),
+            dismissTypingIntroductionIfPresent(timeout: timeout)
+        else {
+            return false
         }
-        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: keyboard)
-        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+        return keyboard.waitForExistence(timeout: timeout)
     }
 
-    private func dismissTypingIntroductionIfPresent() -> Bool {
+    private func dismissTypingIntroductionIfPresent(timeout: TimeInterval = 3) -> Bool {
         let introduction = app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "label == %@",
@@ -179,33 +177,9 @@ extension GSubsUITests {
         let continueButtons = app.buttons.matching(identifier: "Continue")
         guard introduction.count == 1, continueButtons.count == 1 else { return false }
         let continueButton = continueButtons.firstMatch
-        guard isHittableOnScreen(continueButton) else { return false }
+        guard waitForHittable(continueButton, timeout: timeout) else { return false }
         continueButton.tap()
-        return introduction.count == 0
-    }
-
-    private func isHittableOnScreen(_ element: XCUIElement) -> Bool {
-        guard hasVisibleFrame(element) else { return false }
-        let identifier = element.identifier
-        if !identifier.isEmpty {
-            let windows = app.windows.containing(element.elementType, identifier: identifier)
-                .allElementsBoundByIndex
-            guard !windows.isEmpty, windows.allSatisfy({ hasVisibleFrame($0) }) else {
-                return false
-            }
-        }
-        return element.isHittable
-    }
-
-    private func hasVisibleFrame(_ element: XCUIElement) -> Bool {
-        guard element.exists else { return false }
-        let frame = element.frame
-        let appFrame = app.frame
-        let coordinates = [
-            frame.minX, frame.minY, frame.maxX, frame.maxY,
-            appFrame.minX, appFrame.minY, appFrame.maxX, appFrame.maxY,
-        ]
-        return coordinates.allSatisfy(\.isFinite) && !frame.isEmpty && frame.intersects(appFrame)
+        return introduction.firstMatch.waitForNonExistence(timeout: timeout)
     }
 
     func waitForDisabled(
