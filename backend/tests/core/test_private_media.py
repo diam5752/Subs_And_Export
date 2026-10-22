@@ -16,13 +16,13 @@ from backend.app.core.private_media import (
 )
 
 
-def _scope(*, range_header: bytes | None = None) -> Scope:
+def _scope(*, range_header: bytes | None = None, spec_version: str = "2.3") -> Scope:
     headers: list[tuple[bytes, bytes]] = []
     if range_header is not None:
         headers.append((b"range", range_header))
     return {
         "type": "http",
-        "asgi": {"version": "3.0"},
+        "asgi": {"version": "3.0", "spec_version": spec_version},
         "http_version": "1.1",
         "method": "GET",
         "scheme": "http",
@@ -37,6 +37,8 @@ def _scope(*, range_header: bytes | None = None) -> Scope:
 
 
 async def _receive() -> Message:
+    # Real ASGI receives yield; newer FileResponse versions also poll disconnects.
+    await asyncio.sleep(0)
     return {"type": "http.request", "body": b"", "more_body": False}
 
 
@@ -46,9 +48,11 @@ def _log_data(record: logging.LogRecord) -> dict[str, Any]:
     return data
 
 
+@pytest.mark.parametrize("spec_version", ["2.3", "2.4"])
 def test_private_media_uses_bounded_megabyte_chunks_and_logs_completion(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    spec_version: str,
 ) -> None:
     # REGRESSION: Starlette's 64 KiB default produced 257 backpressured ASGI
     # writes for a 16 MiB download across the two production proxy hops.
@@ -68,7 +72,7 @@ def test_private_media_uses_bounded_megabyte_chunks_and_logs_completion(
         messages.append(message)
 
     caplog.set_level(logging.INFO, logger="backend.app.core.private_media")
-    asyncio.run(response(_scope(), _receive, send))
+    asyncio.run(response(_scope(spec_version=spec_version), _receive, send))
 
     body_messages = [message for message in messages if message["type"] == "http.response.body"]
     assert [len(message.get("body", b"")) for message in body_messages] == [
@@ -156,30 +160,40 @@ def test_private_media_logs_failed_transfer_without_claiming_emitted_bytes(
     assert data["bytes_emitted"] == 0
 
 
+@pytest.mark.parametrize("spec_version", ["2.3", "2.4"])
+@pytest.mark.parametrize("completed_chunks", [0, 1])
 def test_private_media_logs_cancelled_transfer(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    spec_version: str,
+    completed_chunks: int,
 ) -> None:
     media_path = tmp_path / "processed.mp4"
-    media_path.write_bytes(b"x")
+    media_path.write_bytes(b"x" * (PRIVATE_MEDIA_CHUNK_SIZE_BYTES + 1))
     response = PrivateMediaFileResponse(
         media_path,
         job_id="job-cancelled",
         transfer_kind="download",
     )
+    cancellation = asyncio.CancelledError("client disconnected")
+    emitted_chunks = 0
 
     async def send(message: Message) -> None:
+        nonlocal emitted_chunks
         if message["type"] == "http.response.body":
-            raise asyncio.CancelledError
+            if emitted_chunks == completed_chunks:
+                raise cancellation
+            emitted_chunks += 1
 
     caplog.set_level(logging.INFO, logger="backend.app.core.private_media")
-    with pytest.raises(asyncio.CancelledError):
-        asyncio.run(response(_scope(), _receive, send))
+    with pytest.raises(asyncio.CancelledError) as caught:
+        asyncio.run(response(_scope(spec_version=spec_version), _receive, send))
 
+    assert caught.value is cancellation
     data = _log_data(caplog.records[-1])
     assert data["outcome"] == "cancelled"
     assert data["error_type"] == "CancelledError"
-    assert data["bytes_emitted"] == 0
+    assert data["bytes_emitted"] == completed_chunks * PRIVATE_MEDIA_CHUNK_SIZE_BYTES
 
 
 def test_private_media_accounts_for_pathsend_servers(
