@@ -46,6 +46,9 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
+    "@istanbuljs/load-nyc-config@1.1.0": {
+      "js-yaml": "4.3.2"
+    },
     "@next/eslint-plugin-next@16.3.6": {
       "fast-glob": "npm:tinyglobby@0.2.17"
     },

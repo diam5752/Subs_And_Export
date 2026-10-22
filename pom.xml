@@ -31,7 +31,7 @@
         <maven.enforcer.version>3.6.1</maven.enforcer.version>
         <maven.pmd.version>3.28.0</maven.pmd.version>
         <pmd.version>7.27.0</pmd.version>
-        <bouncycastle.version>1.84</bouncycastle.version>
+        <bouncycastle.version>1.85</bouncycastle.version>
         <argLine></argLine>
         <mockito.agent>-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</mockito.agent>
     </properties>
