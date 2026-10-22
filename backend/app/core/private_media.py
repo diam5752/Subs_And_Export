@@ -27,12 +27,17 @@ class _TransferObservation:
     bytes_emitted: int = 0
     content_length: int | None = None
     content_range: str | None = None
+    send_cancellation: asyncio.CancelledError | None = None
 
     async def observe_send(self, message: Message) -> None:
         message_type = message["type"]
         if message_type == "http.response.start":
             self._observe_start(message)
-        await self.send(message)
+        try:
+            await self.send(message)
+        except asyncio.CancelledError as exc:
+            self.send_cancellation = exc
+            raise
         self._observe_body(message_type, message)
 
     def _observe_start(self, message: Message) -> None:
@@ -121,6 +126,9 @@ class PrivateMediaFileResponse(FileResponse):
 
         try:
             await super().__call__(scope, receive, observation.observe_send)
+            # Legacy ASGI disconnect handling can suppress a cancelled send.
+            if observation.send_cancellation is not None:
+                raise observation.send_cancellation
         except asyncio.CancelledError as exc:
             outcome = "cancelled"
             error_type = type(exc).__name__
