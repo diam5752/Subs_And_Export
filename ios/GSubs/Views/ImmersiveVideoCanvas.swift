@@ -339,7 +339,6 @@ struct ImmersiveVideoCanvas: View {
 
     private func focusSelectionIfNeeded(_ cueID: UUID?) {
         guard draggedCueID == nil,
-            cueID != activeCueID,
             let cueID,
             let cue = cues.first(where: { $0.id == cueID })
         else {
