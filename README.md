@@ -49,6 +49,18 @@ restore-drill gates, and exact verifier are documented in
 `deploy/hetzner/README.md`. Credentials belong only in the untracked production
 environment and must never be committed.
 
+The local database viewer at <http://localhost:8081> uses a digest-pinned Adminer
+image with PHP 8.4.27 on amd64 and arm64, addressing
+[CVE-2026-109618 and CVE-2026-109619](https://www.php.net/archive/2026.php).
+Its startup checks the actual PHP interpreter and refuses to serve requests on
+unpatched variants of the same multi-platform image. To replace an older local
+viewer without restarting the app or database, run:
+
+```bash
+docker compose --env-file .env.docker pull adminer
+docker compose --env-file .env.docker up -d --no-deps --force-recreate adminer
+```
+
 ## Local development
 
 Requirements: Python 3.11+, Node.js 20+, FFmpeg with libass, PostgreSQL, and JDK

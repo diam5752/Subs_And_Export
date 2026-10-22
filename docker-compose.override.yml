@@ -45,7 +45,11 @@ services:
 
   # Database Viewer (Web Interface)
   adminer:
-    image: adminer
+    # PHP 8.4.27 fixes CVE-2026-109618 and CVE-2026-109619.
+    image: adminer:6.1.2@sha256:4e3a6514c26c625de2020c549d1eb24ddd2515f18311aa4bf32c823713c2f6fe
+    command: ["sh", "/usr/local/bin/gsubs-start-adminer.sh"]
+    volumes:
+      - ./.codex/scripts/start_adminer.sh:/usr/local/bin/gsubs-start-adminer.sh:ro
     restart: always
     ports:
       - 8081:8080
