@@ -140,7 +140,10 @@ extension GSubsUITests {
         _ element: XCUIElement,
         timeout: TimeInterval
     ) -> Bool {
-        let predicate = NSPredicate(format: "exists == true AND hittable == true")
+        let predicate = NSPredicate { _, _ in
+            guard self.dismissTypingIntroductionIfPresent() else { return false }
+            return self.isHittableOnScreen(element)
+        }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
@@ -149,11 +152,53 @@ extension GSubsUITests {
         _ element: XCUIElement,
         timeout: TimeInterval
     ) -> Bool {
-        let predicate = NSPredicate(
-            format: "exists == true AND enabled == true AND hittable == true"
-        )
+        let predicate = NSPredicate { _, _ in
+            guard self.dismissTypingIntroductionIfPresent() else { return false }
+            return element.exists && element.isEnabled && self.isHittableOnScreen(element)
+        }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    func waitForKeyboard(timeout: TimeInterval = 3) -> Bool {
+        let keyboard = app.keyboards.firstMatch
+        let predicate = NSPredicate { _, _ in
+            guard self.dismissTypingIntroductionIfPresent() else { return false }
+            return self.hasVisibleFrame(keyboard)
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: keyboard)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func dismissTypingIntroductionIfPresent() -> Bool {
+        let introduction = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Speed up your typing by sliding your finger across the letters to compose a word."
+            )
+        )
+        guard introduction.count > 0 else { return true }
+        let continueButtons = app.buttons.matching(identifier: "Continue")
+        guard introduction.count == 1, continueButtons.count == 1 else { return false }
+        let continueButton = continueButtons.firstMatch
+        guard isHittableOnScreen(continueButton) else { return false }
+        continueButton.tap()
+        return introduction.count == 0
+    }
+
+    private func isHittableOnScreen(_ element: XCUIElement) -> Bool {
+        hasVisibleFrame(element) && element.isHittable
+    }
+
+    private func hasVisibleFrame(_ element: XCUIElement) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        let appFrame = app.frame
+        let coordinates = [
+            frame.minX, frame.minY, frame.maxX, frame.maxY,
+            appFrame.minX, appFrame.minY, appFrame.maxX, appFrame.maxY,
+        ]
+        return coordinates.allSatisfy(\.isFinite) && !frame.isEmpty && frame.intersects(appFrame)
     }
 
     func waitForDisabled(
@@ -290,7 +335,7 @@ extension GSubsUITests {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.exists else { return true }
         let done = app.buttons["keyboard-done"]
-        if done.waitForExistence(timeout: 1), done.isHittable {
+        if waitForHittable(done, timeout: 1) {
             done.tap()
             if keyboard.waitForNonExistence(timeout: timeout) { return true }
         }

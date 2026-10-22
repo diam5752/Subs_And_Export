@@ -592,13 +592,8 @@ extension StudioView {
     private func focusCue(at index: Int) {
         guard model.cues.indices.contains(index) else { return }
         let cueID = model.cues[index].id
-        focusedCueID = nil
         selectedCueID = cueID
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            guard selectedCueID == cueID else { return }
-            focusedCueID = cueID
-        }
+        focusedCueID = cueID
     }
 
     private func adjustFontScale(by change: Double) {

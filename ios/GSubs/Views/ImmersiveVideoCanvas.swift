@@ -15,6 +15,7 @@ struct ImmersiveVideoCanvas: View {
     @State private var player: AVPlayer
     @State private var activeCueID: UUID?
     @State private var isPlaying = false
+    @State private var playbackSecond: Double = 0
     @State private var videoAspectRatio: CGFloat = 9.0 / 16.0
     @State private var draggedCueID: UUID?
     @State private var dragStartOffset: Double?
@@ -57,6 +58,7 @@ struct ImmersiveVideoCanvas: View {
                         "Άγγιξε το βίντεο για αναπαραγωγή. Άγγιξε ή σύρε τον υπότιτλο για επεξεργασία."
                     )
                     .accessibilityIdentifier("video-preview")
+                    .accessibilityValue("Θέση βίντεο \(playbackTimeDescription)")
 
                 subtitleLayer(in: videoFrame)
 
@@ -327,6 +329,10 @@ struct ImmersiveVideoCanvas: View {
         let timeline = SubtitleTimeline(cues: cues)
         while !Task.isCancelled {
             let seconds = player.currentTime().seconds
+            let second = seconds.isFinite ? max(0, seconds.rounded(.down)) : 0
+            if playbackSecond != second {
+                playbackSecond = second
+            }
             let cueID = seconds.isFinite ? timeline.activeCue(at: seconds)?.id : nil
             if activeCueID != cueID {
                 activeCueID = cueID
@@ -340,8 +346,7 @@ struct ImmersiveVideoCanvas: View {
     }
 
     private func focusSelectionIfNeeded(_ cueID: UUID?) {
-        guard focusedCueID == nil,
-            draggedCueID == nil,
+        guard draggedCueID == nil,
             cueID != activeCueID,
             let cueID,
             let cue = cues.first(where: { $0.id == cueID })
@@ -353,6 +358,14 @@ struct ImmersiveVideoCanvas: View {
             to: CMTime(seconds: cue.start, preferredTimescale: 600),
             toleranceBefore: .zero,
             toleranceAfter: .zero
+        )
+    }
+
+    private var playbackTimeDescription: String {
+        String(
+            format: "%.0f:%02.0f",
+            (playbackSecond / 60).rounded(.down),
+            playbackSecond.truncatingRemainder(dividingBy: 60)
         )
     }
 
