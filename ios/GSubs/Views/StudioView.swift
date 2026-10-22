@@ -14,6 +14,7 @@ struct StudioView: View {
     @State var keyboardIsVisible = false
     @State var immersiveToolsPresented = false
     @FocusState var focusedCueID: UUID?
+    @FocusState var immersiveSubtitleFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -64,6 +65,7 @@ struct StudioView: View {
                     .accessibilityIdentifier("keyboard-cue-next")
                     Spacer()
                     Button("Τέλος") {
+                        immersiveSubtitleFocused = false
                         focusedCueID = nil
                         UIApplication.shared.sendAction(
                             #selector(UIResponder.resignFirstResponder),
@@ -96,12 +98,14 @@ struct StudioView: View {
             }
             .onChange(of: model.videoURL) { _, _ in
                 selectedCueID = nil
+                immersiveSubtitleFocused = false
                 focusedCueID = nil
                 immersiveToolsPresented = false
             }
             .onChange(of: model.cues.map(\.id), initial: true) { _, cueIDs in
                 guard !cueIDs.isEmpty else {
                     selectedCueID = nil
+                    immersiveSubtitleFocused = false
                     focusedCueID = nil
                     immersiveToolsPresented = false
                     return
@@ -113,6 +117,11 @@ struct StudioView: View {
             }
             .onChange(of: focusedCueID) { _, cueID in
                 if cueID != nil {
+                    immersiveToolsPresented = false
+                }
+            }
+            .onChange(of: immersiveSubtitleFocused) { _, focused in
+                if focused {
                     immersiveToolsPresented = false
                 }
             }

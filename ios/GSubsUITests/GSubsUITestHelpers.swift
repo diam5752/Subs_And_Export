@@ -156,6 +156,32 @@ extension GSubsUITests {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    func waitForKeyboard(timeout: TimeInterval = 5) -> Bool {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.waitForExistence(timeout: timeout),
+            dismissTypingIntroductionIfPresent(timeout: timeout)
+        else {
+            return false
+        }
+        return keyboard.waitForExistence(timeout: timeout)
+    }
+
+    private func dismissTypingIntroductionIfPresent(timeout: TimeInterval = 3) -> Bool {
+        let introduction = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Speed up your typing by sliding your finger across the letters to compose a word."
+            )
+        )
+        guard introduction.count > 0 else { return true }
+        let continueButtons = app.buttons.matching(identifier: "Continue")
+        guard introduction.count == 1, continueButtons.count == 1 else { return false }
+        let continueButton = continueButtons.firstMatch
+        guard waitForHittable(continueButton, timeout: timeout) else { return false }
+        continueButton.tap()
+        return introduction.firstMatch.waitForNonExistence(timeout: timeout)
+    }
+
     func waitForDisabled(
         _ element: XCUIElement,
         timeout: TimeInterval
@@ -289,8 +315,9 @@ extension GSubsUITests {
     func dismissKeyboardIfPresent(timeout: TimeInterval = 2) -> Bool {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.exists else { return true }
+        guard dismissTypingIntroductionIfPresent() else { return false }
         let done = app.buttons["keyboard-done"]
-        if done.waitForExistence(timeout: 1), done.isHittable {
+        if waitForHittable(done, timeout: max(timeout, 3)) {
             done.tap()
             if keyboard.waitForNonExistence(timeout: timeout) { return true }
         }

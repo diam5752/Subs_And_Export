@@ -9,12 +9,12 @@ struct ImmersiveVideoCanvas: View {
     @Binding var cues: [SubtitleCue]
     let style: SubtitleStyle
     @Binding var selectedCueID: UUID?
-    let focusedCueID: UUID?
-    let subtitleFocus: FocusState<UUID?>.Binding
+    let subtitleFocus: FocusState<Bool>.Binding
 
     @State private var player: AVPlayer
     @State private var activeCueID: UUID?
     @State private var isPlaying = false
+    @State private var playbackSecond: Double = 0
     @State private var videoAspectRatio: CGFloat = 9.0 / 16.0
     @State private var draggedCueID: UUID?
     @State private var dragStartOffset: Double?
@@ -28,14 +28,12 @@ struct ImmersiveVideoCanvas: View {
         cues: Binding<[SubtitleCue]>,
         style: SubtitleStyle,
         selectedCueID: Binding<UUID?>,
-        focusedCueID: UUID?,
-        subtitleFocus: FocusState<UUID?>.Binding
+        subtitleFocus: FocusState<Bool>.Binding
     ) {
         self.videoURL = videoURL
         _cues = cues
         self.style = style
         _selectedCueID = selectedCueID
-        self.focusedCueID = focusedCueID
         self.subtitleFocus = subtitleFocus
         _player = State(initialValue: AVPlayer(url: videoURL))
     }
@@ -57,6 +55,7 @@ struct ImmersiveVideoCanvas: View {
                         "Άγγιξε το βίντεο για αναπαραγωγή. Άγγιξε ή σύρε τον υπότιτλο για επεξεργασία."
                     )
                     .accessibilityIdentifier("video-preview")
+                    .accessibilityValue("Θέση βίντεο \(playbackTimeDescription)")
 
                 subtitleLayer(in: videoFrame)
 
@@ -120,11 +119,6 @@ struct ImmersiveVideoCanvas: View {
         .onChange(of: selectedCueID) { _, cueID in
             focusSelectionIfNeeded(cueID)
         }
-        .onChange(of: focusedCueID) { _, cueID in
-            if let cueID {
-                selectedCueID = cueID
-            }
-        }
         .onChange(of: isEnabled) { _, enabled in
             if !enabled {
                 player.pause()
@@ -168,7 +162,7 @@ struct ImmersiveVideoCanvas: View {
             frameWidth: frameWidth,
             scale: style.fontScale
         )
-        let isFocused = focusedCueID == cue.id
+        let isFocused = subtitleFocus.wrappedValue
         let bottomOffset = style.resolvedBottomOffset(for: cue)
 
         return ZStack {
@@ -191,7 +185,7 @@ struct ImmersiveVideoCanvas: View {
                 isFocused ? Color.black.opacity(0.44) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
-            .focused(subtitleFocus, equals: cue.id)
+            .focused(subtitleFocus)
             .allowsHitTesting(isFocused)
             .accessibilityHidden(!isFocused)
             .accessibilityLabel("Κείμενο υποτίτλου \(index + 1)")
@@ -220,7 +214,7 @@ struct ImmersiveVideoCanvas: View {
                     .accessibilityIdentifier("subtitle-cue-\(index)")
                     .accessibilityAction(.default) {
                         selectedCueID = cue.id
-                        subtitleFocus.wrappedValue = cue.id
+                        subtitleFocus.wrappedValue = true
                     }
                     .accessibilityAdjustableAction { direction in
                         switch direction {
@@ -245,7 +239,7 @@ struct ImmersiveVideoCanvas: View {
                 guard distance >= 9 || draggedCueID == cueID else { return }
                 guard let index = cues.firstIndex(where: { $0.id == cueID }) else { return }
                 if draggedCueID != cueID {
-                    subtitleFocus.wrappedValue = nil
+                    subtitleFocus.wrappedValue = false
                     selectedCueID = cueID
                     draggedCueID = cueID
                     dragStartOffset = style.resolvedBottomOffset(for: cues[index])
@@ -264,7 +258,7 @@ struct ImmersiveVideoCanvas: View {
                 let distance = hypot(value.translation.width, value.translation.height)
                 guard distance >= 9 else {
                     selectedCueID = cueID
-                    subtitleFocus.wrappedValue = cueID
+                    subtitleFocus.wrappedValue = true
                     return
                 }
                 draggedCueID = nil
@@ -277,8 +271,8 @@ struct ImmersiveVideoCanvas: View {
         let cueID: UUID?
         if let draggedCueID {
             cueID = draggedCueID
-        } else if let focusedCueID {
-            cueID = focusedCueID
+        } else if subtitleFocus.wrappedValue {
+            cueID = selectedCueID
         } else if isPlaying {
             cueID = activeCueID
         } else {
@@ -327,6 +321,10 @@ struct ImmersiveVideoCanvas: View {
         let timeline = SubtitleTimeline(cues: cues)
         while !Task.isCancelled {
             let seconds = player.currentTime().seconds
+            let second = seconds.isFinite ? max(0, seconds.rounded(.down)) : 0
+            if playbackSecond != second {
+                playbackSecond = second
+            }
             let cueID = seconds.isFinite ? timeline.activeCue(at: seconds)?.id : nil
             if activeCueID != cueID {
                 activeCueID = cueID
@@ -340,9 +338,7 @@ struct ImmersiveVideoCanvas: View {
     }
 
     private func focusSelectionIfNeeded(_ cueID: UUID?) {
-        guard focusedCueID == nil,
-            draggedCueID == nil,
-            cueID != activeCueID,
+        guard draggedCueID == nil,
             let cueID,
             let cue = cues.first(where: { $0.id == cueID })
         else {
@@ -353,6 +349,14 @@ struct ImmersiveVideoCanvas: View {
             to: CMTime(seconds: cue.start, preferredTimescale: 600),
             toleranceBefore: .zero,
             toleranceAfter: .zero
+        )
+    }
+
+    private var playbackTimeDescription: String {
+        String(
+            format: "%.0f:%02.0f",
+            (playbackSecond / 60).rounded(.down),
+            playbackSecond.truncatingRemainder(dividingBy: 60)
         )
     }
 

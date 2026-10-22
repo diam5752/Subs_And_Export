@@ -10,8 +10,7 @@ extension StudioView {
                     cues: $model.cues,
                     style: model.style,
                     selectedCueID: $selectedCueID,
-                    focusedCueID: focusedCueID,
-                    subtitleFocus: $focusedCueID
+                    subtitleFocus: $immersiveSubtitleFocused
                 )
                 .id(videoURL)
                 .overlay(alignment: .top) {
@@ -233,6 +232,7 @@ extension StudioView {
     }
 
     private func openImmersiveTools() {
+        immersiveSubtitleFocused = false
         focusedCueID = nil
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder),

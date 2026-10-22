@@ -90,11 +90,12 @@ extension GSubsUITests {
 
         firstCue.tap()
         let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 3), keyboard.debugDescription)
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
         let focusedFirstCue = app.descendants(matching: .any)["subtitle-cue-0"]
         XCTAssertTrue(waitForHittable(focusedFirstCue, timeout: 2), focusedFirstCue.debugDescription)
         focusedFirstCue.typeText(" QA")
         XCTAssertTrue(waitForValue(focusedFirstCue, contains: "QA", timeout: 3))
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
         XCTAssertTrue(preview.exists, preview.debugDescription)
         XCTAssertLessThanOrEqual(preview.frame.maxY, keyboard.frame.minY + 1)
         XCTAssertFalse(app.buttons["account-menu"].exists)
@@ -106,13 +107,32 @@ extension GSubsUITests {
         keyboardNext.tap()
         let secondCue = app.descendants(matching: .any)["subtitle-cue-1"]
         XCTAssertTrue(waitForHittable(secondCue, timeout: 5), secondCue.debugDescription)
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
+        XCTAssertTrue(waitForValue(preview, contains: "0:01", timeout: 3), preview.debugDescription)
         secondCue.typeText(" NEXT")
         XCTAssertTrue(waitForValue(secondCue, contains: "NEXT", timeout: 5))
 
-        XCTAssertTrue(waitForHittable(app.buttons["keyboard-cue-previous"], timeout: 5))
-        app.buttons["keyboard-cue-previous"].tap()
+        let keyboardPrevious = app.buttons["keyboard-cue-previous"]
+        let keyboardDone = app.buttons["keyboard-done"]
+        XCTAssertTrue(waitForEnabledAndHittable(keyboardPrevious, timeout: 5))
+        XCTAssertTrue(waitForHittable(keyboardDone, timeout: 3), keyboardDone.debugDescription)
+        keyboardPrevious.tap()
         XCTAssertTrue(waitForHittable(focusedFirstCue, timeout: 5), focusedFirstCue.debugDescription)
         XCTAssertTrue(waitForValue(focusedFirstCue, contains: "QA", timeout: 5))
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
+        XCTAssertTrue(waitForValue(preview, contains: "0:00", timeout: 3), preview.debugDescription)
+        XCTAssertTrue(waitForEnabledAndHittable(keyboardNext, timeout: 3), keyboardNext.debugDescription)
+        XCTAssertTrue(waitForHittable(keyboardDone, timeout: 3), keyboardDone.debugDescription)
+        keyboardNext.tap()
+        XCTAssertTrue(waitForHittable(secondCue, timeout: 5), secondCue.debugDescription)
+        XCTAssertTrue(waitForValue(secondCue, contains: "NEXT", timeout: 5))
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
+        XCTAssertTrue(waitForValue(preview, contains: "0:01", timeout: 3), preview.debugDescription)
+        keyboardPrevious.tap()
+        keyboardNext.tap()
+        XCTAssertTrue(waitForValue(secondCue, contains: "NEXT", timeout: 5))
+        XCTAssertTrue(waitForValue(preview, contains: "0:01", timeout: 3), preview.debugDescription)
+        XCTAssertTrue(waitForHittable(keyboardDone, timeout: 3), keyboardDone.debugDescription)
         XCTAssertTrue(dismissKeyboardIfPresent())
         XCTAssertTrue(waitForHittable(app.buttons["immersive-tools-handle"], timeout: 3))
     }
@@ -130,7 +150,7 @@ extension GSubsUITests {
 
         cue.tap()
         let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 3), keyboard.debugDescription)
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
         let focusedCue = app.descendants(matching: .any)["subtitle-cue-0"]
         XCTAssertTrue(waitForHittable(focusedCue, timeout: 3), focusedCue.debugDescription)
         focusedCue.typeText(" QA")
@@ -184,7 +204,7 @@ extension GSubsUITests {
 
         cue.tap()
         let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 3), keyboard.debugDescription)
+        XCTAssertTrue(waitForKeyboard(), keyboard.debugDescription)
         let focusedCue = app.descendants(matching: .any)["subtitle-cue-0"]
         XCTAssertTrue(waitForHittable(focusedCue, timeout: 3), focusedCue.debugDescription)
         focusedCue.typeText(" QA")
