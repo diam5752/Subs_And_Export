@@ -3,7 +3,8 @@ FROM python:3.11-slim AS builder
 WORKDIR /build
 ARG REQUIREMENTS_FILE=backend/requirements.mock.txt
 COPY ${REQUIREMENTS_FILE} requirements.txt
-RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade "pip>=26.2.2" \
+    && python -m pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 # ============================================
 FROM python:3.11-slim AS runtime
@@ -24,7 +25,8 @@ WORKDIR /app
 
 # Install Python dependencies from pre-built wheels
 COPY --from=builder /wheels /wheels
-RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
+RUN python -m pip install --no-cache-dir --upgrade "pip>=26.2.2" \
+    && python -m pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
 # Copy source code
 COPY backend/ .
@@ -50,6 +52,12 @@ ARG PRELOAD_WHISPER_MODEL=""
 RUN if [ -n "$PRELOAD_WHISPER_MODEL" ]; then \
       python -c "import os; from faster_whisper import WhisperModel; WhisperModel(os.environ['PRELOAD_WHISPER_MODEL'], device='cpu', compute_type='int8')"; \
     fi
+
+# Package installation ends at build time. Keep the runtime free of pip's
+# unused installer and its separately vendored dependency copies.
+RUN python -m pip check \
+    && python -m pip uninstall --yes pip \
+    && python -c "import pathlib, shutil, sysconfig; bootstrap = pathlib.Path(sysconfig.get_path('stdlib')) / 'ensurepip'; shutil.rmtree(bootstrap) if bootstrap.exists() else None"
 
 # Set environment variables
 ENV PYTHONPATH=/app
