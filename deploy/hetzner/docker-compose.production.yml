@@ -176,7 +176,7 @@ services:
       start_period: 30s
 
   app-edge:
-    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    image: ${CADDY_IMAGE:?CADDY_IMAGE must be a loaded patched image ID}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
@@ -200,7 +200,7 @@ services:
       start_period: 15s
 
   edge:
-    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    image: ${CADDY_IMAGE:?CADDY_IMAGE must be a loaded patched image ID}
     ports:
       - "127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"
     volumes:
@@ -220,7 +220,7 @@ services:
       start_period: 10s
 
   privacy-relay:
-    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    image: ${CADDY_IMAGE:?CADDY_IMAGE must be a loaded patched image ID}
     profiles:
       - privacy-maintenance
     volumes:

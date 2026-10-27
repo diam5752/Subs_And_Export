@@ -1,0 +1,10 @@
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - deploy/caddy-security/Dockerfile
+    statement: >-
+      Reviewed existing stock Caddy proxy UID0 role preserves root-owned TLS
+      key/data/config volume permissions and listener bindings. No user,
+      capability, privilege or mount is added. See deploy/caddy-security/README.md.
+      This exception covers only this recipe file's final proxy-image role;
+      application Dockerfiles and all dependency CVE rules remain enforced.
