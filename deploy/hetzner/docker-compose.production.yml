@@ -8,7 +8,7 @@ x-logging: &default-logging
 
 services:
   db:
-    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE must be a loaded patched image ID}
     env_file:
       - ${SUBFRAME_ENV_FILE:?SUBFRAME_ENV_FILE is required}
     volumes:
