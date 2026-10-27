@@ -53,6 +53,12 @@ RUN if [ -n "$PRELOAD_WHISPER_MODEL" ]; then \
       python -c "import os; from faster_whisper import WhisperModel; WhisperModel(os.environ['PRELOAD_WHISPER_MODEL'], device='cpu', compute_type='int8')"; \
     fi
 
+# Package installation ends at build time. Keep the runtime free of pip's
+# unused installer and its separately vendored dependency copies.
+RUN python -m pip check \
+    && python -m pip uninstall --yes pip \
+    && python -c "import pathlib, shutil, sysconfig; bootstrap = pathlib.Path(sysconfig.get_path('stdlib')) / 'ensurepip'; shutil.rmtree(bootstrap) if bootstrap.exists() else None"
+
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
