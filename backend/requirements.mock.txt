@@ -15,6 +15,6 @@ psycopg[binary]>=3.1.0
 requests>=2.31.0
 urllib3>=2.6.0
 stripe>=15.3.1,<16
-secure>=1.0.1
+secure>=2.0.1
 setuptools>=83.0.0
 typer>=0.12.5
